@@ -1,0 +1,128 @@
+import { WHOLE_SLOT_ORDER } from './constants';
+import { normalizeEmail } from './auth';
+import { computeEntitlements } from '../engine/engine';
+
+export function normalizeMemberRecord(raw) {
+  const member = raw || {};
+  return {
+    ...member,
+    registrationEnabled: member.registrationEnabled !== false,
+  };
+}
+
+export function normalizeRegistrationRequest(raw, idx = 0) {
+  const request = raw || {};
+  const createdAt = request.createdAt ? String(request.createdAt) : new Date(Date.now() + idx).toISOString();
+  const status = ['Pending', 'Approved', 'Rejected'].includes(request.status) ? request.status : 'Pending';
+  return {
+    id: String(request.id || `REG-${createdAt}-${idx}`),
+    institutionMemberId: String(request.institutionMemberId || request.memberId || '').trim(),
+    institutionLabel: String(request.institutionLabel || request.memberName || '').trim(),
+    institutionalEmail: normalizeEmail(request.institutionalEmail || request.email || ''),
+    requestedShares: parseFloat((Number(request.requestedShares) || 0).toFixed(2)),
+    status,
+    createdAt,
+    resolvedAt: String(request.resolvedAt || '').trim(),
+    adminNote: String(request.adminNote || '').trim(),
+  };
+}
+
+export function normalizeRegistrationRequests(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((entry, idx) => normalizeRegistrationRequest(entry, idx));
+}
+
+export function normalizeMemberAccessAccount(raw, idx = 0) {
+  const account = raw || {};
+  const createdAt = account.createdAt ? String(account.createdAt) : new Date(Date.now() + idx).toISOString();
+  const status = ['ACTIVE', 'INACTIVE'].includes(account.status) ? account.status : 'ACTIVE';
+  const email = normalizeEmail(account.email || account.username || '');
+  return {
+    id: String(account.id || `ACC-${createdAt}-${idx}`),
+    memberId: String(account.memberId || '').trim(),
+    email,
+    username: String(account.username || email).trim().toLowerCase(),
+    password: String(account.password || ''),
+    status,
+    createdAt,
+    approvedFromRequestId: String(account.approvedFromRequestId || account.requestId || '').trim(),
+  };
+}
+
+export function normalizeMemberAccessAccounts(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((entry, idx) => normalizeMemberAccessAccount(entry, idx));
+}
+
+export function normalizeShiftChangeRequest(raw, idx = 0) {
+  const request = raw || {};
+  const sourceDate = String(request.sourceDate || request.fromDate || '').trim();
+  const sourceShiftType = String(request.sourceShiftType || request.fromShift || '').trim();
+  const requestedDate = String(request.requestedDate || '').trim();
+  const requestedShiftType = String(request.requestedShiftType || request.requestedShift || '').trim();
+  const reassignedDate = String(request.reassignedDate || '').trim();
+  const reassignedShiftType = String(request.reassignedShiftType || request.reassignedShift || '').trim();
+  const status = ['Pending', 'Approved', 'Rejected'].includes(request.status) ? request.status : 'Pending';
+  const createdAt = request.createdAt ? String(request.createdAt) : new Date(Date.now() + idx).toISOString();
+  return {
+    id: String(request.id || `SCR-LEGACY-${createdAt}-${idx}`),
+    memberId: String(request.memberId || '').trim(),
+    createdAt,
+    status,
+    reason: String(request.reason || '').trim(),
+    sourceDate,
+    sourceShiftType,
+    requestedDate,
+    requestedShiftType,
+    reassignedDate,
+    reassignedShiftType,
+    adminNote: String(request.adminNote || '').trim(),
+    resolvedAt: String(request.resolvedAt || '').trim(),
+  };
+}
+
+export function normalizeShiftChangeRequests(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((entry, idx) => normalizeShiftChangeRequest(entry, idx));
+}
+
+export function normalizeMemberPreferences(member, prefs = { wholeShare: [], fractional: [], submitted: false, notes: '' }) {
+  const entitlement = computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
+  const wholeShare = [];
+  for (let i = 0; i < entitlement.wholeShares; i += 1) {
+    const shareIndex = i + 1;
+    WHOLE_SLOT_ORDER.forEach((slotKey) => {
+      const defaultShiftType = slotKey === 'NS' ? 'NS' : 'DS1';
+      const existing = prefs.wholeShare?.find(
+        (p) => p.shareIndex === shareIndex
+          && (p.slotKey || (p.shiftType === 'NS' ? 'NS' : p.shiftType === 'DS2' ? 'DAY2' : 'DAY1')) === slotKey,
+      ) || {};
+      const shiftType = slotKey === 'NS' ? 'NS' : (existing.shiftType || defaultShiftType);
+      wholeShare.push({
+        shareIndex,
+        slotKey,
+        shiftType,
+        firstChoiceDate: existing.firstChoiceDate || '',
+        secondChoiceDate: existing.secondChoiceDate || '',
+      });
+    });
+  }
+  const fractionalCount = Math.ceil(entitlement.fractionalHours / 6);
+  const fractional = Array.from({ length: fractionalCount }, (_, i) => {
+    const existing = prefs.fractional?.[i] || {};
+    return {
+      shiftType: existing.shiftType || 'DS1',
+      firstChoiceDate: existing.firstChoiceDate || '',
+      secondChoiceDate: existing.secondChoiceDate || '',
+    };
+  });
+  return { wholeShare, fractional, submitted: Boolean(prefs.submitted), notes: String(prefs.notes || '') };
+}
+
+export function sampleWholeShare(shareIndex, firstChoiceDate, secondChoiceDate, day1Shift = 'DS1', day2Shift = 'DS2') {
+  return [
+    { shareIndex, slotKey: 'DAY1', shiftType: day1Shift, firstChoiceDate, secondChoiceDate },
+    { shareIndex, slotKey: 'DAY2', shiftType: day2Shift, firstChoiceDate, secondChoiceDate },
+    { shareIndex, slotKey: 'NS', shiftType: 'NS', firstChoiceDate, secondChoiceDate },
+  ];
+}
