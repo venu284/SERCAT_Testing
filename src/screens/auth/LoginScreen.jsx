@@ -7,7 +7,6 @@ export default function LoginScreen({
   setLoginForm,
   loginError,
   handleSignIn,
-  handleSSOSignIn,
   handleResetDemoData,
   onShowActivate,
   members = [],
@@ -113,28 +112,6 @@ export default function LoginScreen({
                 Sign In
               </button>
             </form>
-
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1" style={{ background: CONCEPT_THEME.border }} />
-              <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: CONCEPT_THEME.subtle }}>or</span>
-              <div className="h-px flex-1" style={{ background: CONCEPT_THEME.border }} />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSSOSignIn}
-              className="w-full rounded-2xl border px-4 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5"
-              style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
-            >
-              Sign in with Institutional SSO
-            </button>
-
-            <div className="mt-6 rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-              <div className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: CONCEPT_THEME.amber }}>Need access?</div>
-              <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
-                SERCAT accounts are created by the administrator. Contact <a className="font-semibold" href="mailto:admin@ser-cat.org">admin@ser-cat.org</a> to request an account.
-              </p>
-            </div>
 
             <div className="mt-6 flex flex-col items-start gap-3">
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
