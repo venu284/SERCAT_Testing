@@ -21,23 +21,23 @@ function BrandingPanel({ cycleId = '2026-1' }) {
           </div>
           <div>
             <div className="concept-font-display text-xl font-bold tracking-tight">SERCAT</div>
-            <div className="text-xs uppercase tracking-[0.24em] text-white/65">Invite Activation</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-white/80">Invite Activation</div>
           </div>
         </div>
 
         <div className="mt-14 max-w-md">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/60">Secure Access</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/75">Secure Access</p>
           <h1 className="concept-font-display mt-4 text-5xl leading-[1.04] font-bold">Complete your PI access.</h1>
-          <p className="mt-5 text-base leading-7 text-white/72">
+          <p className="mt-5 text-base leading-7 text-white/82">
             Your institution administrator created the account. Activation only requires the invite token and your new password.
           </p>
         </div>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-black/10 px-5 py-5">
-        <div className="text-xs uppercase tracking-[0.24em] text-white/58">Cycle Ready</div>
+        <div className="text-xs uppercase tracking-[0.24em] text-white/75">Cycle Ready</div>
         <div className="mt-2 text-lg font-semibold text-white">Cycle {cycleId}</div>
-        <div className="mt-2 text-sm leading-6 text-white/70">
+        <div className="mt-2 text-sm leading-6 text-white/82">
           Once activated, you can sign in, review your dashboard, and submit scheduling preferences for the current run cycle.
         </div>
       </div>
@@ -50,30 +50,30 @@ function ReadOnlyInvitationCard({ member }) {
     <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
       <div className="grid gap-3 text-sm" style={{ color: CONCEPT_THEME.text }}>
         <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amber }}>ORG</span>
+          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amberOnAmber }}>ORG</span>
           <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Institution</div>
+            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Institution</div>
             <div className="font-semibold">{member.name || member.id} ({member.id})</div>
           </div>
         </div>
         <div className="flex items-start gap-3">
           <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.skyLight, color: CONCEPT_THEME.sky }}>PI</span>
           <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Principal Investigator</div>
+            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Principal Investigator</div>
             <div className="font-semibold">{member.piName || member.id}</div>
           </div>
         </div>
         <div className="flex items-start gap-3">
           <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}>ID</span>
           <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Email</div>
+            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Email</div>
             <div className="font-semibold">{member.piEmail}</div>
           </div>
         </div>
         <div className="flex items-start gap-3">
           <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}>ADM</span>
           <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Access</div>
+            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Access</div>
             <div className="font-semibold">Set by admin</div>
           </div>
         </div>
@@ -126,14 +126,14 @@ export default function ActivateAccountScreen({
               </p>
 
               <div className="mt-6 rounded-[28px] border px-5 py-5 text-left" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
-                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Activated Account</div>
+                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Activated Account</div>
                 <div className="mt-2 text-lg font-semibold" style={{ color: CONCEPT_THEME.navy }}>{summary.memberName || summary.memberId || 'Member account'}</div>
                 <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.text }}>{summary.piName || 'Principal Investigator'}</div>
                 <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>{summary.piEmail || ''}</div>
               </div>
 
               <div className="mt-6 rounded-[28px] border px-5 py-5 text-left" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amber }}>What's next?</div>
+                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>What's next?</div>
                 <ol className="mt-3 space-y-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
                   <li>1. Sign in with your institutional email and new password.</li>
                   <li>2. Review your dashboard and cycle status.</li>
@@ -167,7 +167,7 @@ export default function ActivateAccountScreen({
         <div className="app-screen-content flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
           <div className="w-full max-w-md">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: invitedMember ? CONCEPT_THEME.emerald : CONCEPT_THEME.amber }}>
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: invitedMember ? CONCEPT_THEME.emerald : CONCEPT_THEME.amberText }}>
                 {invitedMember ? 'Valid Invitation' : 'Activate Access'}
               </p>
               <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>
@@ -262,7 +262,7 @@ export default function ActivateAccountScreen({
                 </>
               ) : (
                 <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-                  <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amber }}>Before you continue</div>
+                  <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>Before you continue</div>
                   <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
                     Activation tokens are generated by the admin when an invite is created or re-sent. If you do not have a token, contact <a href="mailto:admin@ser-cat.org" className="font-semibold">admin@ser-cat.org</a>.
                   </p>

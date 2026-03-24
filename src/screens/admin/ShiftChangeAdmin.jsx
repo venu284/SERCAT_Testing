@@ -32,7 +32,7 @@ export default function ShiftChangeAdmin() {
           ? { bg: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }
           : request.status === 'Rejected'
             ? { bg: '#fee2e2', color: '#b91c1c' }
-            : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amber };
+            : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amberOnAmber };
         const sourceDate = request.sourceDate || '';
         const sourceShiftType = request.sourceShiftType || '';
         const effectiveRequestedDate = request.requestedDate || '';
@@ -46,11 +46,11 @@ export default function ShiftChangeAdmin() {
                 <div className="text-sm font-semibold" style={{ color: COLORS[request.memberId] || CONCEPT_THEME.navy }}>
                   {request.memberId || 'Unknown Member'}
                 </div>
-                <div className="text-[11px] mt-0.5" style={{ color: CONCEPT_THEME.muted }}>
+                <div className="mt-0.5 text-xs" style={{ color: CONCEPT_THEME.muted }}>
                   Submitted {request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Unknown time'}
                 </div>
               </div>
-              <span className="px-2 py-1 rounded text-[11px] font-bold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
+              <span className="rounded px-2 py-1 text-xs font-bold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
                 {request.status}
               </span>
             </div>
@@ -77,17 +77,17 @@ export default function ShiftChangeAdmin() {
               <span style={{ color: CONCEPT_THEME.text }}>{request.reason || '-'}</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-3">
               <input
                 type="date"
                 value={effectiveReassignedDate}
                 onChange={(e) => updateShiftDraft(request.id, { reassignedDate: e.target.value })}
-                className="border rounded px-2 py-1.5"
+                className="rounded border px-2 py-1.5 text-sm"
               />
               <select
                 value={effectiveReassignedShift}
                 onChange={(e) => updateShiftDraft(request.id, { reassignedShiftType: e.target.value })}
-                className="border rounded px-2 py-1.5"
+                className="rounded border px-2 py-1.5 text-sm"
               >
                 <option value="">Select Shift</option>
                 {SHIFT_ORDER.map((shiftType) => (
@@ -101,7 +101,7 @@ export default function ShiftChangeAdmin() {
                 value={draft.adminNote || request.adminNote || ''}
                 onChange={(e) => updateShiftDraft(request.id, { adminNote: e.target.value })}
                 placeholder="Admin note"
-                className="border rounded px-2 py-1.5"
+                className="rounded border px-2 py-1.5 text-sm"
               />
             </div>
 
@@ -112,10 +112,10 @@ export default function ShiftChangeAdmin() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => resolveShiftChange(request.id, 'Approved')} className="px-3 py-1.5 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold">
+              <button type="button" onClick={() => resolveShiftChange(request.id, 'Approved')} className="rounded bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-700">
                 Approve
               </button>
-              <button type="button" onClick={() => resolveShiftChange(request.id, 'Rejected')} className="px-3 py-1.5 rounded bg-red-100 text-red-700 text-xs font-semibold">
+              <button type="button" onClick={() => resolveShiftChange(request.id, 'Rejected')} className="rounded bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-700">
                 Reject
               </button>
             </div>

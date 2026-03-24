@@ -243,7 +243,7 @@ export default function PreferenceFormScreen() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Choices completed</div>
+            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
           </div>
         </div>
@@ -260,10 +260,10 @@ export default function PreferenceFormScreen() {
                 key={`${step.kind}-${step.shareIndex || step.fracIndex}-${step.slotKey || 'frac'}`}
                 type="button"
                 onClick={() => goToStep(idx)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap transition-all"
+                className="rounded-lg border px-3 py-2 text-sm font-semibold whitespace-nowrap transition-all"
                 style={{
                   background: active ? CONCEPT_THEME.navy : done ? CONCEPT_THEME.emeraldLight : half ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
-                  color: active ? 'white' : done ? CONCEPT_THEME.emerald : half ? CONCEPT_THEME.amber : CONCEPT_THEME.muted,
+                  color: active ? 'white' : done ? CONCEPT_THEME.emerald : half ? CONCEPT_THEME.amberOnAmber : CONCEPT_THEME.muted,
                   borderColor: active ? CONCEPT_THEME.navy : 'transparent',
                 }}
               >
@@ -281,7 +281,7 @@ export default function PreferenceFormScreen() {
               <div className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
                 {activeStep.label}
               </div>
-              <div className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+              <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>
                 Step {currentStep + 1} of {wizardSteps.length}
               </div>
             </div>
@@ -298,7 +298,7 @@ export default function PreferenceFormScreen() {
                   key={shiftType}
                   type="button"
                   onClick={() => setStepShiftType(activeStep, shiftType)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                  className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors"
                   style={{
                     background: activeStep.shiftType === shiftType
                       ? (shiftType === 'DS1' ? CONCEPT_THEME.morningBg : CONCEPT_THEME.afternoonBg)
@@ -313,7 +313,7 @@ export default function PreferenceFormScreen() {
                 </button>
               ))
             ) : (
-              <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: CONCEPT_THEME.nightBg, color: CONCEPT_THEME.night }}>
+              <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: CONCEPT_THEME.nightBg, color: CONCEPT_THEME.night }}>
                 Night Shift (fixed)
               </span>
             )}
@@ -340,7 +340,7 @@ export default function PreferenceFormScreen() {
               style={{
                 background: pickingChoice === 2 ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
                 borderColor: pickingChoice === 2 ? CONCEPT_THEME.amber : CONCEPT_THEME.border,
-                color: pickingChoice === 2 ? CONCEPT_THEME.amber : CONCEPT_THEME.text,
+                color: pickingChoice === 2 ? CONCEPT_THEME.amberOnAmber : CONCEPT_THEME.text,
               }}
             >
               <span className="font-semibold">2nd Choice: {formatWizardDate(activeStep.secondChoiceDate)}</span>
@@ -350,7 +350,7 @@ export default function PreferenceFormScreen() {
         </div>
 
         <div className="px-4 py-4">
-          <div className="text-xs font-semibold mb-3" style={{ color: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amber }}>
+          <div className="mb-3 text-sm font-semibold" style={{ color: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amberText }}>
             Pick your {pickingChoice === 1 ? '1st' : '2nd'} choice date
           </div>
 
@@ -369,7 +369,7 @@ export default function PreferenceFormScreen() {
                   </div>
                   <div className="grid grid-cols-7 gap-1">
                     {dayHeaders.map((header, idx) => (
-                      <div key={`${key}-h-${idx}`} className="text-center text-[10px] font-bold py-1" style={{ color: CONCEPT_THEME.subtle }}>
+                      <div key={`${key}-h-${idx}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.muted }}>
                         {header}
                       </div>
                     ))}
@@ -380,7 +380,7 @@ export default function PreferenceFormScreen() {
                       const inRange = dateStr >= cycle.startDate && dateStr <= cycle.endDate;
                       if (!inRange) {
                         return (
-                          <div key={`${key}-out-${day}`} className="text-center py-2 text-xs" style={{ color: CONCEPT_THEME.borderLight }}>
+                          <div key={`${key}-out-${day}`} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
                             {day}
                           </div>
                         );
@@ -396,7 +396,7 @@ export default function PreferenceFormScreen() {
                       let borderColor = 'transparent';
                       if (blocked) {
                         background = CONCEPT_THEME.sandDark;
-                        textColor = CONCEPT_THEME.subtle;
+                        textColor = CONCEPT_THEME.muted;
                       } else if (isFirst) {
                         background = CONCEPT_THEME.sky;
                         textColor = 'white';
@@ -407,7 +407,7 @@ export default function PreferenceFormScreen() {
                         borderColor = CONCEPT_THEME.amber;
                       } else if (usedByOtherStep) {
                         background = CONCEPT_THEME.warmWhite;
-                        textColor = CONCEPT_THEME.subtle;
+                        textColor = CONCEPT_THEME.muted;
                         borderColor = CONCEPT_THEME.border;
                       }
 
@@ -417,7 +417,7 @@ export default function PreferenceFormScreen() {
                           type="button"
                           onClick={() => handleDatePick(dateStr)}
                           disabled={blocked}
-                          className="relative py-2 rounded-lg text-xs font-semibold transition-all"
+                          className="relative rounded-lg py-2.5 text-sm font-semibold transition-all"
                           style={{
                             background,
                             color: textColor,
@@ -428,7 +428,7 @@ export default function PreferenceFormScreen() {
                           }}
                         >
                           {day}
-                          {blocked ? <span className="absolute inset-0 flex items-center justify-center text-[9px]">X</span> : null}
+                          {blocked ? <span className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
                         </button>
                       );
                     })}
@@ -440,7 +440,7 @@ export default function PreferenceFormScreen() {
         </div>
 
         <div className="px-5 py-4 border-t" style={{ borderColor: CONCEPT_THEME.borderLight, background: CONCEPT_THEME.sand }}>
-          <label htmlFor={`pref-notes-${member.id}`} className="block text-xs font-bold mb-1.5" style={{ color: CONCEPT_THEME.text }}>
+          <label htmlFor={`pref-notes-${member.id}`} className="mb-1.5 block text-sm font-bold" style={{ color: CONCEPT_THEME.text }}>
             Notes for admin (optional)
           </label>
           <textarea
@@ -464,7 +464,7 @@ export default function PreferenceFormScreen() {
               Previous
             </button>
 
-            <span className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>
+            <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>
               {madeChoices} / {totalChoices} choices made
             </span>
 

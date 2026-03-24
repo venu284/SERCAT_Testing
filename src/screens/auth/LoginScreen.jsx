@@ -32,12 +32,12 @@ export default function LoginScreen({
             <div>
               <div className="inline-flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.navy }}>
                 <span className="concept-font-display text-lg font-bold">SERCAT</span>
-                <span className="text-xs font-semibold uppercase tracking-[0.22em]">Cycle {cycle?.id || '2026-1'}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>Cycle {cycle?.id || '2026-1'}</span>
               </div>
             </div>
 
             <div className="mt-6">
-              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.amber }}>Member Sign In</p>
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.amberText }}>Member Sign In</p>
               <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>Welcome back</h1>
               <p className="mt-3 text-sm leading-6" style={{ color: CONCEPT_THEME.muted }}>
                 Sign in with your institutional email and password to continue to the SERCAT portal.
@@ -113,6 +113,17 @@ export default function LoginScreen({
               </button>
             </form>
 
+            <div className="mt-6 rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: CONCEPT_THEME.navyMuted }}>Need access?</div>
+              <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
+                SERCAT accounts are created by the administrator. Contact{' '}
+                <a className="font-semibold" href="mailto:admin@ser-cat.org" style={{ color: CONCEPT_THEME.amberText }}>
+                  admin@ser-cat.org
+                </a>{' '}
+                to request an account.
+              </p>
+            </div>
+
             <div className="mt-6 flex flex-col items-start gap-3">
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
                 Received an invitation?
@@ -136,7 +147,7 @@ export default function LoginScreen({
               >
                 Reset Demo Data
               </button>
-              <p className="mt-2 text-center text-[11px] leading-5" style={{ color: CONCEPT_THEME.subtle }}>
+              <p className="mt-2 text-center text-[11px] leading-5" style={{ color: CONCEPT_THEME.muted }}>
                 Restores the local prototype baseline so invite, activation, and member access can be tested from a clean state.
               </p>
             </div>

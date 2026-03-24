@@ -1,7 +1,7 @@
 import React from 'react';
 import { CONCEPT_THEME } from '../lib/theme';
 
-export default function ConceptProgressRing({ current, total, size = 52 }) {
+export default function ConceptProgressRing({ current, total, size = 58 }) {
   const pct = total > 0 ? Math.min(1, current / total) : 0;
   const radius = (size - 6) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -24,7 +24,7 @@ export default function ConceptProgressRing({ current, total, size = 52 }) {
           style={{ transition: 'stroke-dashoffset 0.45s ease-out, stroke 0.2s linear' }}
         />
       </svg>
-      <span className="absolute concept-font-body text-xs font-bold" style={{ color: done ? CONCEPT_THEME.emerald : CONCEPT_THEME.navy }}>
+      <span className="absolute concept-font-body text-sm font-bold" style={{ color: done ? CONCEPT_THEME.emerald : CONCEPT_THEME.navy }}>
         {current}/{total}
       </span>
     </div>

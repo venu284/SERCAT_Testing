@@ -265,7 +265,7 @@ export default function App() {
                     Member: {session.memberId}
                   </span>
                 ) : null}
-                <span className="px-2 py-1 rounded text-[11px] font-semibold" style={{ background: isAdminSession ? 'rgba(255,255,255,0.13)' : `${CONCEPT_THEME.emerald}22`, color: isAdminSession ? 'white' : '#d6f7e7' }}>
+                <span className="rounded px-2 py-1 text-xs font-semibold" style={{ background: isAdminSession ? 'rgba(255,255,255,0.13)' : `${CONCEPT_THEME.emerald}22`, color: isAdminSession ? 'white' : '#d6f7e7' }}>
                   {isAdminSession ? 'Admin Session' : 'Member Session'}
                 </span>
                 <button
@@ -317,7 +317,7 @@ export default function App() {
                         >
                           <span className="flex items-center gap-1.5">
                             <span>{tab.label}</span>
-                            {badge ? <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}`}>{badge}</span> : null}
+                            {badge ? <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${badgeClass}`}>{badge}</span> : null}
                           </span>
                         </button>
                       );
@@ -349,7 +349,7 @@ export default function App() {
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <span>{tab.label}</span>
-                          {badge ? <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>{badge}</span> : null}
+                          {badge ? <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>{badge}</span> : null}
                         </span>
                       </button>
                     );
