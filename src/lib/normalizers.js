@@ -4,9 +4,27 @@ import { computeEntitlements } from '../engine/engine';
 
 export function normalizeMemberRecord(raw) {
   const member = raw || {};
+  const status = ['ACTIVE', 'INVITED', 'DEACTIVATED'].includes(member.status) ? member.status : 'ACTIVE';
   return {
-    ...member,
+    piName: '',
+    piEmail: '',
+    piPhone: '',
+    piRole: '',
+    inviteToken: null,
+    invitedAt: null,
+    activatedAt: status === 'ACTIVE' ? '2026-01-01T00:00:00Z' : null,
     registrationEnabled: member.registrationEnabled !== false,
+    ...member,
+    status,
+    piName: String(member.piName || '').trim(),
+    piEmail: normalizeEmail(member.piEmail || ''),
+    piPhone: String(member.piPhone || '').trim(),
+    piRole: String(member.piRole || '').trim(),
+    inviteToken: member.inviteToken ? String(member.inviteToken) : null,
+    invitedAt: member.invitedAt ? String(member.invitedAt) : null,
+    activatedAt: status === 'ACTIVE'
+      ? String(member.activatedAt || '2026-01-01T00:00:00Z')
+      : null,
   };
 }
 

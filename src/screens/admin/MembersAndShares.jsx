@@ -2,6 +2,95 @@ import React from 'react';
 import { COLORS, CONCEPT_THEME } from '../../lib/theme';
 import { useMockApp } from '../../lib/mock-state';
 
+function StatusBadge({ status }) {
+  const badgeByStatus = {
+    ACTIVE: {
+      label: 'Active',
+      background: CONCEPT_THEME.emeraldLight,
+      color: CONCEPT_THEME.emerald,
+    },
+    INVITED: {
+      label: 'Pending Activation',
+      background: CONCEPT_THEME.amberLight,
+      color: CONCEPT_THEME.amber,
+    },
+    DEACTIVATED: {
+      label: 'Deactivated',
+      background: '#f3f4f6',
+      color: '#6b7280',
+    },
+  };
+
+  const badge = badgeByStatus[status] || badgeByStatus.DEACTIVATED;
+  return (
+    <span
+      className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
+      style={{ background: badge.background, color: badge.color }}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCancelInvite, onReinvite }) {
+  if (member.status === 'ACTIVE') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onChangePi(member.id)}
+          className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+          style={{ background: `${CONCEPT_THEME.sky}16`, color: CONCEPT_THEME.sky }}
+        >
+          Change PI
+        </button>
+        <button
+          type="button"
+          onClick={() => onDeactivate(member.id)}
+          className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+          style={{ background: '#fef2f2', color: '#b91c1c' }}
+        >
+          Deactivate
+        </button>
+      </div>
+    );
+  }
+
+  if (member.status === 'INVITED') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onResendInvite(member.id)}
+          className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+          style={{ background: `${CONCEPT_THEME.amber}14`, color: CONCEPT_THEME.amber }}
+        >
+          Re-send Invite
+        </button>
+        <button
+          type="button"
+          onClick={() => onCancelInvite(member.id)}
+          className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+          style={{ background: '#f3f4f6', color: '#6b7280' }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onReinvite(member.id)}
+      className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+      style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}
+    >
+      Re-invite
+    </button>
+  );
+}
+
 export default function MembersAndShares() {
   const {
     pendingRegistrationCount,
@@ -24,120 +113,234 @@ export default function MembersAndShares() {
     memberLoginAccounts,
     piAccessAccounts,
     submittedPreferenceNotes,
+    resendMemberInvite,
+    cancelMemberInvite,
+    deactivateMember,
+    changeMemberPi,
+    reinviteMember,
   } = useMockApp();
 
-  return (
-    <div className="space-y-4">
-      <div className={`bg-white rounded-lg border p-4 shadow-sm ${pendingRegistrationCount > 0 ? 'ring-1 ring-amber-200' : ''}`}>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h3 className="font-semibold text-gray-800 text-sm">PI Registration Requests</h3>
-          <span className={`px-2 py-1 rounded text-xs font-semibold ${pendingRegistrationCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
-            Pending: {pendingRegistrationCount}
-          </span>
-        </div>
-        {pendingRegistrationCount === 0 ? (
-          <div className="text-xs text-gray-500">No pending registration requests.</div>
-        ) : (
-          <div className="space-y-3">
-            {pendingRegistrationRequests.map((request) => {
-              const draft = registrationApprovalDrafts[request.id] || {};
-              const actionError = registrationActionErrors[request.id];
-              const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
-              return (
-                <div key={request.id} className="rounded border border-amber-100 bg-amber-50/40 p-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs mb-2">
-                    <div><span className="font-semibold text-gray-700">Institution:</span> {institutionDisplayName} ({request.institutionMemberId})</div>
-                    <div><span className="font-semibold text-gray-700">Email:</span> {request.institutionalEmail}</div>
-                    <div><span className="font-semibold text-gray-700">Requested shares:</span> {request.requestedShares}</div>
-                    <div><span className="font-semibold text-gray-700">Requested at:</span> {new Date(request.createdAt).toLocaleString()}</div>
-                  </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-2">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={draft.approvedShares ?? request.requestedShares}
-                      onChange={(e) => setRegistrationApprovalDraft(request.id, { approvedShares: e.target.value })}
-                      className="border rounded px-2 py-1.5 text-xs"
-                      placeholder="Approved shares"
-                    />
-                    <input
-                      type="text"
-                      value={draft.adminNote || ''}
-                      onChange={(e) => setRegistrationApprovalDraft(request.id, { adminNote: e.target.value })}
-                      className="border rounded px-2 py-1.5 text-xs lg:col-span-2"
-                      placeholder="Admin note (optional)"
-                    />
-                  </div>
-                  {actionError ? <div className="text-xs text-red-700 mb-2">{actionError}</div> : null}
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => approveRegistrationRequest(request.id)} className="px-3 py-1.5 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hover:bg-emerald-200">
-                      Approve
-                    </button>
-                    <button onClick={() => rejectRegistrationRequest(request.id)} className="px-3 py-1.5 rounded bg-red-100 text-red-700 text-xs font-semibold hover:bg-red-200">
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+  const showLegacyRequests = pendingRegistrationCount > 0 || resolvedRegistrationRequests.length > 0;
 
-        {resolvedRegistrationRequests.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-gray-100">
-            <h4 className="font-semibold text-gray-700 text-xs mb-2">Recently Resolved</h4>
-            <div className="space-y-2">
-              {resolvedRegistrationRequests.slice(0, 6).map((request) => {
+  return (
+    <div className="space-y-4 concept-font-body">
+      {showLegacyRequests ? (
+        <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Legacy Registration Requests</h3>
+              <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+                Historical self-registration requests remain available here for reference and cleanup.
+              </p>
+            </div>
+            <span
+              className="inline-flex rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
+              style={{
+                background: pendingRegistrationCount > 0 ? CONCEPT_THEME.amberLight : '#f3f4f6',
+                color: pendingRegistrationCount > 0 ? CONCEPT_THEME.amber : '#6b7280',
+              }}
+            >
+              Pending: {pendingRegistrationCount}
+            </span>
+          </div>
+
+          {pendingRegistrationCount > 0 ? (
+            <div className="space-y-3">
+              {pendingRegistrationRequests.map((request) => {
+                const draft = registrationApprovalDrafts[request.id] || {};
+                const actionError = registrationActionErrors[request.id];
                 const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
                 return (
-                  <div key={request.id} className="rounded border border-gray-100 bg-gray-50 p-2 text-xs">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-gray-700">{institutionDisplayName} ({request.institutionMemberId})</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${request.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{request.status}</span>
-                      <span className="text-gray-500">{request.institutionalEmail}</span>
+                  <div key={request.id} className="rounded-2xl border p-4" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}25` }}>
+                    <div className="grid gap-2 text-xs sm:grid-cols-2">
+                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Institution:</span> {institutionDisplayName} ({request.institutionMemberId})</div>
+                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Email:</span> {request.institutionalEmail}</div>
+                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Requested Shares:</span> {request.requestedShares}</div>
+                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Submitted:</span> {new Date(request.createdAt).toLocaleString()}</div>
                     </div>
-                    <div className="text-gray-600 mt-1">
-                      Shares: {request.requestedShares} | Resolved: {request.resolvedAt ? new Date(request.resolvedAt).toLocaleString() : 'N/A'}
-                      {request.adminNote ? ` | Note: ${request.adminNote}` : ''}
+
+                    <div className="mt-3 grid gap-2 lg:grid-cols-[180px_1fr]">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={draft.approvedShares ?? request.requestedShares}
+                        onChange={(event) => setRegistrationApprovalDraft(request.id, { approvedShares: event.target.value })}
+                        className="rounded-xl border px-3 py-2 text-xs outline-none"
+                        style={{ background: 'white', borderColor: CONCEPT_THEME.border }}
+                        placeholder="Approved shares"
+                      />
+                      <input
+                        type="text"
+                        value={draft.adminNote || ''}
+                        onChange={(event) => setRegistrationApprovalDraft(request.id, { adminNote: event.target.value })}
+                        className="rounded-xl border px-3 py-2 text-xs outline-none"
+                        style={{ background: 'white', borderColor: CONCEPT_THEME.border }}
+                        placeholder="Admin note (optional)"
+                      />
+                    </div>
+
+                    {actionError ? (
+                      <div className="mt-2 rounded-xl border px-3 py-2 text-xs" style={{ background: '#fff1f1', borderColor: '#fecaca', color: '#b91c1c' }}>
+                        {actionError}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => approveRegistrationRequest(request.id)}
+                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                        style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => rejectRegistrationRequest(request.id)}
+                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                        style={{ background: '#fff1f1', color: '#b91c1c' }}
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="rounded-2xl border px-4 py-4 text-sm" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+              No pending legacy registration requests.
+            </div>
+          )}
 
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Members & Shares</h3>
-        <div className="flex gap-2 mb-3">
-          <button onClick={() => setMemberStatusFilter('active')} className={`px-3 py-1.5 rounded text-xs font-semibold ${memberStatusFilter === 'active' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700'}`}>Active</button>
-          <button onClick={() => setMemberStatusFilter('pending')} className={`px-3 py-1.5 rounded text-xs font-semibold ${memberStatusFilter === 'pending' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700'}`}>Pending</button>
+          {resolvedRegistrationRequests.length > 0 ? (
+            <div className="mt-5 border-t pt-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+              <h4 className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.subtle }}>Recently Resolved</h4>
+              <div className="mt-3 space-y-2">
+                {resolvedRegistrationRequests.slice(0, 6).map((request) => {
+                  const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
+                  return (
+                    <div key={request.id} className="rounded-2xl border px-4 py-3 text-xs" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight }}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>{institutionDisplayName} ({request.institutionMemberId})</span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]"
+                          style={{
+                            background: request.status === 'Approved' ? CONCEPT_THEME.emeraldLight : '#fff1f1',
+                            color: request.status === 'Approved' ? CONCEPT_THEME.emerald : '#b91c1c',
+                          }}
+                        >
+                          {request.status}
+                        </span>
+                        <span style={{ color: CONCEPT_THEME.muted }}>{request.institutionalEmail}</span>
+                      </div>
+                      <div className="mt-1" style={{ color: CONCEPT_THEME.muted }}>
+                        Shares: {request.requestedShares} | Resolved: {request.resolvedAt ? new Date(request.resolvedAt).toLocaleString() : 'N/A'}
+                        {request.adminNote ? ` | Note: ${request.adminNote}` : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Members & Shares</h3>
+            <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+              Manage institution records, PI invitations, and member status from one place.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'active', label: 'Active' },
+              { id: 'invited', label: 'Invited' },
+              { id: 'deactivated', label: 'Deactivated' },
+            ].map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setMemberStatusFilter(filter.id)}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={memberStatusFilter === filter.id
+                  ? { background: CONCEPT_THEME.navy, color: 'white' }
+                  : { background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead><tr className="border-b text-gray-500"><th className="text-left py-1 px-2">Member</th><th className="text-left py-1 px-2">Name</th><th className="text-right py-1 px-2">Shares</th><th className="text-left py-1 px-2">Status</th><th className="text-left py-1 px-2">Registration</th><th className="text-left py-1 px-2">Actions</th></tr></thead>
+          <table className="w-full min-w-[880px] text-xs">
+            <thead>
+              <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.subtle }}>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">ID</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Institution</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">PI Name</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">PI Email</th>
+                <th className="px-2 py-2 text-right font-semibold uppercase tracking-[0.16em]">Shares</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Status</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {filteredMembersForAdmin.length === 0 && <tr><td colSpan={6} className="py-2 px-2 text-gray-500">No members in this tab.</td></tr>}
-              {filteredMembersForAdmin.map((member) => (
-                <tr key={member.id} className="border-b border-gray-50">
-                  <td className="py-1.5 px-2 font-semibold" style={{ color: COLORS[member.id] }}>{member.id}</td>
-                  <td className="py-1.5 px-2">{member.name}</td>
-                  <td className="py-1.5 px-2 text-right"><input type="number" min="0" step="0.01" value={member.shares} onChange={(e) => updateMember(member.id, { shares: e.target.value })} className="border rounded px-2 py-1 w-20 text-xs text-right" /></td>
-                  <td className="py-1.5 px-2">{member.status}</td>
-                  <td className="py-1.5 px-2">
-                    <button
-                      onClick={() => updateMember(member.id, { registrationEnabled: member.registrationEnabled === false })}
-                      className={`px-2 py-1 rounded text-[11px] font-semibold ${member.registrationEnabled === false ? 'bg-gray-100 text-gray-600' : 'bg-emerald-100 text-emerald-700'}`}
-                    >
-                      {member.registrationEnabled === false ? 'Disabled' : 'Enabled'}
-                    </button>
+              {filteredMembersForAdmin.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-2 py-6 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+                    No members match the selected filter.
                   </td>
-                  <td className="py-1.5 px-2">
-                    {member.status !== 'ACTIVE'
-                      ? <button onClick={() => updateMember(member.id, { status: 'ACTIVE' })} className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">Approve</button>
-                      : <button onClick={() => updateMember(member.id, { status: 'PENDING' })} className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-semibold">Mark Pending</button>}
+                </tr>
+              ) : null}
+
+              {filteredMembersForAdmin.map((member) => (
+                <tr key={member.id} className="border-b align-top" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <td className="px-2 py-3 font-bold" style={{ color: COLORS[member.id] || CONCEPT_THEME.navy }}>{member.id}</td>
+                  <td className="px-2 py-3">
+                    <div className="font-semibold" style={{ color: CONCEPT_THEME.text }}>{member.name}</div>
+                    {member.invitedAt ? (
+                      <div className="mt-1 text-[11px]" style={{ color: CONCEPT_THEME.subtle }}>
+                        Invited {new Date(member.invitedAt).toLocaleDateString()}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-2 py-3" style={{ color: CONCEPT_THEME.text }}>{member.piName || '-'}</td>
+                  <td className="px-2 py-3" style={{ color: CONCEPT_THEME.muted }}>{member.piEmail || '-'}</td>
+                  <td className="px-2 py-3 text-right">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={member.shares}
+                      onChange={(event) => updateMember(member.id, { shares: event.target.value })}
+                      className="w-24 rounded-xl border px-2.5 py-2 text-right text-xs outline-none"
+                      style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+                    />
+                  </td>
+                  <td className="px-2 py-3">
+                    <StatusBadge status={member.status} />
+                    {member.activatedAt ? (
+                      <div className="mt-1 text-[11px]" style={{ color: CONCEPT_THEME.subtle }}>
+                        Activated {new Date(member.activatedAt).toLocaleDateString()}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-2 py-3">
+                    <ActionButtons
+                      member={member}
+                      onDeactivate={deactivateMember}
+                      onChangePi={changeMemberPi}
+                      onResendInvite={resendMemberInvite}
+                      onCancelInvite={cancelMemberInvite}
+                      onReinvite={reinviteMember}
+                    />
                   </td>
                 </tr>
               ))}
@@ -146,32 +349,100 @@ export default function MembersAndShares() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-3 text-sm">Add New Member</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
-          <input placeholder="Member ID" value={newMemberForm.id} onChange={(e) => setNewMemberForm((prev) => ({ ...prev, id: e.target.value }))} className="border rounded px-2 py-1.5" />
-          <input placeholder="Display name" value={newMemberForm.name} onChange={(e) => setNewMemberForm((prev) => ({ ...prev, name: e.target.value }))} className="border rounded px-2 py-1.5" />
-          <input type="number" min="0" step="0.01" placeholder="Shares" value={newMemberForm.shares} onChange={(e) => setNewMemberForm((prev) => ({ ...prev, shares: e.target.value }))} className="border rounded px-2 py-1.5" />
-          <button onClick={addMember} className="px-3 py-1.5 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700">Add Member</button>
+      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="mb-4">
+          <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Add New Member</h3>
+          <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+            Creating a member now generates an invite instead of an immediately active account.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[140px_1.2fr_120px_1fr_1fr_auto] text-xs">
+          <input
+            placeholder="Member ID"
+            value={newMemberForm.id}
+            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, id: event.target.value }))}
+            className="rounded-xl border px-3 py-2.5 outline-none"
+            style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
+          />
+          <input
+            placeholder="Institution name"
+            value={newMemberForm.name}
+            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, name: event.target.value }))}
+            className="rounded-xl border px-3 py-2.5 outline-none"
+            style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Shares"
+            value={newMemberForm.shares}
+            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, shares: event.target.value }))}
+            className="rounded-xl border px-3 py-2.5 outline-none"
+            style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
+          />
+          <input
+            placeholder="PI name"
+            value={newMemberForm.piName}
+            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, piName: event.target.value }))}
+            className="rounded-xl border px-3 py-2.5 outline-none"
+            style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
+          />
+          <input
+            type="email"
+            placeholder="PI email"
+            value={newMemberForm.piEmail}
+            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, piEmail: event.target.value }))}
+            className="rounded-xl border px-3 py-2.5 outline-none"
+            style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
+          />
+          <button
+            type="button"
+            onClick={addMember}
+            className="rounded-xl px-4 py-2.5 text-xs font-bold text-white"
+            style={{ background: CONCEPT_THEME.navy }}
+          >
+            Create Invite
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Testing Accounts</h3>
+      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <h3 className="concept-font-display text-lg font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Testing Accounts</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead><tr className="border-b text-gray-500"><th className="text-left py-1 px-2">Role</th><th className="text-left py-1 px-2">Member</th><th className="text-left py-1 px-2">Username</th><th className="text-left py-1 px-2">Password</th></tr></thead>
+          <table className="w-full min-w-[720px] text-xs">
+            <thead>
+              <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.subtle }}>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Role</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Member</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Username</th>
+                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Password</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr className="border-b border-gray-50"><td className="py-1.5 px-2 font-semibold text-slate-700">Admin</td><td className="py-1.5 px-2">System</td><td className="py-1.5 px-2 font-mono">{testAccounts.admin.username}</td><td className="py-1.5 px-2 font-mono">{testAccounts.admin.password}</td></tr>
-              {memberLoginAccounts.map(({ member, account }) => <tr key={member.id} className="border-b border-gray-50"><td className="py-1.5 px-2 font-semibold text-emerald-700">Member</td><td className="py-1.5 px-2" style={{ color: COLORS[member.id] }}>{member.id} - {member.name}</td><td className="py-1.5 px-2 font-mono">{account.username}</td><td className="py-1.5 px-2 font-mono">{account.password}</td></tr>)}
+              <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.navy }}>Admin</td>
+                <td className="px-2 py-3">System</td>
+                <td className="px-2 py-3 font-mono">{testAccounts.admin.username}</td>
+                <td className="px-2 py-3 font-mono">{testAccounts.admin.password}</td>
+              </tr>
+              {memberLoginAccounts.map(({ member, account }) => (
+                <tr key={member.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.emerald }}>Legacy</td>
+                  <td className="px-2 py-3" style={{ color: COLORS[member.id] || CONCEPT_THEME.navy }}>{member.id} - {member.name}</td>
+                  <td className="px-2 py-3 font-mono">{account.username}</td>
+                  <td className="px-2 py-3 font-mono">{account.password}</td>
+                </tr>
+              ))}
               {piAccessAccounts.map((account) => (
-                <tr key={account.id} className="border-b border-gray-50">
-                  <td className="py-1.5 px-2 font-semibold text-blue-700">PI Access</td>
-                  <td className="py-1.5 px-2" style={{ color: COLORS[account.memberId] || '#1f2937' }}>
+                <tr key={account.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.sky }}>PI Access</td>
+                  <td className="px-2 py-3" style={{ color: COLORS[account.memberId] || CONCEPT_THEME.navy }}>
                     {account.memberId} - {memberDirectory[account.memberId]?.name || account.memberId}
                   </td>
-                  <td className="py-1.5 px-2 font-mono">{account.username}</td>
-                  <td className="py-1.5 px-2 font-mono">{account.password}</td>
+                  <td className="px-2 py-3 font-mono">{account.username}</td>
+                  <td className="px-2 py-3 font-mono">{account.password}</td>
                 </tr>
               ))}
             </tbody>
@@ -179,21 +450,23 @@ export default function MembersAndShares() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Member Preference Notes</h3>
+      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <h3 className="concept-font-display text-lg font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Member Preference Notes</h3>
         <div className="space-y-2 text-xs">
-          {submittedPreferenceNotes.length === 0 && (
-            <div className="text-gray-500">No member notes submitted yet.</div>
-          )}
+          {submittedPreferenceNotes.length === 0 ? (
+            <div className="rounded-2xl border px-4 py-4" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+              No member notes submitted yet.
+            </div>
+          ) : null}
           {submittedPreferenceNotes.map((entry) => (
-            <div key={`${entry.memberId}-note`} className="border border-gray-100 rounded p-2">
+            <div key={`${entry.memberId}-note`} className="rounded-2xl border p-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
               <div className="font-semibold" style={{ color: COLORS[entry.memberId] || CONCEPT_THEME.navy }}>
                 {entry.memberId} - {entry.memberName}
               </div>
-              <div className="text-[11px] text-gray-500 mb-1">
+              <div className="mt-1 text-[11px]" style={{ color: CONCEPT_THEME.subtle }}>
                 {entry.submitted ? 'Submitted with preferences' : 'Draft note (not submitted yet)'}
               </div>
-              <div className="text-gray-700 whitespace-pre-wrap">{entry.note}</div>
+              <div className="mt-2 whitespace-pre-wrap" style={{ color: CONCEPT_THEME.text }}>{entry.note}</div>
             </div>
           ))}
         </div>

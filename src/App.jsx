@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
+import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
 import LoginScreen from './screens/auth/LoginScreen';
 import MemberDashboard from './screens/member/MemberDashboard';
 import AvailabilityCalendar from './screens/member/AvailabilityCalendar';
@@ -55,13 +56,15 @@ export default function App() {
     loginForm,
     setLoginForm,
     loginError,
-    registrationSuccess,
-    registrationForm,
-    setRegistrationForm,
+    setLoginError,
+    activateToken,
+    setActivateToken,
+    activateForm,
+    setActivateForm,
+    activationSummary,
     handleSignIn,
     handleSSOSignIn,
-    handleRegister,
-    registrationInstitutions,
+    handleActivate,
     isAdminSession,
     currentView,
     setCurrentView,
@@ -147,23 +150,56 @@ export default function App() {
   };
 
   if (!session) {
+    if (authScreen === 'activate' || authScreen === 'activateSuccess') {
+      return (
+        <>
+          <ConceptFontStyles />
+          <ActivateAccountScreen
+            authScreen={authScreen}
+            activateToken={activateToken}
+            setActivateToken={setActivateToken}
+            activateForm={activateForm}
+            setActivateForm={setActivateForm}
+            handleActivate={handleActivate}
+            loginError={loginError}
+            members={members}
+            cycle={cycle}
+            activationSummary={activationSummary}
+            onActivated={(email = '') => {
+              setAuthScreen('login');
+              setLoginError('');
+              setActivateToken('');
+              setActivateForm({ password: '', confirmPassword: '', phone: '' });
+              setLoginForm({ username: email, password: '' });
+            }}
+            onBackToLogin={() => {
+              setAuthScreen('login');
+              setLoginError('');
+              setActivateToken('');
+              setActivateForm({ password: '', confirmPassword: '', phone: '' });
+              setLoginForm((prev) => ({ ...prev, password: '' }));
+            }}
+          />
+        </>
+      );
+    }
+
     return (
       <>
         <ConceptFontStyles />
         <LoginScreen
-          authScreen={authScreen}
-          setAuthScreen={setAuthScreen}
           loginForm={loginForm}
           setLoginForm={setLoginForm}
           loginError={loginError}
-          registrationSuccess={registrationSuccess}
-          registrationForm={registrationForm}
-          setRegistrationForm={setRegistrationForm}
           handleSignIn={handleSignIn}
           handleSSOSignIn={handleSSOSignIn}
-          handleRegister={handleRegister}
           handleResetDemoData={resetToDemoBaseline}
-          registrationInstitutions={registrationInstitutions}
+          onShowActivate={() => {
+            setAuthScreen('activate');
+            setLoginError('');
+          }}
+          members={members}
+          cycle={cycle}
         />
       </>
     );
@@ -172,7 +208,7 @@ export default function App() {
   return (
     <>
       <ConceptFontStyles />
-      <div className="min-h-screen w-full overflow-x-hidden" style={{ background: CONCEPT_THEME.cream, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <div className="app-screen flex w-full flex-col overflow-x-hidden" style={{ background: CONCEPT_THEME.cream, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
         <div className="sticky top-0 z-50" style={{ background: CONCEPT_THEME.navy }}>
           <div className="max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
@@ -244,7 +280,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-4">
+        <div className="flex-1 max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-4">
           {inMemberArea && activeMember && (
             <div className="space-y-4 mb-4">
               <div className="bg-white rounded-lg border p-3 shadow-sm">

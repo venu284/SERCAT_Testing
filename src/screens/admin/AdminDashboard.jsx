@@ -60,7 +60,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Active Members', value: activeMembers.length, sub: 'in cycle', accent: CONCEPT_THEME.navy },
-          { label: 'Pending Members', value: pendingMembers.length, sub: 'awaiting approval', accent: CONCEPT_THEME.amber },
+          { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.amber },
           { label: 'Submissions', value: `${submittedCount}/${activeMembers.length || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky },
           { label: 'Publication', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted },
         ].map((stat) => (

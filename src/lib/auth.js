@@ -11,12 +11,19 @@ export const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normali
 
 export function buildTestAccounts(members, memberAccessAccounts = []) {
   const taken = new Set([ADMIN_ACCOUNT.username]);
+  const activeMemberIds = new Set(
+    (Array.isArray(members) ? members : [])
+      .filter((member) => member?.status === 'ACTIVE')
+      .map((member) => member.id),
+  );
   const membersById = {};
   const membersByUsername = {};
   const membersByLogin = {};
   const approvedAccessAccounts = [];
 
-  members.forEach((member, idx) => {
+  members
+    .filter((member) => activeMemberIds.has(member.id))
+    .forEach((member, idx) => {
     const fallback = `member${idx + 1}`;
     const base = sanitizeUsername(member.id) || fallback;
     let username = base;
@@ -30,10 +37,10 @@ export function buildTestAccounts(members, memberAccessAccounts = []) {
     membersById[member.id] = account;
     membersByUsername[username] = account;
     membersByLogin[normalizeLoginKey(username)] = account;
-  });
+    });
 
   memberAccessAccounts
-    .filter((entry) => String(entry.status || 'ACTIVE') === 'ACTIVE')
+    .filter((entry) => String(entry.status || 'ACTIVE') === 'ACTIVE' && activeMemberIds.has(entry.memberId))
     .forEach((entry) => {
       const email = normalizeEmail(entry.email);
       const username = normalizeLoginKey(entry.username || email);

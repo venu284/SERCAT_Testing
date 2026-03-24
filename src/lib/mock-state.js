@@ -44,10 +44,24 @@ import { ensureMemberPalette, simpleHash } from './theme';
 const MockStateContext = createContext(null);
 const DEFAULT_SCHEDULE_PUBLICATION = { status: 'draft', publishedAt: '', draftedAt: '' };
 const DEFAULT_LOGIN_FORM = { username: '', password: '' };
-const DEFAULT_REGISTRATION_FORM = { institutionMemberId: '', institutionalEmail: '', shares: '1.00' };
-const DEFAULT_NEW_MEMBER_FORM = { id: '', name: '', shares: '1.00' };
+const DEFAULT_ACTIVATE_FORM = { password: '', confirmPassword: '', phone: '' };
+const DEFAULT_NEW_MEMBER_FORM = { id: '', name: '', shares: '1.00', piName: '', piEmail: '' };
 const DEFAULT_ENGINE_PROGRESS = { running: false, value: 0, message: 'Idle' };
 const DEFAULT_SHIFT_CHANGE_FORM = { requestedDate: '', requestedShiftType: '', reason: '' };
+
+function buildInviteToken(memberId) {
+  return `${memberId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildActivationSummary(member) {
+  if (!member) return null;
+  return {
+    memberId: member.id,
+    memberName: member.name || member.id,
+    piName: member.piName || member.id,
+    piEmail: member.piEmail || '',
+  };
+}
 
 function getDemoPreferenceDeadline(cycle) {
   const today = localTodayDateStr();
@@ -94,8 +108,9 @@ function getDefaultState() {
     authScreen: 'login',
     loginForm: { ...DEFAULT_LOGIN_FORM },
     loginError: '',
-    registrationForm: { ...DEFAULT_REGISTRATION_FORM },
-    registrationSuccess: null,
+    activateToken: '',
+    activateForm: { ...DEFAULT_ACTIVATE_FORM },
+    activationSummary: null,
     registrationRequests: [],
     memberAccessAccounts: [],
     registrationApprovalDrafts: {},
@@ -103,7 +118,7 @@ function getDefaultState() {
     currentView: 'admin',
     memberTab: 'dashboard',
     adminTab: 'dashboard',
-    memberStatusFilter: 'active',
+    memberStatusFilter: 'all',
     newMemberForm: { ...DEFAULT_NEW_MEMBER_FORM },
     schedulePublication: { ...DEFAULT_SCHEDULE_PUBLICATION },
     engineProgress: { ...DEFAULT_ENGINE_PROGRESS },
@@ -135,8 +150,9 @@ export function MockStateProvider({ children }) {
   const [authScreen, setAuthScreen] = useState(defaults.authScreen);
   const [loginForm, setLoginForm] = useState(defaults.loginForm);
   const [loginError, setLoginError] = useState(defaults.loginError);
-  const [registrationForm, setRegistrationForm] = useState(defaults.registrationForm);
-  const [registrationSuccess, setRegistrationSuccess] = useState(defaults.registrationSuccess);
+  const [activateToken, setActivateToken] = useState(defaults.activateToken);
+  const [activateForm, setActivateForm] = useState(defaults.activateForm);
+  const [activationSummary, setActivationSummary] = useState(defaults.activationSummary);
   const [registrationRequests, setRegistrationRequests] = useState(defaults.registrationRequests);
   const [memberAccessAccounts, setMemberAccessAccounts] = useState(defaults.memberAccessAccounts);
   const [registrationApprovalDrafts, setRegistrationApprovalDrafts] = useState(defaults.registrationApprovalDrafts);
@@ -177,9 +193,16 @@ export function MockStateProvider({ children }) {
       }
       return;
     }
-    if (!members.some((member) => member.id === session.memberId)) {
+    const signedInMember = members.find((member) => member.id === session.memberId);
+    if (!signedInMember) {
       setSession(null);
       setLoginError('This account is no longer available. Contact admin.');
+      setCurrentView('admin');
+      return;
+    }
+    if (signedInMember.status !== 'ACTIVE') {
+      setSession(null);
+      setLoginError('This account is not active. Contact admin@ser-cat.org.');
       setCurrentView('admin');
       return;
     }
@@ -188,16 +211,30 @@ export function MockStateProvider({ children }) {
     }
   }, [session, currentView, members]);
 
+  const resetScheduleArtifacts = useCallback(() => {
+    setResults(null);
+    setSchedulePublication({ ...DEFAULT_SCHEDULE_PUBLICATION });
+    setShiftChangeRequests([]);
+    setAdminShiftDrafts({});
+    setAdminShiftActionErrors({});
+    setSelectedShiftChangeSource('');
+    setExpandedMemberRequestId('');
+    setShiftChangeSubmittedFlash(false);
+    setMemberShiftChangeError('');
+    setShiftChangeForm({ ...DEFAULT_SHIFT_CHANGE_FORM });
+  }, []);
+
   const resetEphemeralUiState = useCallback(() => {
     setSession(null);
     setAuthScreen('login');
     setLoginForm({ ...DEFAULT_LOGIN_FORM });
     setLoginError('');
-    setRegistrationForm({ ...DEFAULT_REGISTRATION_FORM });
-    setRegistrationSuccess(null);
+    setActivateToken('');
+    setActivateForm({ ...DEFAULT_ACTIVATE_FORM });
+    setActivationSummary(null);
     setRegistrationApprovalDrafts({});
     setRegistrationActionErrors({});
-    setMemberStatusFilter('active');
+    setMemberStatusFilter('all');
     setNewMemberForm({ ...DEFAULT_NEW_MEMBER_FORM });
     setEngineProgress({ ...DEFAULT_ENGINE_PROGRESS });
     setMemberScheduleView('agenda');
@@ -302,6 +339,9 @@ export function MockStateProvider({ children }) {
     setShiftChangeRequests(normalizeShiftChangeRequests(snapshot?.shiftChangeRequests));
     setRegistrationRequests(normalizeRegistrationRequests(snapshot?.registrationRequests));
     setMemberAccessAccounts(normalizeMemberAccessAccounts(snapshot?.memberAccessAccounts));
+    setActivateToken('');
+    setActivateForm({ ...DEFAULT_ACTIVATE_FORM });
+    setActivationSummary(null);
     setRegistrationApprovalDrafts({});
     setRegistrationActionErrors({});
     setAdminShiftDrafts({});
@@ -389,7 +429,7 @@ export function MockStateProvider({ children }) {
 
     const memberAccount = testAccounts.membersByLogin[loginKey] || testAccounts.membersByUsername[username];
     if (memberAccount && memberAccount.password === password) {
-      setSession({ role: 'member', username: loginKey, memberId: memberAccount.memberId });
+      setSession({ role: 'member', username: memberAccount.username || loginKey, memberId: memberAccount.memberId });
       setCurrentView(memberAccount.memberId);
       setMemberTab('dashboard');
       setLoginForm({ username: '', password: '' });
@@ -398,68 +438,102 @@ export function MockStateProvider({ children }) {
       return;
     }
 
-    setLoginError('Invalid username or password.');
-  }, [loginForm, testAccounts]);
+    const invitedMember = members.find(
+      (member) => normalizeEmail(member.piEmail) === loginKey && member.status === 'INVITED',
+    );
+    if (invitedMember) {
+      setLoginError('Your account has not been activated yet. Check your email for the activation link, or click "Activate your account" below.');
+      return;
+    }
+
+    const deactivatedMember = members.find(
+      (member) => normalizeEmail(member.piEmail) === loginKey && member.status === 'DEACTIVATED',
+    );
+    if (deactivatedMember) {
+      setLoginError('This account is deactivated. Contact admin@ser-cat.org.');
+      return;
+    }
+
+    setLoginError('Invalid email or password.');
+  }, [loginForm, members, testAccounts]);
 
   const handleSSOSignIn = useCallback(() => {
     setLoginError('SSO is shown in prototype mode. Please use username/password for this local demo.');
   }, []);
 
-  const handleRegister = useCallback((event) => {
+  const handleActivate = useCallback((event) => {
     event.preventDefault();
-    const institutionMemberId = String(registrationForm.institutionMemberId || '').trim();
-    const institutionalEmail = normalizeEmail(registrationForm.institutionalEmail);
-    const shares = parseFloat(registrationForm.shares);
+    const token = activateToken.trim();
+    const { password, confirmPassword, phone } = activateForm;
     const now = new Date().toISOString();
-    const institution = members.find((member) => member.id === institutionMemberId);
+    const member = members.find((entry) => entry.inviteToken === token && entry.status === 'INVITED');
 
-    if (!institutionMemberId || !institution || institution.registrationEnabled === false) {
-      setLoginError('Registration failed: choose a valid institution.');
+    if (!member) {
+      setLoginError('Invalid or expired activation link. Contact admin@ser-cat.org.');
       return;
     }
-    if (!isValidEmail(institutionalEmail)) {
-      setLoginError('Registration failed: enter a valid institutional email.');
+    if (!password || password.length < 8) {
+      setLoginError('Password must be at least 8 characters.');
       return;
     }
-    if (!Number.isFinite(shares) || shares <= 0) {
-      setLoginError('Registration failed: shares must be greater than 0.');
-      return;
-    }
-
-    const duplicateRequest = registrationRequests.some((request) =>
-      normalizeEmail(request.institutionalEmail) === institutionalEmail
-      && (request.status === 'Pending' || request.status === 'Approved'));
-    if (duplicateRequest) {
-      setLoginError('Registration failed: this institution/email already has an active or approved request.');
+    if (password !== confirmPassword) {
+      setLoginError('Passwords do not match.');
       return;
     }
 
-    const duplicateAccess = memberAccessAccounts.some((account) =>
-      normalizeEmail(account.email) === institutionalEmail
-      && account.status === 'ACTIVE');
-    if (duplicateAccess) {
-      setLoginError('Registration failed: this institutional email already has approved access.');
-      return;
-    }
+    const email = normalizeEmail(member.piEmail);
+    const activatedMember = normalizeMemberRecord({
+      ...member,
+      status: 'ACTIVE',
+      piPhone: phone || member.piPhone,
+      inviteToken: null,
+      activatedAt: now,
+    });
 
-    const request = {
-      id: `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      institutionMemberId,
-      institutionLabel: institution.name || institution.id,
-      institutionalEmail,
-      requestedShares: parseFloat(shares.toFixed(2)),
-      status: 'Pending',
+    const accessAccount = normalizeMemberAccessAccount({
+      id: `ACC-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      memberId: member.id,
+      email,
+      username: email,
+      password,
+      status: 'ACTIVE',
       createdAt: now,
-      resolvedAt: '',
-      adminNote: '',
-    };
+      approvedFromRequestId: '',
+    });
 
-    setRegistrationRequests((prev) => [request, ...prev]);
-    setRegistrationSuccess({ type: 'request', institutionalEmail, institutionLabel: request.institutionLabel });
-    setRegistrationForm({ institutionMemberId: '', institutionalEmail: '', shares: '1.00' });
-    setAuthScreen('login');
+    setMemberAccessAccounts((prev) => [
+      ...prev.map((account) => (
+        account.memberId === member.id || normalizeEmail(account.email) === email
+          ? { ...account, status: 'INACTIVE' }
+          : account
+      )),
+      accessAccount,
+    ]);
+    setMembers((prev) => prev.map((entry) => (entry.id === member.id ? activatedMember : entry)));
+    setPreferences((prev) => ({
+      ...prev,
+      [member.id]: normalizeMemberPreferences(activatedMember, prev[member.id]),
+    }));
+    setQueue((prev) => {
+      if (prev.some((entry) => entry.memberId === member.id)) return prev;
+      const meanDeficit = prev.length > 0 ? prev.reduce((sum, entry) => sum + entry.deficitScore, 0) / prev.length : 0;
+      const insertAt = Math.ceil(prev.length / 2);
+      const next = [...prev];
+      next.splice(insertAt, 0, {
+        memberId: member.id,
+        deficitScore: parseFloat(meanDeficit.toFixed(4)),
+        cycleWins: 0,
+        roundWins: 0,
+      });
+      return next;
+    });
+    resetScheduleArtifacts();
     setLoginError('');
-  }, [registrationForm, members, registrationRequests, memberAccessAccounts]);
+    setActivateToken('');
+    setActivateForm({ ...DEFAULT_ACTIVATE_FORM });
+    setActivationSummary(buildActivationSummary(activatedMember));
+    setAuthScreen('activateSuccess');
+  }, [activateForm, activateToken, members, resetScheduleArtifacts]);
 
   const handleSignOut = useCallback(() => {
     resetEphemeralUiState();
@@ -473,19 +547,30 @@ export function MockStateProvider({ children }) {
   }, []);
 
   const updateMember = useCallback((memberId, patch) => {
+    const nextStatus = patch.status ? String(patch.status).toUpperCase() : '';
+    const shouldResetSchedule = patch.shares !== undefined || Boolean(nextStatus);
+
     setMembers((prevMembers) => {
       let updatedMember = null;
       let sharesChanged = false;
+      let statusChanged = false;
       const next = prevMembers.map((member) => {
         if (member.id !== memberId) return member;
         const nextShares = patch.shares !== undefined
           ? Math.max(0, parseFloat((Number(patch.shares) || 0).toFixed(2)))
           : member.shares;
         sharesChanged = patch.shares !== undefined && nextShares !== member.shares;
-        updatedMember = { ...member, ...patch, shares: nextShares };
+        statusChanged = Boolean(nextStatus) && nextStatus !== member.status;
+        updatedMember = normalizeMemberRecord({
+          ...member,
+          ...patch,
+          shares: nextShares,
+          status: nextStatus || member.status,
+          piEmail: patch.piEmail !== undefined ? normalizeEmail(patch.piEmail) : member.piEmail,
+        });
         return updatedMember;
       });
-      if (updatedMember && sharesChanged) {
+      if (updatedMember && (sharesChanged || statusChanged)) {
         setPreferences((prevPrefs) => ({
           ...prevPrefs,
           [memberId]: { ...normalizeMemberPreferences(updatedMember, prevPrefs[memberId]), submitted: false },
@@ -494,7 +579,7 @@ export function MockStateProvider({ children }) {
       return next;
     });
 
-    if (patch.status === 'ACTIVE') {
+    if (nextStatus === 'ACTIVE') {
       setQueue((prev) => {
         if (prev.some((entry) => entry.memberId === memberId)) return prev;
         const meanDeficit = prev.length > 0 ? prev.reduce((sum, entry) => sum + entry.deficitScore, 0) / prev.length : 0;
@@ -509,8 +594,13 @@ export function MockStateProvider({ children }) {
         return next;
       });
     }
-    setResults(null);
-  }, []);
+    if (nextStatus && nextStatus !== 'ACTIVE') {
+      setQueue((prev) => prev.filter((entry) => entry.memberId !== memberId));
+    }
+    if (shouldResetSchedule) {
+      resetScheduleArtifacts();
+    }
+  }, [resetScheduleArtifacts]);
 
   const setRegistrationApprovalDraft = useCallback((requestId, patch) => {
     setRegistrationApprovalDrafts((prev) => ({
@@ -575,26 +665,24 @@ export function MockStateProvider({ children }) {
     });
 
     setMemberAccessAccounts((prev) => [...prev, accessAccount]);
-    updateMember(request.institutionMemberId, { shares: approvedShares, status: 'ACTIVE' });
+    updateMember(request.institutionMemberId, {
+      shares: approvedShares,
+      status: 'ACTIVE',
+      piEmail: institution.piEmail || email,
+      activatedAt: institution.activatedAt || createdAt,
+    });
     const resetInstitutionMember = normalizeMemberRecord({
       ...institution,
       shares: parseFloat(approvedShares.toFixed(2)),
       status: 'ACTIVE',
+      piEmail: institution.piEmail || email,
+      activatedAt: institution.activatedAt || createdAt,
     });
     setPreferences((prev) => ({
       ...prev,
       [request.institutionMemberId]: normalizeMemberPreferences(resetInstitutionMember, {}),
     }));
-    setResults(null);
-    setSchedulePublication({ ...DEFAULT_SCHEDULE_PUBLICATION });
-    setShiftChangeRequests([]);
-    setAdminShiftDrafts({});
-    setAdminShiftActionErrors({});
-    setSelectedShiftChangeSource('');
-    setExpandedMemberRequestId('');
-    setShiftChangeSubmittedFlash(false);
-    setMemberShiftChangeError('');
-    setShiftChangeForm({ ...DEFAULT_SHIFT_CHANGE_FORM });
+    resetScheduleArtifacts();
     setRegistrationRequests((prev) => prev.map((entry) => (
       entry.id === requestId
         ? {
@@ -613,7 +701,7 @@ export function MockStateProvider({ children }) {
       return next;
     });
     setRegistrationActionErrors((prev) => ({ ...prev, [requestId]: '' }));
-  }, [registrationRequests, registrationApprovalDrafts, memberAccessAccounts, members, updateMember]);
+  }, [registrationRequests, registrationApprovalDrafts, memberAccessAccounts, members, resetScheduleArtifacts, updateMember]);
 
   const rejectRegistrationRequest = useCallback((requestId) => {
     const request = registrationRequests.find((entry) => entry.id === requestId);
@@ -640,6 +728,134 @@ export function MockStateProvider({ children }) {
     setRegistrationActionErrors((prev) => ({ ...prev, [requestId]: '' }));
   }, [registrationRequests, registrationApprovalDrafts]);
 
+  const requestInviteDetails = useCallback((member, heading = 'Invite PI') => {
+    const piNameInput = window.prompt(`${heading}\n\nPI name`, member?.piName || '');
+    if (piNameInput === null) return null;
+    const piName = piNameInput.trim();
+    if (!piName) {
+      window.alert('PI name is required.');
+      return null;
+    }
+
+    const piEmailInput = window.prompt(`${heading}\n\nPI email`, member?.piEmail || '');
+    if (piEmailInput === null) return null;
+    const piEmail = normalizeEmail(piEmailInput);
+    if (!isValidEmail(piEmail)) {
+      window.alert('A valid PI email is required.');
+      return null;
+    }
+
+    const duplicateMember = members.some(
+      (entry) => entry.id !== member?.id && entry.status !== 'DEACTIVATED' && normalizeEmail(entry.piEmail) === piEmail,
+    );
+    const duplicateAccess = memberAccessAccounts.some(
+      (account) => account.memberId !== member?.id && account.status === 'ACTIVE' && normalizeEmail(account.email) === piEmail,
+    );
+    if (duplicateMember || duplicateAccess) {
+      window.alert('That PI email is already in use.');
+      return null;
+    }
+
+    return { piName, piEmail };
+  }, [memberAccessAccounts, members]);
+
+  const resendMemberInvite = useCallback((memberId) => {
+    const member = members.find((entry) => entry.id === memberId && entry.status === 'INVITED');
+    if (!member) return;
+
+    const inviteToken = buildInviteToken(member.id);
+    const invitedAt = new Date().toISOString();
+    updateMember(memberId, { inviteToken, invitedAt, activatedAt: null });
+    window.alert(
+      `Invitation refreshed for ${member.piName || member.id}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${member.piEmail}.`,
+    );
+  }, [members, updateMember]);
+
+  const cancelMemberInvite = useCallback((memberId) => {
+    const member = members.find((entry) => entry.id === memberId && entry.status === 'INVITED');
+    if (!member) return;
+    if (!window.confirm(`Cancel the pending invite for ${member.name || member.id}?`)) return;
+
+    updateMember(memberId, {
+      status: 'DEACTIVATED',
+      inviteToken: null,
+      invitedAt: null,
+      activatedAt: null,
+      piPhone: '',
+      piRole: '',
+    });
+    setMemberAccessAccounts((prev) => prev.map((account) => (
+      account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
+    )));
+  }, [members, updateMember]);
+
+  const deactivateMember = useCallback((memberId) => {
+    const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
+    if (!member) return;
+    if (!window.confirm(`Deactivate ${member.name || member.id}? This will disable member sign-in until re-invited.`)) return;
+
+    updateMember(memberId, {
+      status: 'DEACTIVATED',
+      inviteToken: null,
+      invitedAt: null,
+    });
+    setMemberAccessAccounts((prev) => prev.map((account) => (
+      account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
+    )));
+  }, [members, updateMember]);
+
+  const changeMemberPi = useCallback((memberId) => {
+    const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
+    if (!member) return;
+
+    const details = requestInviteDetails(member, `Change PI for ${member.name || member.id}`);
+    if (!details) return;
+
+    const inviteToken = buildInviteToken(member.id);
+    const invitedAt = new Date().toISOString();
+    updateMember(memberId, {
+      ...details,
+      status: 'INVITED',
+      piPhone: '',
+      piRole: '',
+      inviteToken,
+      invitedAt,
+      activatedAt: null,
+    });
+    setMemberAccessAccounts((prev) => prev.map((account) => (
+      account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
+    )));
+    window.alert(
+      `PI change saved for ${member.name || member.id}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${details.piEmail}.`,
+    );
+  }, [members, requestInviteDetails, updateMember]);
+
+  const reinviteMember = useCallback((memberId) => {
+    const member = members.find((entry) => entry.id === memberId && entry.status === 'DEACTIVATED');
+    if (!member) return;
+
+    const details = requestInviteDetails(member, `Re-invite PI for ${member.name || member.id}`);
+    if (!details) return;
+
+    const inviteToken = buildInviteToken(member.id);
+    const invitedAt = new Date().toISOString();
+    updateMember(memberId, {
+      ...details,
+      status: 'INVITED',
+      piPhone: '',
+      piRole: '',
+      inviteToken,
+      invitedAt,
+      activatedAt: null,
+    });
+    setMemberAccessAccounts((prev) => prev.map((account) => (
+      account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
+    )));
+    window.alert(
+      `Invitation created for ${details.piName}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${details.piEmail}.`,
+    );
+  }, [members, requestInviteDetails, updateMember]);
+
   const toggleDateBlocked = useCallback((date) => {
     setCycle((prev) => {
       const blockedDates = new Set(prev.blockedDates || []);
@@ -665,9 +881,11 @@ export function MockStateProvider({ children }) {
     const id = newMemberForm.id.trim().toUpperCase().replace(/\s+/g, '');
     const name = newMemberForm.name.trim() || id;
     const shares = parseFloat(newMemberForm.shares);
+    const piName = newMemberForm.piName.trim();
+    const piEmail = normalizeEmail(newMemberForm.piEmail);
 
     if (!id) {
-      window.alert('Enter a member ID (e.g., UNC).');
+      window.alert('Enter a member ID.');
       return;
     }
     if (!Number.isFinite(shares) || shares <= 0) {
@@ -678,23 +896,49 @@ export function MockStateProvider({ children }) {
       window.alert(`Member ${id} already exists.`);
       return;
     }
+    if (!piName) {
+      window.alert('PI name is required.');
+      return;
+    }
+    if (!piEmail || !isValidEmail(piEmail)) {
+      window.alert('A valid PI email is required.');
+      return;
+    }
+    if (members.some((member) => normalizeEmail(member.piEmail) === piEmail && member.status !== 'DEACTIVATED')) {
+      window.alert('That PI email is already assigned to another member.');
+      return;
+    }
+    if (memberAccessAccounts.some((account) => account.status === 'ACTIVE' && normalizeEmail(account.email) === piEmail)) {
+      window.alert('That PI email already has active member access.');
+      return;
+    }
 
     ensureMemberPalette(id, members.length);
-    const member = { id, name, shares: parseFloat(shares.toFixed(2)), status: 'ACTIVE', registrationEnabled: true };
-    setMembers((prev) => [...prev, member]);
-    setQueue((prev) => {
-      if (prev.some((entry) => entry.memberId === id)) return prev;
-      const meanDeficit = prev.length > 0 ? prev.reduce((sum, entry) => sum + entry.deficitScore, 0) / prev.length : 0;
-      const insertAt = Math.ceil(prev.length / 2);
-      const next = [...prev];
-      next.splice(insertAt, 0, { memberId: id, deficitScore: parseFloat(meanDeficit.toFixed(4)), cycleWins: 0, roundWins: 0 });
-      return next;
+    const inviteToken = buildInviteToken(id);
+    const invitedAt = new Date().toISOString();
+    const member = normalizeMemberRecord({
+      id,
+      name,
+      shares: parseFloat(shares.toFixed(2)),
+      status: 'INVITED',
+      registrationEnabled: true,
+      piName,
+      piEmail,
+      piPhone: '',
+      piRole: '',
+      inviteToken,
+      invitedAt,
+      activatedAt: null,
     });
+    setMembers((prev) => [...prev, member]);
     setPreferences((prev) => ({ ...prev, [id]: normalizeMemberPreferences(member, prev[id]) }));
-    setCurrentView(id);
-    setResults(null);
-    setNewMemberForm({ id: '', name: '', shares: '1.00' });
-  }, [members, newMemberForm]);
+    setCurrentView('admin');
+    setLoginError('');
+    setNewMemberForm({ ...DEFAULT_NEW_MEMBER_FORM });
+    window.alert(
+      `Invitation created for ${piName}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${piEmail}.`,
+    );
+  }, [memberAccessAccounts, members, newMemberForm]);
 
   const runEngine = useCallback(() => {
     if (!isAdminSession) return;
@@ -753,14 +997,10 @@ export function MockStateProvider({ children }) {
 
   const submittedCount = Object.values(preferences).filter((pref) => pref.submitted).length;
   const activeMembers = members.filter((member) => member.status === 'ACTIVE');
-  const pendingMembers = members.filter((member) => member.status !== 'ACTIVE');
-  const registrationInstitutions = useMemo(
-    () => members
-      .filter((member) => member.registrationEnabled !== false)
-      .sort((a, b) => `${a.name || ''}${a.id}`.localeCompare(`${b.name || ''}${b.id}`))
-      .map((member) => ({ id: member.id, name: member.name || member.id })),
-    [members],
-  );
+  const invitedMembers = members.filter((member) => member.status === 'INVITED');
+  const deactivatedMembers = members.filter((member) => member.status === 'DEACTIVATED');
+  const pendingMembers = invitedMembers;
+  const inactiveMembers = members.filter((member) => member.status !== 'ACTIVE');
   const pendingRegistrationRequests = useMemo(
     () => registrationRequests
       .filter((request) => request.status === 'Pending')
@@ -935,7 +1175,12 @@ export function MockStateProvider({ children }) {
     () => [...shiftChangeRequests].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
     [shiftChangeRequests],
   );
-  const filteredMembersForAdmin = memberStatusFilter === 'pending' ? pendingMembers : activeMembers;
+  const filteredMembersForAdmin = useMemo(() => {
+    if (memberStatusFilter === 'active') return activeMembers;
+    if (memberStatusFilter === 'invited') return invitedMembers;
+    if (memberStatusFilter === 'deactivated') return deactivatedMembers;
+    return members;
+  }, [activeMembers, deactivatedMembers, invitedMembers, memberStatusFilter, members]);
 
   useEffect(() => {
     if (selectedShiftChangeSource && !selectedShiftChangeAssignmentObj) {
@@ -1328,10 +1573,11 @@ export function MockStateProvider({ children }) {
     setLoginForm,
     loginError,
     setLoginError,
-    registrationForm,
-    setRegistrationForm,
-    registrationSuccess,
-    setRegistrationSuccess,
+    activateToken,
+    setActivateToken,
+    activateForm,
+    setActivateForm,
+    activationSummary,
     registrationRequests,
     setRegistrationRequests,
     memberAccessAccounts,
@@ -1379,13 +1625,18 @@ export function MockStateProvider({ children }) {
     resetToDemoBaseline,
     handleSignIn,
     handleSSOSignIn,
-    handleRegister,
+    handleActivate,
     handleSignOut,
     updatePreference,
     updateMember,
     setRegistrationApprovalDraft,
     approveRegistrationRequest,
     rejectRegistrationRequest,
+    resendMemberInvite,
+    cancelMemberInvite,
+    deactivateMember,
+    changeMemberPi,
+    reinviteMember,
     toggleDateBlocked,
     toggleSlotBlocked,
     addMember,
@@ -1395,7 +1646,9 @@ export function MockStateProvider({ children }) {
     submittedCount,
     activeMembers,
     pendingMembers,
-    registrationInstitutions,
+    invitedMembers,
+    deactivatedMembers,
+    inactiveMembers,
     pendingRegistrationRequests,
     pendingRegistrationCount,
     resolvedRegistrationRequests,
@@ -1451,8 +1704,9 @@ export function MockStateProvider({ children }) {
     authScreen,
     loginForm,
     loginError,
-    registrationForm,
-    registrationSuccess,
+    activateToken,
+    activateForm,
+    activationSummary,
     registrationRequests,
     memberAccessAccounts,
     registrationApprovalDrafts,
@@ -1486,13 +1740,18 @@ export function MockStateProvider({ children }) {
     resetToDemoBaseline,
     handleSignIn,
     handleSSOSignIn,
-    handleRegister,
+    handleActivate,
     handleSignOut,
     updatePreference,
     updateMember,
     setRegistrationApprovalDraft,
     approveRegistrationRequest,
     rejectRegistrationRequest,
+    resendMemberInvite,
+    cancelMemberInvite,
+    deactivateMember,
+    changeMemberPi,
+    reinviteMember,
     toggleDateBlocked,
     toggleSlotBlocked,
     addMember,
@@ -1502,7 +1761,9 @@ export function MockStateProvider({ children }) {
     submittedCount,
     activeMembers,
     pendingMembers,
-    registrationInstitutions,
+    invitedMembers,
+    deactivatedMembers,
+    inactiveMembers,
     pendingRegistrationRequests,
     pendingRegistrationCount,
     resolvedRegistrationRequests,

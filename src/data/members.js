@@ -1,5 +1,19 @@
 import { ensureMemberPalette } from '../lib/theme';
 
+const DEFAULT_ACTIVATED_AT = '2026-01-01T00:00:00Z';
+
+function buildPlaceholderPiName(member) {
+  return `PI Contact ${member.id}`;
+}
+
+function buildPlaceholderPiEmail(member) {
+  const localPart = String(member.id || 'member')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  return `${localPart || 'member'}@member-demo.org`;
+}
+
 export const INITIAL_MEMBERS = [
   { id: 'UGA', name: 'University of Georgia', shares: 2.11, status: 'ACTIVE' },
   { id: 'RF', name: 'RF', shares: 0.53, status: 'ACTIVE' },
@@ -26,5 +40,12 @@ export const INITIAL_MEMBERS = [
   return {
     ...member,
     registrationEnabled: true,
+    piName: buildPlaceholderPiName(member),
+    piEmail: buildPlaceholderPiEmail(member),
+    piPhone: '',
+    piRole: '',
+    inviteToken: null,
+    invitedAt: null,
+    activatedAt: member.status === 'ACTIVE' ? DEFAULT_ACTIVATED_AT : null,
   };
 });

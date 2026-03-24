@@ -1,181 +1,170 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { normalizeEmail } from '../../lib/auth';
 import { CONCEPT_THEME } from '../../lib/theme';
 
 export default function LoginScreen({
-  authScreen,
-  setAuthScreen,
   loginForm,
   setLoginForm,
   loginError,
-  registrationSuccess,
-  registrationForm,
-  setRegistrationForm,
   handleSignIn,
   handleSSOSignIn,
-  handleRegister,
   handleResetDemoData,
-  registrationInstitutions = [],
+  onShowActivate,
+  members = [],
+  cycle,
 }) {
-  const hasInstitutionOptions = registrationInstitutions.length > 0;
-  return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-10 concept-font-body" style={{ background: CONCEPT_THEME.cream }}>
-      <div className="w-full max-w-sm concept-anim-fade">
-        <div className="mb-4 flex gap-1">
-          <button
-            type="button"
-            onClick={() => setAuthScreen('login')}
-            className="px-2.5 py-1.5 text-xs font-semibold rounded-md"
-            style={{ background: authScreen === 'login' ? CONCEPT_THEME.navy : CONCEPT_THEME.sand, color: authScreen === 'login' ? 'white' : CONCEPT_THEME.muted }}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => setAuthScreen('register')}
-            className="px-2.5 py-1.5 text-xs font-semibold rounded-md"
-            style={{ background: authScreen === 'register' ? CONCEPT_THEME.navy : CONCEPT_THEME.sand, color: authScreen === 'register' ? 'white' : CONCEPT_THEME.muted }}
-          >
-            Register
-          </button>
-        </div>
+  const invitedMember = useMemo(() => {
+    const loginKey = normalizeEmail(loginForm.username);
+    if (!loginKey) return null;
+    return members.find((member) => normalizeEmail(member.piEmail) === loginKey && member.status === 'INVITED') || null;
+  }, [loginForm.username, members]);
 
-        {authScreen === 'login' ? (
-          <>
-            <h1 className="concept-font-display text-3xl font-bold mb-1" style={{ color: CONCEPT_THEME.navy }}>Welcome back</h1>
-            <p className="text-sm mb-6" style={{ color: CONCEPT_THEME.muted }}>Sign in to continue to your portal.</p>
-            <form className="space-y-3" onSubmit={handleSignIn}>
+  return (
+    <div
+      className="app-screen px-4 py-6 sm:px-6 sm:py-10 concept-font-body"
+      style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 52%, #f3efe7 100%)` }}
+    >
+      <div className="app-screen-content mx-auto flex w-full max-w-2xl items-center justify-center concept-anim-fade">
+        <div
+          className="w-full overflow-hidden rounded-[32px] border bg-white px-5 py-10 shadow-[0_30px_90px_rgba(27,46,74,0.12)] sm:px-8 lg:px-10"
+          style={{ borderColor: CONCEPT_THEME.borderLight }}
+        >
+          <div className="mx-auto w-full max-w-md">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.navy }}>
+                <span className="concept-font-display text-lg font-bold">SERCAT</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]">Cycle {cycle?.id || '2026-1'}</span>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.amber }}>Member Sign In</p>
+              <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>Welcome back</h1>
+              <p className="mt-3 text-sm leading-6" style={{ color: CONCEPT_THEME.muted }}>
+                Sign in with your institutional email and password to continue to the SERCAT portal.
+              </p>
+            </div>
+
+            <form className="mt-8 space-y-4" onSubmit={handleSignIn}>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: CONCEPT_THEME.text }}>Username or Institutional Email</label>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                  Email Address
+                </label>
                 <input
                   type="text"
                   autoComplete="username"
                   value={loginForm.username}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}
-                  placeholder="member username or pi@institution.edu"
+                  onChange={(event) => setLoginForm((prev) => ({ ...prev, username: event.target.value }))}
+                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                  style={{
+                    background: CONCEPT_THEME.sand,
+                    borderColor: CONCEPT_THEME.border,
+                    color: CONCEPT_THEME.text,
+                  }}
+                  placeholder="pi@institution.edu"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: CONCEPT_THEME.text }}>Password</label>
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                    Password
+                  </label>
+                  <a
+                    href="mailto:admin@ser-cat.org?subject=SERCAT%20Password%20Help"
+                    className="text-xs font-semibold"
+                    style={{ color: CONCEPT_THEME.sky }}
+                  >
+                    Forgot password?
+                  </a>
+                </div>
                 <input
                   type="password"
                   autoComplete="current-password"
                   value={loginForm.password}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}
-                  placeholder="password"
+                  onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
+                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                  style={{
+                    background: CONCEPT_THEME.sand,
+                    borderColor: CONCEPT_THEME.border,
+                    color: CONCEPT_THEME.text,
+                  }}
+                  placeholder="Enter your password"
                 />
               </div>
-              {registrationSuccess ? (
-                <div className="text-xs rounded-lg px-2.5 py-2 border" style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}40`, color: CONCEPT_THEME.emerald }}>
-                  {registrationSuccess.type === 'request'
-                    ? `Registration submitted for ${registrationSuccess.institutionalEmail} (${registrationSuccess.institutionLabel}). Waiting for admin approval.`
-                    : `New account for ${registrationSuccess.memberId}: ${registrationSuccess.username} / ${registrationSuccess.password}`}
+
+              {invitedMember ? (
+                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}44`, color: CONCEPT_THEME.navy }}>
+                  {invitedMember.name} is still pending activation. Use the activation link from your invite email before signing in.
                 </div>
               ) : null}
-              {loginError ? <div className="text-xs rounded-lg px-2.5 py-2 border border-red-200 text-red-700 bg-red-50">{loginError}</div> : null}
-              <button type="submit" className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: CONCEPT_THEME.navy, color: 'white' }}>
+
+              {loginError ? (
+                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: '#fff1f1', borderColor: '#fecaca', color: '#b91c1c' }}>
+                  {loginError}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                className="w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5"
+                style={{ background: CONCEPT_THEME.navy }}
+              >
                 Sign In
               </button>
             </form>
 
-            <div className="flex items-center gap-3 my-3">
+            <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1" style={{ background: CONCEPT_THEME.border }} />
-              <span className="text-xs" style={{ color: CONCEPT_THEME.subtle }}>or</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: CONCEPT_THEME.subtle }}>or</span>
               <div className="h-px flex-1" style={{ background: CONCEPT_THEME.border }} />
             </div>
 
             <button
               type="button"
               onClick={handleSSOSignIn}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.border}`, color: CONCEPT_THEME.text }}
+              className="w-full rounded-2xl border px-4 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5"
+              style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
             >
               Sign in with Institutional SSO
             </button>
 
-            <button
-              type="button"
-              onClick={handleResetDemoData}
-              className="w-full mt-3 py-2.5 rounded-xl text-xs font-semibold"
-              style={{ background: CONCEPT_THEME.emeraldLight, border: `1px solid ${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}
-            >
-              Reset Demo Data
-            </button>
-            <p className="text-[11px] mt-2 text-center" style={{ color: CONCEPT_THEME.subtle }}>
-              Restores the standard mock baseline so a shareholder can test from registration through submission.
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className="concept-font-display text-3xl font-bold mb-1" style={{ color: CONCEPT_THEME.navy }}>Request access</h1>
-            <p className="text-sm mb-6" style={{ color: CONCEPT_THEME.muted }}>Self-declare shares for admin approval.</p>
-            {!hasInstitutionOptions ? <div className="text-xs rounded-lg px-2.5 py-2 border border-amber-200 bg-amber-50 text-amber-800 mb-3">No institutions are currently open for registration. Contact SERCAT admin.</div> : null}
-            <form className="space-y-3" onSubmit={handleRegister}>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: CONCEPT_THEME.text }}>Institution</label>
-                <select
-                  value={registrationForm.institutionMemberId}
-                  onChange={(e) => setRegistrationForm((prev) => ({ ...prev, institutionMemberId: e.target.value }))}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}
-                >
-                  <option value="">Select institution</option>
-                  {registrationInstitutions.map((institution) => (
-                    <option key={institution.id} value={institution.id}>
-                      {institution.name} ({institution.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: CONCEPT_THEME.text }}>Institutional Email</label>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  value={registrationForm.institutionalEmail}
-                  onChange={(e) => setRegistrationForm((prev) => ({ ...prev, institutionalEmail: e.target.value }))}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}
-                  placeholder="pi@institution.edu"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: CONCEPT_THEME.text }}>Declared Shares</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={registrationForm.shares}
-                  onChange={(e) => setRegistrationForm((prev) => ({ ...prev, shares: e.target.value }))}
-                  className="w-full px-3.5 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}
-                  placeholder="1.00"
-                />
-              </div>
-              {loginError ? <div className="text-xs rounded-lg px-2.5 py-2 border border-red-200 text-red-700 bg-red-50">{loginError}</div> : null}
-              <button
-                type="submit"
-                disabled={!hasInstitutionOptions}
-                className="w-full py-3 rounded-xl text-sm font-bold"
-                style={{ background: hasInstitutionOptions ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark, color: hasInstitutionOptions ? 'white' : CONCEPT_THEME.muted }}
-              >
-                Submit Registration
-              </button>
-            </form>
+            <div className="mt-6 rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: CONCEPT_THEME.amber }}>Need access?</div>
+              <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
+                SERCAT accounts are created by the administrator. Contact <a className="font-semibold" href="mailto:admin@ser-cat.org">admin@ser-cat.org</a> to request an account.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={handleResetDemoData}
-              className="w-full mt-3 py-2.5 rounded-xl text-xs font-semibold"
-              style={{ background: CONCEPT_THEME.emeraldLight, border: `1px solid ${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}
-            >
-              Reset Demo Data
-            </button>
-          </>
-        )}
+            <div className="mt-6 flex flex-col items-start gap-3">
+              <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+                Received an invitation?
+              </div>
+              <button
+                type="button"
+                onClick={onShowActivate}
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5"
+                style={{ background: `${CONCEPT_THEME.navy}10`, color: CONCEPT_THEME.navy }}
+              >
+                Activate your account
+              </button>
+            </div>
+
+            <div className="mt-8 border-t pt-5" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+              <button
+                type="button"
+                onClick={handleResetDemoData}
+                className="w-full rounded-2xl border px-4 py-3 text-xs font-bold uppercase tracking-[0.22em]"
+                style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}
+              >
+                Reset Demo Data
+              </button>
+              <p className="mt-2 text-center text-[11px] leading-5" style={{ color: CONCEPT_THEME.subtle }}>
+                Restores the local prototype baseline so invite, activation, and member access can be tested from a clean state.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
