@@ -6,7 +6,7 @@ function BrandingPanel({ cycleId = '2026-1' }) {
     <div
       className="hidden lg:flex flex-col justify-between p-10 xl:p-12"
       style={{
-        background: `linear-gradient(160deg, ${CONCEPT_THEME.navy} 0%, ${CONCEPT_THEME.navyLight} 58%, #3d5c82 100%)`,
+        background: `linear-gradient(160deg, ${CONCEPT_THEME.navy} 0%, ${CONCEPT_THEME.navyLight} 58%, ${CONCEPT_THEME.teal} 100%)`,
         color: 'white',
       }}
     >
@@ -21,23 +21,23 @@ function BrandingPanel({ cycleId = '2026-1' }) {
           </div>
           <div>
             <div className="concept-font-display text-xl font-bold tracking-tight">SERCAT</div>
-            <div className="text-xs uppercase tracking-[0.24em] text-white/80">Invite Activation</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-white/85">Invite Activation</div>
           </div>
         </div>
 
         <div className="mt-14 max-w-md">
-          <p className="text-sm uppercase tracking-[0.3em] text-white/75">Secure Access</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/80">Secure Access</p>
           <h1 className="concept-font-display mt-4 text-5xl leading-[1.04] font-bold">Complete your PI access.</h1>
-          <p className="mt-5 text-base leading-7 text-white/82">
+          <p className="mt-5 text-base leading-7 text-white/84">
             Your institution administrator created the account. Activation only requires the invite token and your new password.
           </p>
         </div>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-black/10 px-5 py-5">
-        <div className="text-xs uppercase tracking-[0.24em] text-white/75">Cycle Ready</div>
+        <div className="text-xs uppercase tracking-[0.24em] text-white/80">Cycle Ready</div>
         <div className="mt-2 text-lg font-semibold text-white">Cycle {cycleId}</div>
-        <div className="mt-2 text-sm leading-6 text-white/82">
+        <div className="mt-2 text-sm leading-6 text-white/84">
           Once activated, you can sign in, review your dashboard, and submit scheduling preferences for the current run cycle.
         </div>
       </div>
@@ -50,7 +50,7 @@ function ReadOnlyInvitationCard({ member }) {
     <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
       <div className="grid gap-3 text-sm" style={{ color: CONCEPT_THEME.text }}>
         <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amberOnAmber }}>ORG</span>
+          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>ORG</span>
           <div>
             <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Institution</div>
             <div className="font-semibold">{member.name || member.id} ({member.id})</div>
@@ -107,7 +107,7 @@ export default function ActivateAccountScreen({
     return (
       <div
         className="app-screen px-4 py-6 sm:px-6 sm:py-10 concept-font-body"
-        style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 52%, #f3efe7 100%)` }}
+        style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 56%, ${CONCEPT_THEME.sand} 100%)` }}
       >
         <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-[32px] border bg-white shadow-[0_30px_90px_rgba(27,46,74,0.12)] lg:grid-cols-[1.08fr_0.92fr] concept-anim-fade" style={{ borderColor: CONCEPT_THEME.borderLight }}>
           <BrandingPanel cycleId={cycle?.id} />
@@ -133,7 +133,7 @@ export default function ActivateAccountScreen({
               </div>
 
               <div className="mt-6 rounded-[28px] border px-5 py-5 text-left" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>What's next?</div>
+                <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.accentOnAccent }}>What's next?</div>
                 <ol className="mt-3 space-y-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
                   <li>1. Sign in with your institutional email and new password.</li>
                   <li>2. Review your dashboard and cycle status.</li>
@@ -159,7 +159,7 @@ export default function ActivateAccountScreen({
   return (
     <div
       className="app-screen px-4 py-6 sm:px-6 sm:py-10 concept-font-body"
-      style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 52%, #f3efe7 100%)` }}
+      style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 56%, ${CONCEPT_THEME.sand} 100%)` }}
     >
       <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-[32px] border bg-white shadow-[0_30px_90px_rgba(27,46,74,0.12)] lg:grid-cols-[1.08fr_0.92fr] concept-anim-fade" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <BrandingPanel cycleId={cycle?.id} />
@@ -167,7 +167,7 @@ export default function ActivateAccountScreen({
         <div className="app-screen-content flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
           <div className="w-full max-w-md">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: invitedMember ? CONCEPT_THEME.emerald : CONCEPT_THEME.amberText }}>
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: invitedMember ? CONCEPT_THEME.emerald : CONCEPT_THEME.accentText }}>
                 {invitedMember ? 'Valid Invitation' : 'Activate Access'}
               </p>
               <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>
@@ -198,7 +198,7 @@ export default function ActivateAccountScreen({
               </div>
 
               {loginError ? (
-                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: '#fff1f1', borderColor: '#fecaca', color: '#b91c1c' }}>
+                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
                   {loginError}
                 </div>
               ) : null}
@@ -262,7 +262,7 @@ export default function ActivateAccountScreen({
                 </>
               ) : (
                 <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-                  <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>Before you continue</div>
+                  <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.accentOnAccent }}>Before you continue</div>
                   <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
                     Activation tokens are generated by the admin when an invite is created or re-sent. If you do not have a token, contact <a href="mailto:admin@ser-cat.org" className="font-semibold">admin@ser-cat.org</a>.
                   </p>

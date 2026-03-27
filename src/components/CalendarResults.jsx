@@ -2,7 +2,14 @@ import React, { useMemo, useState } from 'react';
 import ShiftSlotCalendar from './ShiftSlotCalendar';
 import { COLORS, MEMBER_BG } from '../lib/theme';
 
-export default function CalendarResults({ results, cycle, members, memberDirectory = {}, originalChoiceMarks = {} }) {
+export default function CalendarResults({
+  results,
+  cycle,
+  members,
+  memberDirectory = {},
+  originalChoiceMarks = {},
+  showShiftLegend = true,
+}) {
   const [filterMember, setFilterMember] = useState('all');
   const [showOriginalChoices, setShowOriginalChoices] = useState(false);
   const visibleOriginalChoiceMarks = useMemo(() => {
@@ -49,6 +56,7 @@ export default function CalendarResults({ results, cycle, members, memberDirecto
         memberDirectory={memberDirectory}
         preferenceMarks={visibleOriginalChoiceMarks}
         showPreferenceOverlay={showOriginalChoices}
+        showShiftLegend={showShiftLegend}
       />
       <div className="bg-white rounded-lg border p-3 shadow-sm">
         <h4 className="font-semibold text-gray-700 text-sm mb-2">Calendar Summary</h4>

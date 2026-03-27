@@ -8,12 +8,15 @@ import AvailabilityCalendar from './screens/member/AvailabilityCalendar';
 import PreferenceForm from './screens/member/PreferenceForm';
 import MySchedule from './screens/member/MySchedule';
 import ShiftChanges from './screens/member/ShiftChanges';
+import MemberComments from './screens/member/MemberComments';
+import MemberProfile from './screens/member/MemberProfile';
 import AdminDashboard from './screens/admin/AdminDashboard';
 import MembersAndShares from './screens/admin/MembersAndShares';
 import RunCycles from './screens/admin/RunCycles';
 import EngineAndSchedule from './screens/admin/EngineAndSchedule';
 import FairnessPanel from './screens/admin/FairnessPanel';
 import ShiftChangeAdmin from './screens/admin/ShiftChangeAdmin';
+import AdminComments from './screens/admin/AdminComments';
 import ConflictLog from './screens/admin/ConflictLog';
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
@@ -25,6 +28,8 @@ const MEMBER_ROUTE_BY_TAB = {
   preferences: '/member/preferences',
   schedule: '/member/schedule',
   shiftChanges: '/member/shift-changes',
+  comments: '/member/comments',
+  profile: '/member/profile',
 };
 
 const ADMIN_ROUTE_BY_TAB = {
@@ -34,6 +39,7 @@ const ADMIN_ROUTE_BY_TAB = {
   engine: '/admin/engine',
   fairness: '/admin/fairness',
   shiftChanges: '/admin/shift-changes',
+  comments: '/admin/comments',
   conflicts: '/admin/conflicts',
 };
 
@@ -41,11 +47,239 @@ const MEMBER_TAB_BY_PATH = Object.fromEntries(Object.entries(MEMBER_ROUTE_BY_TAB
 const ADMIN_TAB_BY_PATH = Object.fromEntries(Object.entries(ADMIN_ROUTE_BY_TAB).map(([tab, path]) => [path, tab]));
 
 function MemberRouteFallback() {
-  return <div className="text-center py-12 text-gray-500 text-sm">Select a member account to preview member screens.</div>;
+  return <div className="py-12 text-center text-sm text-gray-500">Select a member account to preview member screens.</div>;
 }
 
 function EngineEmptyState() {
-  return <div className="text-center py-12 text-gray-400 text-sm">Run the engine to populate this screen.</div>;
+  return <div className="py-12 text-center text-sm text-gray-400">Run the engine to populate this screen.</div>;
+}
+
+function getInitials(label = '') {
+  const words = String(label || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return 'PI';
+  return words.slice(0, 2).map((word) => word[0]).join('').toUpperCase();
+}
+
+function getMemberBadgeTone(tabId, badge, active) {
+  if (!badge) return null;
+  if (active) {
+    return { background: 'rgba(255,255,255,0.16)', color: 'white' };
+  }
+  if (tabId === 'preferences' && badge === 'Action') {
+    return { background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent };
+  }
+  if (tabId === 'preferences' && badge === 'Late') {
+    return { background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error };
+  }
+  if (tabId === 'schedule' && (badge === 'Ready' || badge === 'Published')) {
+    return { background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald };
+  }
+  if (tabId === 'availability' && badge === 'Live') {
+    return { background: CONCEPT_THEME.skyLight, color: CONCEPT_THEME.sky };
+  }
+  if (tabId === 'shiftChanges') {
+    return { background: CONCEPT_THEME.tealLight, color: CONCEPT_THEME.teal };
+  }
+  return { background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text };
+}
+
+function MemberNavIcon({ tabId, active }) {
+  const stroke = active ? 'white' : CONCEPT_THEME.navy;
+  const strokeProps = { fill: 'none', stroke, strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' };
+
+  if (tabId === 'dashboard') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M4 12.5L12 4l8 8.5" />
+        <path d="M6.5 10.5V20h11v-9.5" />
+      </svg>
+    );
+  }
+  if (tabId === 'availability') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+        <path d="M8 3v4" />
+        <path d="M16 3v4" />
+        <path d="M3.5 9.5h17" />
+      </svg>
+    );
+  }
+  if (tabId === 'preferences') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M8 6h10" />
+        <path d="M8 12h10" />
+        <path d="M8 18h10" />
+        <path d="M4 6h.01" />
+        <path d="M4 12h.01" />
+        <path d="M4 18h.01" />
+      </svg>
+    );
+  }
+  if (tabId === 'schedule') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5v5l3 2" />
+      </svg>
+    );
+  }
+  if (tabId === 'shiftChanges') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M7 7h10" />
+        <path d="M13 3l4 4-4 4" />
+        <path d="M17 17H7" />
+        <path d="M11 13l-4 4 4 4" />
+      </svg>
+    );
+  }
+  if (tabId === 'comments') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M5 6.5h14a2 2 0 012 2v7a2 2 0 01-2 2H10l-5 3v-3H5a2 2 0 01-2-2v-7a2 2 0 012-2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0114 0" />
+    </svg>
+  );
+}
+
+function getAdminBadgeTone(badge, active) {
+  if (!badge) return null;
+  if (active) {
+    return { background: 'rgba(255,255,255,0.16)', color: 'white' };
+  }
+  return { background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent };
+}
+
+function AdminNavIcon({ tabId, active }) {
+  const stroke = active ? 'white' : CONCEPT_THEME.navy;
+  const strokeProps = { fill: 'none', stroke, strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' };
+
+  if (tabId === 'dashboard') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M4 12.5L12 4l8 8.5" />
+        <path d="M6.5 10.5V20h11v-9.5" />
+      </svg>
+    );
+  }
+  if (tabId === 'members') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <circle cx="9" cy="8.5" r="2.5" />
+        <circle cx="16.5" cy="10" r="2" />
+        <path d="M4.5 18a4.5 4.5 0 019 0" />
+        <path d="M13.5 18a3.5 3.5 0 017 0" />
+      </svg>
+    );
+  }
+  if (tabId === 'cycle') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+        <path d="M8 3v4" />
+        <path d="M16 3v4" />
+        <path d="M3.5 9.5h17" />
+      </svg>
+    );
+  }
+  if (tabId === 'engine') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M6 7.5h12" />
+        <path d="M6 12h12" />
+        <path d="M6 16.5h12" />
+        <circle cx="9" cy="7.5" r="1.5" />
+        <circle cx="15" cy="12" r="1.5" />
+        <circle cx="11" cy="16.5" r="1.5" />
+      </svg>
+    );
+  }
+  if (tabId === 'fairness') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M12 5v14" />
+        <path d="M7 9.5h10" />
+        <path d="M8 9.5l-2.5 5h5L8 9.5z" />
+        <path d="M16 9.5l-2.5 5h5L16 9.5z" />
+      </svg>
+    );
+  }
+  if (tabId === 'shiftChanges') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M7 7h10" />
+        <path d="M13 3l4 4-4 4" />
+        <path d="M17 17H7" />
+        <path d="M11 13l-4 4 4 4" />
+      </svg>
+    );
+  }
+  if (tabId === 'comments') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+        <path d="M5 6.5h14a2 2 0 012 2v7a2 2 0 01-2 2H10l-5 3v-3H5a2 2 0 01-2-2v-7a2 2 0 012-2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...strokeProps}>
+      <path d="M12 3l9 16H3L12 3z" />
+      <path d="M12 9.5v4.5" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
+}
+
+function MemberPreviewSwitcher({
+  members,
+  currentView,
+  inAdminArea,
+  inMemberArea,
+  adminTab,
+  openAdminTab,
+  openMemberPreview,
+  compact = false,
+}) {
+  return (
+    <div className={compact ? 'overflow-x-auto' : ''}>
+      <div className={`flex min-w-max flex-wrap items-center gap-1.5 ${compact ? 'pb-1' : ''}`}>
+        <button
+          onClick={() => openAdminTab(adminTab || 'dashboard')}
+          className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
+          style={{
+            background: currentView === 'admin' && inAdminArea ? CONCEPT_THEME.navy : CONCEPT_THEME.sand,
+            color: currentView === 'admin' && inAdminArea ? 'white' : CONCEPT_THEME.text,
+            border: `1px solid ${currentView === 'admin' && inAdminArea ? CONCEPT_THEME.navy : CONCEPT_THEME.border}`,
+          }}
+        >
+          Admin
+        </button>
+        {members.map((member) => (
+          <button
+            key={member.id}
+            onClick={() => openMemberPreview(member.id)}
+            className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
+            style={currentView === member.id && inMemberArea
+              ? { backgroundColor: COLORS[member.id], color: 'white', border: '1px solid transparent' }
+              : { backgroundColor: MEMBER_BG[member.id], color: COLORS[member.id], border: '1px solid transparent' }}
+          >
+            {member.id}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -90,6 +324,8 @@ export default function App() {
   const navigate = useNavigate();
   const inMemberArea = location.pathname.startsWith('/member/');
   const inAdminArea = location.pathname.startsWith('/admin/');
+  const showMemberShell = inMemberArea && Boolean(activeMember);
+  const showAdminShell = inAdminArea && isAdminSession;
 
   useEffect(() => {
     if (!session) {
@@ -135,6 +371,7 @@ export default function App() {
   }, [session, location.pathname, memberTab, setMemberTab, currentView, setCurrentView, members, adminTab, setAdminTab]);
 
   const openAdminTab = (tabId) => {
+    setCurrentView('admin');
     setAdminTab(tabId);
     navigate(ADMIN_ROUTE_BY_TAB[tabId] || '/admin/dashboard');
   };
@@ -205,72 +442,68 @@ export default function App() {
     );
   }
 
+  const profileName = activeMember?.piName || activeMember?.id || 'Member';
+  const profileInstitution = activeMember?.name || activeMember?.id || 'Member account';
+  const adminProfileName = 'SERCAT Admin';
+  const adminProfileInstitution = 'Administrative Console';
+
+  const routesElement = (
+    <Routes>
+      <Route path="/" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+      <Route path="/login" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+      <Route path="/member/dashboard" element={activeMember ? <MemberDashboard /> : <MemberRouteFallback />} />
+      <Route path="/member/availability" element={activeMember ? <AvailabilityCalendar /> : <MemberRouteFallback />} />
+      <Route path="/member/preferences" element={activeMember ? <PreferenceForm /> : <MemberRouteFallback />} />
+      <Route path="/member/schedule" element={activeMember ? <MySchedule /> : <MemberRouteFallback />} />
+      <Route path="/member/shift-changes" element={activeMember ? <ShiftChanges /> : <MemberRouteFallback />} />
+      <Route path="/member/comments" element={activeMember ? <MemberComments /> : <MemberRouteFallback />} />
+      <Route path="/member/profile" element={activeMember ? <MemberProfile /> : <MemberRouteFallback />} />
+      <Route path="/admin/dashboard" element={isAdminSession ? <AdminDashboard /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/members" element={isAdminSession ? <MembersAndShares /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/run-cycles" element={isAdminSession ? <RunCycles /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/engine" element={isAdminSession ? <EngineAndSchedule /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/fairness" element={isAdminSession ? (results ? <FairnessPanel /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/shift-changes" element={isAdminSession ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/comments" element={isAdminSession ? <AdminComments /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/conflicts" element={isAdminSession ? (results ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
+      <Route path="*" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+    </Routes>
+  );
+
   return (
     <>
       <ConceptFontStyles />
       <div className="app-screen flex w-full flex-col overflow-x-hidden" style={{ background: CONCEPT_THEME.cream, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-        <div className="sticky top-0 z-50" style={{ background: CONCEPT_THEME.navy }}>
-          <div className="max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${CONCEPT_THEME.amber}22` }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={CONCEPT_THEME.amber} strokeWidth="2" strokeLinecap="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 12l10 5 10-5" />
-                  <path d="M2 17l10 5 10-5" />
-                </svg>
+        {showMemberShell ? (
+          <div className="sticky top-0 z-50 border-b" style={{ background: CONCEPT_THEME.navy, borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${CONCEPT_THEME.amber}22` }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={CONCEPT_THEME.amber} strokeWidth="2" strokeLinecap="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 12l10 5 10-5" />
+                    <path d="M2 17l10 5 10-5" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="concept-font-display truncate text-base font-bold text-white">SERCAT</div>
+                  <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Cycle {cycle.id}</div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h1 className="concept-font-display font-bold text-white text-sm leading-tight truncate">SERCAT Scheduling Portal</h1>
-                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.58)' }}>Phase 1 UI | {cycle.id}</span>
-              </div>
-            </div>
 
-            <div className="w-full lg:w-auto flex flex-col lg:items-end gap-2">
-              {isAdminSession ? (
-                <div className="w-full lg:max-w-[980px] overflow-x-auto">
-                  <div className="flex items-center gap-1.5 pb-1 min-w-max">
-                    <button
-                      onClick={() => {
-                        setCurrentView('admin');
-                        openAdminTab(adminTab || 'dashboard');
-                      }}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                      style={{
-                        background: currentView === 'admin' && inAdminArea ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
-                        color: 'white',
-                        border: `1px solid ${currentView === 'admin' && inAdminArea ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.1)'}`,
-                      }}
-                    >
-                      Admin
-                    </button>
-                    {members.map((member) => (
-                      <button
-                        key={member.id}
-                        onClick={() => openMemberPreview(member.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        style={currentView === member.id && inMemberArea
-                          ? { backgroundColor: COLORS[member.id], color: 'white', border: '1px solid transparent' }
-                          : { backgroundColor: MEMBER_BG[member.id], color: COLORS[member.id], border: '1px solid transparent' }}
-                      >
-                        {member.id}
-                      </button>
-                    ))}
+              <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                <div className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: `${CONCEPT_THEME.amber}22`, color: CONCEPT_THEME.amber }}>
+                    {getInitials(profileName)}
+                  </div>
+                  <div className="hidden min-w-0 sm:block">
+                    <div className="truncate text-sm font-semibold text-white">{profileName}</div>
+                    <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{profileInstitution}</div>
                   </div>
                 </div>
-              ) : <div />}
-
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                {!isAdminSession ? (
-                  <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: `${CONCEPT_THEME.sky}22`, color: '#e5f1ff' }}>
-                    Member: {session.memberId}
-                  </span>
-                ) : null}
-                <span className="rounded px-2 py-1 text-xs font-semibold" style={{ background: isAdminSession ? 'rgba(255,255,255,0.13)' : `${CONCEPT_THEME.emerald}22`, color: isAdminSession ? 'white' : '#d6f7e7' }}>
-                  {isAdminSession ? 'Admin Session' : 'Member Session'}
-                </span>
                 <button
                   onClick={handleSignOut}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
                   Log out
@@ -278,125 +511,213 @@ export default function App() {
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="flex-1 max-w-[1600px] w-full mx-auto px-3 sm:px-4 py-4">
-          {inMemberArea && activeMember && (
-            <div className="space-y-4 mb-4">
-              <div className="bg-white rounded-lg border p-3 shadow-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-bold text-gray-800">{activeMember.name}</h2>
-                  <span className="px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-700">
-                    Member Portal
-                  </span>
+        ) : showAdminShell ? (
+          <div className="sticky top-0 z-50 border-b" style={{ background: CONCEPT_THEME.navy, borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${CONCEPT_THEME.amber}22` }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={CONCEPT_THEME.amber} strokeWidth="2" strokeLinecap="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 12l10 5 10-5" />
+                    <path d="M2 17l10 5 10-5" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="concept-font-display truncate text-base font-bold text-white">SERCAT</div>
+                  <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Cycle {cycle.id}</div>
                 </div>
               </div>
 
-              <div className="sticky top-14 z-30 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 backdrop-blur border-y" style={{ background: `${CONCEPT_THEME.cream}f2`, borderColor: CONCEPT_THEME.borderLight }}>
+              <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                <div className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: `${CONCEPT_THEME.amber}22`, color: CONCEPT_THEME.amber }}>
+                    {getInitials(adminProfileName)}
+                  </div>
+                  <div className="hidden min-w-0 sm:block">
+                    <div className="truncate text-sm font-semibold text-white">{adminProfileName}</div>
+                    <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{adminProfileInstitution}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="sticky top-0 z-50" style={{ background: CONCEPT_THEME.navy }}>
+            <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-2 px-3 py-2.5 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: `${CONCEPT_THEME.amber}22` }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={CONCEPT_THEME.amber} strokeWidth="2" strokeLinecap="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 12l10 5 10-5" />
+                    <path d="M2 17l10 5 10-5" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h1 className="concept-font-display truncate text-sm font-bold leading-tight text-white">SERCAT Scheduling Portal</h1>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>Cycle {cycle.id}</span>
+                </div>
+              </div>
+
+              <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                <div className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: `${CONCEPT_THEME.amber}22`, color: CONCEPT_THEME.amber }}>
+                    {getInitials(isAdminSession ? adminProfileName : profileName)}
+                  </div>
+                  <div className="hidden min-w-0 sm:block">
+                    <div className="truncate text-sm font-semibold text-white">
+                      {isAdminSession ? adminProfileName : profileName}
+                    </div>
+                    <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                      {isAdminSession ? adminProfileInstitution : profileInstitution}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mx-auto flex-1 w-full max-w-[1600px] px-3 py-4 sm:px-4">
+          {showMemberShell ? (
+            <div className="space-y-4">
+              {isAdminSession ? (
+                <div className="rounded-2xl border bg-white px-3 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Member preview</div>
+                  <MemberPreviewSwitcher
+                    members={members}
+                    currentView={currentView}
+                    inAdminArea={inAdminArea}
+                    inMemberArea={inMemberArea}
+                    adminTab={adminTab}
+                    openAdminTab={openAdminTab}
+                    openMemberPreview={openMemberPreview}
+                    compact
+                  />
+                </div>
+              ) : null}
+
+              <div
+                className="sticky z-40 -mx-3 border-b px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4"
+                style={{ top: 72, background: 'rgba(245,246,248,0.94)', borderColor: CONCEPT_THEME.borderLight }}
+              >
                 <div className="overflow-x-auto">
-                  <div className="flex items-center gap-1 min-w-max pr-1">
+                  <div className="flex min-w-max items-stretch gap-2">
                     {MEMBER_PORTAL_TABS.map((tab) => {
                       const badge = memberTabBadges[tab.id];
                       const active = memberTab === tab.id;
-                      const badgeClass = active
-                        ? 'bg-white/20 text-white'
-                        : tab.id === 'preferences' && badge === 'Action'
-                          ? 'bg-amber-100 text-amber-700'
-                          : tab.id === 'preferences' && badge === 'Late'
-                            ? 'bg-red-100 text-red-700'
-                            : tab.id === 'schedule' && badge === 'Ready'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : tab.id === 'shiftChanges' && badge
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-200 text-gray-600';
+                      const badgeTone = getMemberBadgeTone(tab.id, badge, active);
                       return (
                         <button
                           key={tab.id}
                           onClick={() => openMemberTab(tab.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                          className="relative rounded-2xl border px-4 py-2.5 text-left transition-all"
+                          style={active
+                            ? {
+                              background: CONCEPT_THEME.navy,
+                              color: 'white',
+                              borderColor: CONCEPT_THEME.navy,
+                              boxShadow: '0 12px 24px rgba(15,42,74,0.18)',
+                            }
+                            : {
+                              background: CONCEPT_THEME.warmWhite,
+                              color: CONCEPT_THEME.text,
+                              borderColor: CONCEPT_THEME.border,
+                            }}
                         >
-                          <span className="flex items-center gap-1.5">
-                            <span>{tab.label}</span>
-                            {badge ? <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${badgeClass}`}>{badge}</span> : null}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: active ? 'rgba(255,255,255,0.12)' : CONCEPT_THEME.sand }}>
+                              <MemberNavIcon tabId={tab.id} active={active} />
+                            </div>
+                            <span className="whitespace-nowrap text-sm font-semibold">{tab.label}</span>
+                            {badge && badgeTone ? (
+                              <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: badgeTone.background, color: badgeTone.color }}>
+                                {badge}
+                              </span>
+                            ) : null}
+                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {inAdminArea && isAdminSession && (
-            <div className="space-y-4 mb-4">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <div className="flex gap-1 flex-wrap">
-                  {ADMIN_PORTAL_TABS.map((tab) => {
-                    const active = adminTab === tab.id;
-                    const badge = tab.id === 'members' && pendingRegistrationCount > 0 ? pendingRegistrationCount : 0;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => openAdminTab(tab.id)}
-                        className="px-4 py-2 rounded-xl text-xs font-semibold transition-all"
-                        style={{
-                          background: active ? CONCEPT_THEME.navy : CONCEPT_THEME.warmWhite,
-                          color: active ? 'white' : CONCEPT_THEME.text,
-                          border: active ? `1px solid ${CONCEPT_THEME.navy}` : `1px solid ${CONCEPT_THEME.border}`,
-                          boxShadow: active ? '0 6px 16px rgba(27,46,74,0.18)' : 'none',
-                        }}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <span>{tab.label}</span>
-                          {badge ? <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${active ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>{badge}</span> : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex-1" />
-                <span className="text-[11px]" style={{ color: CONCEPT_THEME.muted }}>{dbStatus}</span>
-                <button
-                  onClick={loadFromDatabase}
-                  disabled={dbBusy}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:cursor-not-allowed"
-                  style={{ background: dbBusy ? '#f3f4f6' : CONCEPT_THEME.sand, color: dbBusy ? '#9ca3af' : CONCEPT_THEME.text, border: `1px solid ${CONCEPT_THEME.border}` }}
-                >
-                  Load Local
-                </button>
-                <button
-                  onClick={saveCurrentToDatabase}
-                  disabled={dbBusy}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:cursor-not-allowed"
-                  style={{ background: dbBusy ? '#f3f4f6' : CONCEPT_THEME.emeraldLight, color: dbBusy ? '#9ca3af' : CONCEPT_THEME.emerald, border: `1px solid ${dbBusy ? '#e5e7eb' : `${CONCEPT_THEME.emerald}33`}` }}
-                >
-                  Save Local
-                </button>
+              <div className="min-w-0">
+                {routesElement}
               </div>
             </div>
-          )}
-
-          {!isAdminSession && inAdminArea ? (
-            <div className="text-center py-12 text-gray-500 text-sm">Member sessions cannot access admin screens.</div>
           ) : (
-            <Routes>
-              <Route path="/" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
-              <Route path="/login" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
-              <Route path="/member/dashboard" element={activeMember ? <MemberDashboard /> : <MemberRouteFallback />} />
-              <Route path="/member/availability" element={activeMember ? <AvailabilityCalendar /> : <MemberRouteFallback />} />
-              <Route path="/member/preferences" element={activeMember ? <PreferenceForm /> : <MemberRouteFallback />} />
-              <Route path="/member/schedule" element={activeMember ? <MySchedule /> : <MemberRouteFallback />} />
-              <Route path="/member/shift-changes" element={activeMember ? <ShiftChanges /> : <MemberRouteFallback />} />
-              <Route path="/admin/dashboard" element={isAdminSession ? <AdminDashboard /> : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/members" element={isAdminSession ? <MembersAndShares /> : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/run-cycles" element={isAdminSession ? <RunCycles /> : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/engine" element={isAdminSession ? <EngineAndSchedule /> : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/fairness" element={isAdminSession ? (results ? <FairnessPanel /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/shift-changes" element={isAdminSession ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
-              <Route path="/admin/conflicts" element={isAdminSession ? (results ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
-              <Route path="*" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
-            </Routes>
+            <>
+              {inAdminArea && isAdminSession && (
+                <div className="space-y-4">
+                  <div
+                    className="sticky z-40 -mx-3 border-b px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4"
+                    style={{ top: 72, background: 'rgba(245,246,248,0.94)', borderColor: CONCEPT_THEME.borderLight }}
+                  >
+                    <div className="overflow-x-auto">
+                      <div className="flex min-w-max items-stretch gap-2">
+                        {ADMIN_PORTAL_TABS.map((tab) => {
+                          const active = adminTab === tab.id;
+                          const badge = tab.id === 'members' && pendingRegistrationCount > 0 ? pendingRegistrationCount : 0;
+                          const badgeTone = getAdminBadgeTone(badge, active);
+                          return (
+                            <button
+                              key={tab.id}
+                              onClick={() => openAdminTab(tab.id)}
+                              className="relative rounded-2xl border px-4 py-2.5 text-left transition-all"
+                              style={active
+                                ? {
+                                  background: CONCEPT_THEME.navy,
+                                  color: 'white',
+                                  borderColor: CONCEPT_THEME.navy,
+                                  boxShadow: '0 12px 24px rgba(15,42,74,0.18)',
+                                }
+                                : {
+                                  background: CONCEPT_THEME.warmWhite,
+                                  color: CONCEPT_THEME.text,
+                                  borderColor: CONCEPT_THEME.border,
+                                }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: active ? 'rgba(255,255,255,0.12)' : CONCEPT_THEME.sand }}>
+                                  <AdminNavIcon tabId={tab.id} active={active} />
+                                </div>
+                                <span className="whitespace-nowrap text-sm font-semibold">{tab.label}</span>
+                                {badge && badgeTone ? (
+                                  <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: badgeTone.background, color: badgeTone.color }}>
+                                    {badge}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isAdminSession && inAdminArea ? (
+                <div className="py-12 text-center text-sm text-gray-500">Member sessions cannot access admin screens.</div>
+              ) : (
+                routesElement
+              )}
+            </>
           )}
         </div>
       </div>

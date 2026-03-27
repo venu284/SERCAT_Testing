@@ -1,24 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ConceptProgressRing from '../../components/ConceptProgressRing';
-import ConceptShiftBadge from '../../components/ConceptShiftBadge';
-import { SHIFT_PLAIN_LABELS, WHOLE_SLOT_LABELS, WHOLE_SLOT_ORDER } from '../../lib/constants';
+import { SHIFT_PLAIN_LABELS, SHIFT_UI_META, WHOLE_SLOT_LABELS } from '../../lib/constants';
 import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates';
 import { CONCEPT_THEME } from '../../lib/theme';
 import { computeEntitlements } from '../../engine/engine';
 import { normalizeMemberPreferences } from '../../lib/normalizers';
+import { getActiveWholeSlotKeysForShare } from '../../lib/whole-share';
 import { useMockApp } from '../../lib/mock-state';
 
 function buildPreferenceWizardSteps(entitlement, myPrefs) {
   const wholeSlots = [];
   for (let shareIndex = 1; shareIndex <= entitlement.wholeShares; shareIndex += 1) {
-    WHOLE_SLOT_ORDER.forEach((slotKey) => {
+    getActiveWholeSlotKeysForShare(myPrefs.wholeShare, shareIndex).forEach((slotKey) => {
       const pref = myPrefs.wholeShare.find((entry) => entry.shareIndex === shareIndex && entry.slotKey === slotKey) || {};
-      const shiftType = slotKey === 'NS' ? 'NS' : (pref.shiftType || 'DS1');
+      const shiftType = slotKey === 'NS' ? 'NS' : (typeof pref.shiftType === 'string' ? pref.shiftType : '');
       wholeSlots.push({
         kind: 'whole',
         shareIndex,
         slotKey,
-        shiftType,
+        shiftType, 
         firstChoiceDate: pref.firstChoiceDate || '',
         secondChoiceDate: pref.secondChoiceDate || '',
         label: `Share ${shareIndex} - ${WHOLE_SLOT_LABELS[slotKey] || slotKey}`,
@@ -29,14 +29,14 @@ function buildPreferenceWizardSteps(entitlement, myPrefs) {
   const fractionalBlocks = Math.ceil(entitlement.fractionalHours / 6);
   const fractionalSlots = Array.from({ length: fractionalBlocks }, (_, idx) => {
     const pref = myPrefs.fractional[idx] || {};
-    const shiftType = pref.shiftType || 'DS1';
+    const shiftType = typeof pref.shiftType === 'string' ? pref.shiftType : '';
     return {
       kind: 'fractional',
       fracIndex: idx,
       shiftType,
       firstChoiceDate: pref.firstChoiceDate || '',
       secondChoiceDate: pref.secondChoiceDate || '',
-      label: `Fractional Block ${idx + 1} - ${SHIFT_PLAIN_LABELS[shiftType] || shiftType}`,
+      label: `Fractional Block ${idx + 1} - ${SHIFT_PLAIN_LABELS[shiftType] || 'Choose Session'}`,
     };
   });
 
@@ -56,6 +56,11 @@ function buildWizardCalendarMonths(startDate, endDate) {
   return [...monthMap.values()];
 }
 
+const STEP_HOLD_MS = 180;
+const STEP_SLIDE_MS = 340;
+const STEP_ENTER_DELAY_MS = 36;
+const STEP_TOAST_MS = 1350;
+
 export default function PreferenceFormScreen() {
   const { activeMember: member, cycle, preferences, updatePreference } = useMockApp();
 
@@ -72,12 +77,14 @@ export default function PreferenceFormScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [pickingChoice, setPickingChoice] = useState(1);
   const [justPicked, setJustPicked] = useState('');
+  const [stepToast, setStepToast] = useState('');
+  const [stepMotion, setStepMotion] = useState('idle');
+  const timeoutIdsRef = useRef([]);
   const totalChoices = wizardSteps.length * 2;
   const madeChoices = wizardSteps.reduce(
     (count, step) => count + (step.firstChoiceDate ? 1 : 0) + (step.secondChoiceDate ? 1 : 0),
     0,
   );
-  const allComplete = wizardSteps.every((step) => step.firstChoiceDate && step.secondChoiceDate);
   const activeStep = wizardSteps[currentStep] || null;
   const calendarMonths = useMemo(() => buildWizardCalendarMonths(cycle.startDate, cycle.endDate), [cycle.startDate, cycle.endDate]);
   const blockedDateSet = useMemo(() => new Set(cycle.blockedDates || []), [cycle.blockedDates]);
@@ -85,7 +92,54 @@ export default function PreferenceFormScreen() {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const preferenceDeadline = cycle.preferenceDeadline || addDays(cycle.startDate, -7);
-  const defaultWholeShift = (slotKey) => (slotKey === 'NS' ? 'NS' : 'DS1');
+  const defaultWholeShift = (slotKey) => (slotKey === 'NS' ? 'NS' : '');
+  const commitPreferences = (nextPrefs) => {
+    updatePreference(member.id, normalizeMemberPreferences(member, nextPrefs));
+  };
+  const queueTimeout = (callback, delay) => {
+    const timeoutId = window.setTimeout(callback, delay);
+    timeoutIdsRef.current.push(timeoutId);
+    return timeoutId;
+  };
+  const resolvePickingChoice = (step) => (step?.firstChoiceDate && !step?.secondChoiceDate ? 2 : 1);
+  const hasShiftSelected = (step) => Boolean(step && (step.slotKey === 'NS' || step.shiftType));
+  const selectedShiftRequired = hasShiftSelected(activeStep);
+  const allComplete = wizardSteps.every((step) => hasShiftSelected(step) && step.firstChoiceDate && step.secondChoiceDate);
+  const getShiftSelectorLabel = (shiftType) => {
+    const meta = SHIFT_UI_META[shiftType];
+    if (!meta) return shiftType;
+    return `${meta.label} Shift (${meta.sub.replace(/\s+/g, '')})`;
+  };
+  const getMotionStyle = () => {
+    if (stepMotion === 'hold-forward' || stepMotion === 'hold-back') {
+      return { opacity: 1, transform: 'translateX(0) scale(1.01)' };
+    }
+    if (stepMotion === 'exit-left' || stepMotion === 'enter-right') {
+      return { opacity: 0, transform: 'translateX(-34px)' };
+    }
+    if (stepMotion === 'exit-right' || stepMotion === 'enter-left') {
+      return { opacity: 0, transform: 'translateX(34px)' };
+    }
+    return { opacity: 1, transform: 'translateX(0)' };
+  };
+  const animateToStep = (targetIndex, direction = 'forward', flashLabel = '') => {
+    const nextStep = wizardSteps[targetIndex];
+    if (!nextStep || targetIndex === currentStep || stepMotion !== 'idle') return;
+    if (flashLabel) {
+      setStepToast(flashLabel);
+      queueTimeout(() => setStepToast(''), STEP_TOAST_MS);
+    }
+    setStepMotion(direction === 'forward' ? 'hold-forward' : 'hold-back');
+    queueTimeout(() => {
+      setStepMotion(direction === 'forward' ? 'exit-left' : 'exit-right');
+    }, STEP_HOLD_MS);
+    queueTimeout(() => {
+      setCurrentStep(targetIndex);
+      setPickingChoice(resolvePickingChoice(nextStep));
+      setStepMotion(direction === 'forward' ? 'enter-left' : 'enter-right');
+      queueTimeout(() => setStepMotion('idle'), STEP_ENTER_DELAY_MS);
+    }, STEP_HOLD_MS + STEP_SLIDE_MS);
+  };
 
   useEffect(() => {
     if (currentStep <= wizardSteps.length - 1) return;
@@ -93,11 +147,16 @@ export default function PreferenceFormScreen() {
   }, [wizardSteps.length, currentStep]);
 
   useEffect(() => {
-    setPickingChoice(1);
-  }, [currentStep]);
+    setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
+  }, [currentStep, wizardSteps]);
 
-  const upsertWholePref = (shareIndex, slotKey, patch) => {
-    const updated = { ...myPrefs, wholeShare: [...myPrefs.wholeShare] };
+  useEffect(() => () => {
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    timeoutIdsRef.current = [];
+  }, []);
+
+  const upsertWholePref = (sourcePrefs, shareIndex, slotKey, patch) => {
+    const updated = { ...sourcePrefs, wholeShare: [...sourcePrefs.wholeShare] };
     const idx = updated.wholeShare.findIndex((entry) => entry.shareIndex === shareIndex && entry.slotKey === slotKey);
     const existing = idx >= 0 ? { ...updated.wholeShare[idx] } : {
       shareIndex,
@@ -117,7 +176,7 @@ export default function PreferenceFormScreen() {
   const updateFractionalPref = (fracIndex, patch) => {
     const updated = { ...myPrefs, fractional: [...myPrefs.fractional] };
     const existing = {
-      ...(updated.fractional[fracIndex] || { shiftType: 'DS1', firstChoiceDate: '', secondChoiceDate: '' }),
+      ...(updated.fractional[fracIndex] || { shiftType: '', firstChoiceDate: '', secondChoiceDate: '' }),
       ...patch,
     };
     updated.fractional[fracIndex] = existing;
@@ -128,28 +187,32 @@ export default function PreferenceFormScreen() {
     if (!step || shiftType === step.shiftType) return;
     if (step.kind === 'whole') {
       if (step.slotKey === 'NS') return;
-      const updated = upsertWholePref(step.shareIndex, step.slotKey, { shiftType, firstChoiceDate: '', secondChoiceDate: '' });
-      updatePreference(member.id, updated);
+      let updated = upsertWholePref(myPrefs, step.shareIndex, step.slotKey, { shiftType, firstChoiceDate: '', secondChoiceDate: '' });
+      if (step.slotKey === 'DAY1' && (shiftType === 'NS' || step.shiftType === 'NS')) {
+        updated = upsertWholePref(updated, step.shareIndex, 'DAY2', { shiftType: '', firstChoiceDate: '', secondChoiceDate: '' });
+      }
+      commitPreferences(updated);
       return;
     }
     const updated = updateFractionalPref(step.fracIndex, { shiftType, firstChoiceDate: '', secondChoiceDate: '' });
-    updatePreference(member.id, updated);
+    commitPreferences(updated);
   };
 
   const setStepDate = (step, choice, date) => {
     if (!step) return;
     const key = choice === 1 ? 'firstChoiceDate' : 'secondChoiceDate';
     if (step.kind === 'whole') {
-      const updated = upsertWholePref(step.shareIndex, step.slotKey, { [key]: date });
-      updatePreference(member.id, updated);
+      const updated = upsertWholePref(myPrefs, step.shareIndex, step.slotKey, { [key]: date });
+      commitPreferences(updated);
       return;
     }
     const updated = updateFractionalPref(step.fracIndex, { [key]: date });
-    updatePreference(member.id, updated);
+    commitPreferences(updated);
   };
 
   const handleDatePick = (date) => {
-    if (!activeStep) return;
+    if (!activeStep || stepMotion !== 'idle') return;
+    if (!hasShiftSelected(activeStep)) return;
     const otherDate = pickingChoice === 1 ? activeStep.secondChoiceDate : activeStep.firstChoiceDate;
     if (otherDate === date) return;
     const slotBlocked = blockedDateSet.has(date) || blockedSlotSet.has(`${date}:${activeStep.shiftType}`);
@@ -157,34 +220,33 @@ export default function PreferenceFormScreen() {
 
     setStepDate(activeStep, pickingChoice, date);
     setJustPicked(date);
-    window.setTimeout(() => setJustPicked(''), 520);
+    queueTimeout(() => setJustPicked(''), 520);
 
     if (pickingChoice === 1) {
-      window.setTimeout(() => setPickingChoice(2), 220);
+      queueTimeout(() => setPickingChoice(2), 220);
       return;
     }
     if (currentStep < wizardSteps.length - 1 && (activeStep.firstChoiceDate || pickingChoice === 2)) {
-      window.setTimeout(() => setCurrentStep((prev) => Math.min(prev + 1, wizardSteps.length - 1)), 460);
+      queueTimeout(() => animateToStep(Math.min(currentStep + 1, wizardSteps.length - 1), 'forward', 'Step Complete'), 300);
     }
   };
 
   const handleSubmit = () => {
     if (!allComplete) return;
-    updatePreference(member.id, { ...myPrefs, submitted: true });
-  };
-
-  const handleNotesChange = (value) => {
-    updatePreference(member.id, { ...myPrefs, notes: value });
+    commitPreferences({ ...myPrefs, submitted: true });
   };
 
   const goToStep = (idx) => {
-    setCurrentStep(idx);
     const step = wizardSteps[idx];
     if (!step) {
       setPickingChoice(1);
       return;
     }
-    setPickingChoice(step.firstChoiceDate && !step.secondChoiceDate ? 2 : 1);
+    if (idx === currentStep) {
+      setPickingChoice(resolvePickingChoice(step));
+      return;
+    }
+    animateToStep(idx, idx > currentStep ? 'forward' : 'back');
   };
 
   const formatWizardDate = (dateStr) => {
@@ -205,12 +267,15 @@ export default function PreferenceFormScreen() {
       <div className="space-y-4 concept-font-body">
         <div className="rounded-2xl border p-6 text-center concept-anim-scale" style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}40` }}>
           <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Preferences Submitted</h3>
-          <p className="text-sm mt-2" style={{ color: CONCEPT_THEME.muted }}>
+          <p className="text-sm mt-2" style={{ color: CONCEPT_THEME.text }}>
             Your {wizardSteps.length} slot preferences are saved for cycle {cycle.id}.
+          </p>
+          <p className="text-sm mt-2" style={{ color: CONCEPT_THEME.text }}>
+            You can edit the preferences until the deadline({formatCalendarDate(preferenceDeadline)}).
           </p>
           <button
             type="button"
-            onClick={() => updatePreference(member.id, { ...myPrefs, submitted: false })}
+            onClick={() => commitPreferences({ ...myPrefs, submitted: false })}
             className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
           >
@@ -237,63 +302,96 @@ export default function PreferenceFormScreen() {
       <div className="rounded-2xl border bg-white px-5 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Preference Selection Sheet</h3>
-            <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
-              Cycle {cycle.id} - deadline {formatCalendarDate(preferenceDeadline)}
-            </p>
+            <h3 className="concept-font-display text-xl font-bold leading-snug" style={{ color: CONCEPT_THEME.navy }}>
+              Preference Selection Sheet
+            </h3>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
           </div>
         </div>
+        <div className="mt-3 flex justify-center">
+          <div
+            className="rounded-full px-4 py-2 text-base font-bold text-center"
+            style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent, border: `1px solid ${CONCEPT_THEME.amber}33` }}
+          >
+            Cycle {cycle.id} - deadline {formatCalendarDate(preferenceDeadline)}
+          </div>
+        </div>
       </div>
 
-      <div className="rounded-2xl border p-3 bg-white" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="rounded-2xl border bg-white px-4 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="flex w-full items-stretch gap-1 sm:gap-1.5">
           {wizardSteps.map((step, idx) => {
-            const done = step.firstChoiceDate && step.secondChoiceDate;
-            const half = step.firstChoiceDate && !step.secondChoiceDate;
+            const done = hasShiftSelected(step) && step.firstChoiceDate && step.secondChoiceDate;
+            const half = hasShiftSelected(step) && step.firstChoiceDate && !step.secondChoiceDate;
             const active = idx === currentStep;
             return (
               <button
                 key={`${step.kind}-${step.shareIndex || step.fracIndex}-${step.slotKey || 'frac'}`}
                 type="button"
                 onClick={() => goToStep(idx)}
-                className="rounded-lg border px-3 py-2 text-sm font-semibold whitespace-nowrap transition-all"
+                className="min-w-0 flex-1 rounded-xl px-1 py-2 text-center transition-all sm:px-1.5 sm:py-2.5"
+                title={step.label}
                 style={{
-                  background: active ? CONCEPT_THEME.navy : done ? CONCEPT_THEME.emeraldLight : half ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
-                  color: active ? 'white' : done ? CONCEPT_THEME.emerald : half ? CONCEPT_THEME.amberOnAmber : CONCEPT_THEME.muted,
-                  borderColor: active ? CONCEPT_THEME.navy : 'transparent',
+                  background: active ? `${CONCEPT_THEME.navy}08` : CONCEPT_THEME.warmWhite,
+                  color: CONCEPT_THEME.text,
+                  border: `1px solid ${active ? CONCEPT_THEME.navy : done ? `${CONCEPT_THEME.emerald}33` : CONCEPT_THEME.borderLight}`,
                 }}
               >
-                Step {idx + 1}
+                <div className="flex flex-col items-center gap-1 sm:gap-1.5">
+                  <div
+                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-all sm:h-8 sm:w-8"
+                    style={{
+                      background: active ? CONCEPT_THEME.navy : done ? CONCEPT_THEME.emeraldLight : half ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
+                      color: active ? 'white' : done ? CONCEPT_THEME.emerald : half ? CONCEPT_THEME.accentOnAccent : CONCEPT_THEME.muted,
+                      borderColor: active ? CONCEPT_THEME.navy : done ? `${CONCEPT_THEME.emerald}55` : half ? `${CONCEPT_THEME.amber}55` : CONCEPT_THEME.border,
+                      transform: active && stepToast ? 'scale(1.08)' : 'scale(1)',
+                    }}
+                  >
+                    {done ? '✓' : idx + 1}
+                  </div>
+                  <div className="min-w-0 w-full">
+                    <div className="truncate text-[11px] font-bold uppercase tracking-[0.08em] leading-tight sm:text-xs" style={{ color: active ? CONCEPT_THEME.navy : CONCEPT_THEME.muted }}>
+                      Step {idx + 1}
+                    </div>
+                  </div>
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="rounded-2xl border overflow-hidden bg-white concept-anim-scale" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+      <div className="relative overflow-hidden rounded-2xl border bg-white concept-anim-scale" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        {stepToast ? (
+          <div
+            className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
+            style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald, border: `1px solid ${CONCEPT_THEME.emerald}33` }}
+          >
+            {stepToast}
+          </div>
+        ) : null}
+        <div
+          style={{
+            ...getMotionStyle(),
+            transition: 'transform 220ms ease, opacity 220ms ease',
+            pointerEvents: stepMotion === 'idle' ? 'auto' : 'none',
+          }}
+        >
         <div className="px-5 py-4 border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <div className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
                 {activeStep.label}
               </div>
-              <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>
-                Step {currentStep + 1} of {wizardSteps.length}
-              </div>
             </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <ConceptShiftBadge shiftType={activeStep.shiftType} />
           </div>
 
           <div className="mt-3 flex gap-2 flex-wrap justify-start">
             {activeStep.slotKey !== 'NS' ? (
-              ['DS1', 'DS2'].map((shiftType) => (
+              (activeStep.slotKey === 'DAY1' ? ['DS1', 'DS2', 'NS'] : ['DS1', 'DS2']).map((shiftType) => (
                 <button
                   key={shiftType}
                   type="button"
@@ -301,20 +399,28 @@ export default function PreferenceFormScreen() {
                   className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors"
                   style={{
                     background: activeStep.shiftType === shiftType
-                      ? (shiftType === 'DS1' ? CONCEPT_THEME.morningBg : CONCEPT_THEME.afternoonBg)
+                      ? (shiftType === 'DS1'
+                        ? CONCEPT_THEME.morningBg
+                        : shiftType === 'DS2'
+                          ? CONCEPT_THEME.afternoonBg
+                          : CONCEPT_THEME.nightBg)
                       : CONCEPT_THEME.warmWhite,
                     color: activeStep.shiftType === shiftType
-                      ? (shiftType === 'DS1' ? CONCEPT_THEME.morning : CONCEPT_THEME.afternoon)
+                      ? (shiftType === 'DS1'
+                        ? CONCEPT_THEME.morning
+                        : shiftType === 'DS2'
+                          ? CONCEPT_THEME.afternoon
+                          : CONCEPT_THEME.night)
                       : CONCEPT_THEME.muted,
                     borderColor: CONCEPT_THEME.border,
                   }}
                 >
-                  {SHIFT_PLAIN_LABELS[shiftType]}
+                  {getShiftSelectorLabel(shiftType)}
                 </button>
               ))
             ) : (
               <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: CONCEPT_THEME.nightBg, color: CONCEPT_THEME.night }}>
-                Night Shift (fixed)
+                {getShiftSelectorLabel('NS')}
               </span>
             )}
           </div>
@@ -322,36 +428,76 @@ export default function PreferenceFormScreen() {
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setPickingChoice(1)}
+              onClick={() => {
+                if (!selectedShiftRequired) return;
+                setPickingChoice(1);
+              }}
+              disabled={!selectedShiftRequired}
               className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-sm"
               style={{
-                background: pickingChoice === 1 ? CONCEPT_THEME.skyLight : CONCEPT_THEME.sand,
-                borderColor: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.border,
-                color: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.text,
+                background: !selectedShiftRequired
+                  ? CONCEPT_THEME.sand
+                  : pickingChoice === 1
+                    ? CONCEPT_THEME.skyLight
+                    : CONCEPT_THEME.sand,
+                borderColor: !selectedShiftRequired
+                  ? CONCEPT_THEME.border
+                  : pickingChoice === 1
+                    ? CONCEPT_THEME.sky
+                    : CONCEPT_THEME.border,
+                color: !selectedShiftRequired
+                  ? CONCEPT_THEME.muted
+                  : pickingChoice === 1
+                    ? CONCEPT_THEME.sky
+                    : CONCEPT_THEME.text,
+                cursor: !selectedShiftRequired ? 'not-allowed' : 'pointer',
               }}
             >
-              <span className="font-semibold">1st Choice: {formatWizardDate(activeStep.firstChoiceDate)}</span>
+              <span className="font-semibold">
+                {activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? '1st Night Choice' : '1st Choice'}: {selectedShiftRequired ? formatWizardDate(activeStep.firstChoiceDate) : 'Choose session first'}
+              </span>
               {activeStep.firstChoiceDate ? <span style={{ color: CONCEPT_THEME.emerald }}>Done</span> : null}
             </button>
             <button
               type="button"
-              onClick={() => setPickingChoice(2)}
+              onClick={() => {
+                if (!selectedShiftRequired) return;
+                setPickingChoice(2);
+              }}
+              disabled={!selectedShiftRequired}
               className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-sm"
               style={{
-                background: pickingChoice === 2 ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
-                borderColor: pickingChoice === 2 ? CONCEPT_THEME.amber : CONCEPT_THEME.border,
-                color: pickingChoice === 2 ? CONCEPT_THEME.amberOnAmber : CONCEPT_THEME.text,
+                background: !selectedShiftRequired
+                  ? CONCEPT_THEME.sand
+                  : pickingChoice === 2
+                    ? CONCEPT_THEME.amberLight
+                    : CONCEPT_THEME.sand,
+                borderColor: !selectedShiftRequired
+                  ? CONCEPT_THEME.border
+                  : pickingChoice === 2
+                    ? CONCEPT_THEME.amber
+                    : CONCEPT_THEME.border,
+                color: !selectedShiftRequired
+                  ? CONCEPT_THEME.muted
+                  : pickingChoice === 2
+                    ? CONCEPT_THEME.accentOnAccent
+                    : CONCEPT_THEME.text,
+                cursor: !selectedShiftRequired ? 'not-allowed' : 'pointer',
               }}
             >
-              <span className="font-semibold">2nd Choice: {formatWizardDate(activeStep.secondChoiceDate)}</span>
+              <span className="font-semibold">
+                {activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? '2nd Night Choice' : '2nd Choice'}: {selectedShiftRequired ? formatWizardDate(activeStep.secondChoiceDate) : 'Choose session first'}
+              </span>
               {activeStep.secondChoiceDate ? <span style={{ color: CONCEPT_THEME.emerald }}>Done</span> : null}
             </button>
           </div>
         </div>
 
         <div className="px-4 py-4">
-          <div className="mb-3 text-sm font-semibold" style={{ color: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amberText }}>
-            Pick your {pickingChoice === 1 ? '1st' : '2nd'} choice date
+          <div className="mb-3 text-sm font-semibold" style={{ color: !selectedShiftRequired ? CONCEPT_THEME.muted : pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.accentText }}>
+            {selectedShiftRequired
+              ? `Pick your ${pickingChoice === 1 ? '1st' : '2nd'} ${activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? 'night ' : ''}choice date`
+              : 'Choose a session to start selecting dates'}
           </div>
 
           <div className="flex flex-wrap gap-4">
@@ -364,12 +510,12 @@ export default function PreferenceFormScreen() {
 
               return (
                 <div key={key} className="rounded-xl p-3" style={{ background: CONCEPT_THEME.sand, minWidth: 250, flex: '1 1 250px' }}>
-                  <div className="text-center concept-font-display text-sm font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>
+                  <div className="text-center concept-font-display text-base sm:text-lg font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>
                     {monthNames[month]} {year}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
                     {dayHeaders.map((header, idx) => (
-                      <div key={`${key}-h-${idx}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.muted }}>
+                      <div key={`${key}-h-${idx}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
                         {header}
                       </div>
                     ))}
@@ -380,7 +526,7 @@ export default function PreferenceFormScreen() {
                       const inRange = dateStr >= cycle.startDate && dateStr <= cycle.endDate;
                       if (!inRange) {
                         return (
-                          <div key={`${key}-out-${day}`} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+                          <div key={`${key}-out-${day}`} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.subtle }}>
                             {day}
                           </div>
                         );
@@ -394,7 +540,11 @@ export default function PreferenceFormScreen() {
                       let background = CONCEPT_THEME.warmWhite;
                       let textColor = CONCEPT_THEME.text;
                       let borderColor = 'transparent';
-                      if (blocked) {
+                      if (!selectedShiftRequired) {
+                        background = CONCEPT_THEME.sand;
+                        textColor = CONCEPT_THEME.muted;
+                        borderColor = CONCEPT_THEME.borderLight;
+                      } else if (blocked) {
                         background = CONCEPT_THEME.sandDark;
                         textColor = CONCEPT_THEME.muted;
                       } else if (isFirst) {
@@ -416,7 +566,7 @@ export default function PreferenceFormScreen() {
                           key={`${key}-${day}`}
                           type="button"
                           onClick={() => handleDatePick(dateStr)}
-                          disabled={blocked}
+                          disabled={!selectedShiftRequired || blocked}
                           className="relative rounded-lg py-2.5 text-sm font-semibold transition-all"
                           style={{
                             background,
@@ -424,7 +574,7 @@ export default function PreferenceFormScreen() {
                             border: `1.5px solid ${borderColor}`,
                             transform: isPicked ? 'scale(1.12)' : (isFirst || isSecond) ? 'scale(1.05)' : 'scale(1)',
                             boxShadow: isPicked ? `0 0 14px ${pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amber}88` : 'none',
-                            cursor: blocked ? 'not-allowed' : 'pointer',
+                            cursor: !selectedShiftRequired || blocked ? 'not-allowed' : 'pointer',
                           }}
                         >
                           {day}
@@ -440,24 +590,11 @@ export default function PreferenceFormScreen() {
         </div>
 
         <div className="px-5 py-4 border-t" style={{ borderColor: CONCEPT_THEME.borderLight, background: CONCEPT_THEME.sand }}>
-          <label htmlFor={`pref-notes-${member.id}`} className="mb-1.5 block text-sm font-bold" style={{ color: CONCEPT_THEME.text }}>
-            Notes for admin (optional)
-          </label>
-          <textarea
-            id={`pref-notes-${member.id}`}
-            rows={2}
-            value={myPrefs.notes || ''}
-            onChange={(e) => handleNotesChange(e.target.value)}
-            placeholder="Example: unavailable March 15-17 due to travel"
-            className="w-full px-3 py-2 rounded-xl text-sm resize-none outline-none"
-            style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.border}` }}
-          />
-
-          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <button
               type="button"
-              onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
-              disabled={currentStep === 0}
+              onClick={() => animateToStep(Math.max(0, currentStep - 1), 'back')}
+              disabled={currentStep === 0 || stepMotion !== 'idle'}
               className="px-4 py-2 rounded-lg text-sm font-semibold border disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
             >
@@ -471,11 +608,13 @@ export default function PreferenceFormScreen() {
             {currentStep < wizardSteps.length - 1 ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep((prev) => Math.min(prev + 1, wizardSteps.length - 1))}
+                onClick={() => animateToStep(Math.min(currentStep + 1, wizardSteps.length - 1), 'forward')}
+                disabled={stepMotion !== 'idle'}
                 className={`px-4 py-2 rounded-lg text-sm font-bold ${activeStep.firstChoiceDate && activeStep.secondChoiceDate ? 'concept-anim-pulse' : ''}`}
                 style={{
                   background: activeStep.firstChoiceDate && activeStep.secondChoiceDate ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark,
                   color: activeStep.firstChoiceDate && activeStep.secondChoiceDate ? 'white' : CONCEPT_THEME.muted,
+                  opacity: stepMotion === 'idle' ? 1 : 0.65,
                 }}
               >
                 Next
@@ -492,6 +631,7 @@ export default function PreferenceFormScreen() {
               </button>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

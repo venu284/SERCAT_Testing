@@ -18,6 +18,7 @@ export default function ShiftSlotCalendar({
   showAssignedOnly = false,
   preferenceSelectionMode = false,
   availabilityColorMode = false,
+  showShiftLegend = true,
   todayDate = localTodayDateStr(),
   prioritizeTodayMonth = false,
 }) {
@@ -59,9 +60,9 @@ export default function ShiftSlotCalendar({
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {shifts.map((shiftType) => (
+          {showShiftLegend ? shifts.map((shiftType) => (
             <span key={shiftType} className="px-2 py-1 rounded border bg-gray-50 text-gray-600">{SHIFT_LABELS[shiftType]}</span>
-          ))}
+          )) : null}
           {editable && (
             <span className="px-2 py-1 rounded border bg-blue-50 text-blue-700">Calendar setup mode: click day/shift chips to block or unblock</span>
           )}
@@ -95,11 +96,17 @@ export default function ShiftSlotCalendar({
                     <div
                       key={date}
                       className={`min-h-[138px] rounded border p-1 ${
-                        dayBlocked ? 'bg-slate-100 border-slate-300' : scheduleMode && dayAssignedCount > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'
+                        dayBlocked
+                          ? (availabilityColorMode && !scheduleMode ? 'bg-rose-50 border-rose-200' : 'bg-slate-100 border-slate-300')
+                          : scheduleMode && dayAssignedCount > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'
                       } ${isToday ? 'ring-2 ring-blue-300 ring-inset' : ''}`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`text-sm font-bold ${dayBlocked ? 'text-gray-500' : isToday ? 'text-blue-700' : 'text-gray-700'}`}>{day}</span>
+                        <span className={`text-sm font-bold ${
+                          dayBlocked
+                            ? (availabilityColorMode && !scheduleMode ? 'text-rose-700' : 'text-gray-500')
+                            : isToday ? 'text-blue-700' : 'text-gray-700'
+                        }`}>{day}</span>
                         {editable ? (
                           <button
                             type="button"
@@ -118,7 +125,7 @@ export default function ShiftSlotCalendar({
                             <span />
                           )
                         ) : !isPreferenceSelectionMode ? (
-                          <span className={`px-2 py-1 rounded text-[11px] font-semibold ${dayBlocked ? (availabilityColorMode ? 'bg-slate-200 text-slate-600' : 'bg-rose-100 text-rose-700') : 'bg-emerald-100 text-emerald-700'}`}>
+                          <span className={`px-2 py-1 rounded text-[11px] font-semibold ${dayBlocked ? (availabilityColorMode ? 'bg-rose-100 text-rose-700' : 'bg-rose-100 text-rose-700') : 'bg-emerald-100 text-emerald-700'}`}>
                             {dayBlocked ? 'Blocked' : 'Open'}
                           </span>
                         ) : <span />}
@@ -129,8 +136,8 @@ export default function ShiftSlotCalendar({
                           const slotBlocked = dayBlocked || blockedSlotSet.has(slotKey);
                           const slotAssignments = getSlotAssignments(date, shiftType);
                           const primaryAssignment = slotAssignments[0] || null;
-                          const assignmentMemberName = primaryAssignment ? (memberDirectory[primaryAssignment.memberId]?.name || primaryAssignment.memberId) : '';
-                          const assignmentLabel = filterMember === 'all' ? assignmentMemberName : 'Assigned';
+                          const assignmentMemberLabel = primaryAssignment ? primaryAssignment.memberId : '';
+                          const assignmentLabel = filterMember === 'all' ? assignmentMemberLabel : 'Assigned';
                           const assignmentTypeLabel = primaryAssignment ? primaryAssignment.assignmentType.replace(/_/g, ' ') : '';
                           const marks = preferenceMarks[slotKey] || [];
                           const hasFirstPreference = marks.some((m) => /1st/i.test(m));
@@ -150,7 +157,7 @@ export default function ShiftSlotCalendar({
                             ? { backgroundColor: MEMBER_BG[primaryAssignment.memberId] || '#eef2ff', borderColor: COLORS[primaryAssignment.memberId] || '#94a3b8' }
                             : undefined;
                           const slotToneClass = slotBlocked
-                            ? 'bg-slate-100 border-slate-300 text-gray-600'
+                            ? (availabilityColorMode && !scheduleMode ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-100 border-slate-300 text-gray-600')
                             : scheduleMode
                               ? (primaryAssignment ? (shiftType === 'NS' ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800') : 'bg-white border-dashed border-gray-200 text-gray-500')
                               : primaryAssignment
@@ -183,7 +190,7 @@ export default function ShiftSlotCalendar({
                                 ) : isPreferenceSelectionMode ? (
                                   marks.length > 0 ? <span className={`text-[11px] font-semibold ${hasFirstPreference && !hasSecondPreference ? 'text-blue-700' : hasSecondPreference && !hasFirstPreference ? 'text-orange-700' : 'text-amber-700'}`}>{preferenceLabel}</span> : null
                                 ) : primaryAssignment ? (
-                                  <span className="max-w-[95px] truncate text-[11px] font-semibold" style={{ color: COLORS[primaryAssignment.memberId] }} title={assignmentMemberName}>
+                                  <span className="max-w-[95px] truncate text-[11px] font-semibold" style={{ color: COLORS[primaryAssignment.memberId] }} title={assignmentMemberLabel}>
                                     {assignmentLabel}{slotAssignments.length > 1 ? ` +${slotAssignments.length - 1}` : ''}
                                   </span>
                                 ) : marks.length > 0 ? (

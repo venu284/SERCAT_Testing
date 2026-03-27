@@ -23,10 +23,10 @@ export default function EngineAndSchedule() {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Engine & Schedule</h3>
+        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Schedule Generator</h3>
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <button onClick={loadSamplePrefs} className="px-3 py-2 rounded bg-purple-100 text-purple-700 text-xs font-semibold hover:bg-purple-200">Load Sample Data</button>
-          <button onClick={runEngine} disabled={engineProgress.running || activeMembers.length === 0} className={`px-4 py-2 rounded text-xs font-bold ${engineProgress.running || activeMembers.length === 0 ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Generate Draft ({submittedCount}/{activeMembers.length} submitted)</button>
+          <button onClick={runEngine} disabled={engineProgress.running || activeMembers.length === 0} className={`px-4 py-2 rounded text-xs font-bold ${engineProgress.running || activeMembers.length === 0 ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Generate Schedule ({submittedCount}/{activeMembers.length} submitted)</button>
           {results && schedulePublication.status === 'draft' && <button onClick={publishSchedule} className="px-3 py-2 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hover:bg-emerald-200">Publish Schedule</button>}
           {results && schedulePublication.status === 'published' && <button onClick={markScheduleDraft} className="px-3 py-2 rounded bg-amber-100 text-amber-700 text-xs font-semibold hover:bg-amber-200">Move Back To Draft</button>}
           <span className={`px-2 py-1 rounded text-xs font-semibold ${schedulePublication.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{schedulePublication.status === 'published' ? 'Published' : 'Draft Review'}</span>
@@ -35,7 +35,14 @@ export default function EngineAndSchedule() {
         <div className="text-xs text-gray-500 mt-1">{engineProgress.message}</div>
       </div>
 
-      <CalendarResults results={results} cycle={cycle} members={members} memberDirectory={memberDirectory} originalChoiceMarks={originalChoiceMarks} />
+      <CalendarResults
+        results={results}
+        cycle={cycle}
+        members={members}
+        memberDirectory={memberDirectory}
+        originalChoiceMarks={originalChoiceMarks}
+        showShiftLegend={false}
+      />
 
       {results && (
         <div className="bg-white rounded-lg border p-4 shadow-sm">

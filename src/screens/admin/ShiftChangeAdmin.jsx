@@ -17,13 +17,13 @@ export default function ShiftChangeAdmin() {
     <div className="space-y-4">
       <div className="bg-white rounded-lg border p-4 shadow-sm">
         <h3 className="concept-font-display text-base font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>Shift Change Admin Queue</h3>
-        <p className="text-xs mb-1" style={{ color: CONCEPT_THEME.muted }}>
+        <p className="text-sm mb-1" style={{ color: CONCEPT_THEME.muted }}>
           Approvals update schedule assignments immediately. Only open slots can be used for reassignment.
         </p>
       </div>
 
       {sortedShiftRequests.length === 0 && (
-        <div className="bg-white rounded-lg border p-4 shadow-sm text-xs text-gray-500">No shift change requests submitted.</div>
+        <div className="bg-white rounded-lg border p-4 shadow-sm text-sm" style={{ color: CONCEPT_THEME.muted, borderColor: CONCEPT_THEME.borderLight }}>No shift change requests submitted.</div>
       )}
 
       {sortedShiftRequests.map((request) => {
@@ -31,8 +31,8 @@ export default function ShiftChangeAdmin() {
         const statusStyle = request.status === 'Approved'
           ? { bg: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }
           : request.status === 'Rejected'
-            ? { bg: '#fee2e2', color: '#b91c1c' }
-            : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.amberOnAmber };
+            ? { bg: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }
+            : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent };
         const sourceDate = request.sourceDate || '';
         const sourceShiftType = request.sourceShiftType || '';
         const effectiveRequestedDate = request.requestedDate || '';
@@ -106,7 +106,7 @@ export default function ShiftChangeAdmin() {
             </div>
 
             {adminShiftActionErrors[request.id] && (
-              <div className="text-xs rounded px-2.5 py-2" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+              <div className="text-sm rounded px-2.5 py-2" style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error, border: `1px solid ${CONCEPT_THEME.error}33` }}>
                 {adminShiftActionErrors[request.id]}
               </div>
             )}

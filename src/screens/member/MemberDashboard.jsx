@@ -31,16 +31,16 @@ export default function MemberDashboard() {
       ? 'Schedule is published. Review your assigned shifts.'
       : 'Submission received. Waiting for admin schedule publication.')
     : (daysUntilPreferenceDeadline < 0
-      ? `Deadline passed ${Math.abs(daysUntilPreferenceDeadline)} day(s) ago.`
+      ? `Deadline passed ${Math.abs(daysUntilPreferenceDeadline)} days(s) ago.`
       : daysUntilPreferenceDeadline === 0
         ? 'Deadline is today. Submit now.'
         : `${daysUntilPreferenceDeadline} day(s) left before deadline.`);
 
   const timeline = [
-    { label: 'Cycle Start', date: cycle.startDate, done: localTodayDateStr() >= cycle.startDate },
+    { label: 'Cycle Starts', date: cycle.startDate, done: localTodayDateStr() >= cycle.startDate },
     { label: 'Deadline', date: preferenceDeadline || addDays(cycle.startDate, -7), done: isPreferenceSubmitted, active: !isPreferenceSubmitted },
     { label: 'Schedule', date: published ? (schedulePublication.publishedAt ? toDateStr(new Date(schedulePublication.publishedAt)) : 'Published') : 'Pending', done: published, active: !published },
-    { label: 'Cycle End', date: cycle.endDate, done: localTodayDateStr() > cycle.endDate },
+    { label: 'Cycle Ends', date: cycle.endDate, done: localTodayDateStr() > cycle.endDate },
   ];
 
   return (
@@ -55,33 +55,33 @@ export default function MemberDashboard() {
           </div>
           <div className="flex-1">
             <div className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{heroTitle}</div>
-            <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.navyMuted }}>{heroDetail}</p>
+            <p className="mt-1 text-lg" style={{ color: CONCEPT_THEME.text }}>{heroDetail}</p>
           </div>
           <button
             type="button"
             onClick={() => navigate(isPreferenceSubmitted ? (published ? '/member/schedule' : '/member/preferences') : '/member/preferences')}
-            className="px-6 py-3 rounded-xl text-sm font-bold flex-shrink-0"
+            className="px-6 py-3 rounded-xl text-base font-bold flex-shrink-0"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
           >
             {isPreferenceSubmitted ? (published ? 'Open My Schedule' : 'Review Preferences') : 'Start Now ->'}
           </button>
         </div>
-        <div className="px-6 pb-4 text-sm font-semibold" style={{ color: CONCEPT_THEME.amberOnAmber }}>
+        <div className="px-6 pb-4 text-base font-semibold" style={{ color: CONCEPT_THEME.accentOnAccent }}>
           Deadline: {formatCalendarDate(preferenceDeadline)}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Your Shares', value: activeMember.shares.toFixed(2), sub: 'allocated', accent: CONCEPT_THEME.sky },
-          { label: 'Whole Shares', value: activeMemberEntitlement.wholeShares, sub: '3 shifts each', accent: CONCEPT_THEME.navy },
-          { label: 'Fractional', value: `${(activeMemberEntitlement.fractionalHours || 0).toFixed(2)}h`, sub: `${fractionalBlocks} block(s)`, accent: CONCEPT_THEME.afternoon },
-          { label: 'Choices', value: totalChoices, sub: 'date picks', accent: CONCEPT_THEME.amberText },
+          { label: 'Total Shares', value: activeMember.shares.toFixed(2), accent: CONCEPT_THEME.sky },
+          { label: 'Whole Shares', value: activeMemberEntitlement.wholeShares, accent: CONCEPT_THEME.navy },
+          { label: 'Fractional Share', value: `${(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hours`, accent: CONCEPT_THEME.afternoon },
+
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-            <div className="mb-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>{stat.label}</div>
+            <div className="mb-1 text-base font-bold" style={{ color: CONCEPT_THEME.text }}>{stat.label}</div>
             <div className="concept-font-display text-2xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
-            <div className="mt-0.5 text-sm" style={{ color: CONCEPT_THEME.muted }}>{stat.sub}</div>
+            <div className="mt-0.5 text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>{stat.sub}</div>
           </div>
         ))}
       </div>
@@ -101,10 +101,10 @@ export default function MemberDashboard() {
                   borderColor: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.amber : CONCEPT_THEME.sandDark,
                 }}
               />
-              <div className="mt-1 text-xs font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.amberText : CONCEPT_THEME.muted }}>
+              <div className="mt-1 text-sm font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.accentText : CONCEPT_THEME.muted }}>
                 {item.label}
               </div>
-              <div className="text-xs text-center" style={{ color: CONCEPT_THEME.muted }}>
+              <div className="text-sm text-center" style={{ color: CONCEPT_THEME.muted }}>
                 {item.date === 'Pending' || item.date === 'Published' ? item.date : formatCalendarDate(item.date)}
               </div>
             </div>
@@ -113,14 +113,14 @@ export default function MemberDashboard() {
       </div>
 
       <div className="rounded-2xl px-6 py-5" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-        <h3 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Your Shift Allocation</h3>
-        <p className="mb-4 text-sm" style={{ color: CONCEPT_THEME.muted }}>
-          Whole shares include Morning, Afternoon, and Night shifts. Fractional allocation uses day shift blocks.
+        <h3 className="concept-font-display text-lg font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Shift Allocation</h3>
+        <p className="mb-4 text-base" style={{ color: CONCEPT_THEME.text }}>
+          Whole shares include Morning, Afternoon, and Night shifts. Fractional Share include Morning or Afternoon shifts.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Array.from({ length: activeMemberEntitlement.wholeShares }, (_, idx) => idx + 1).map((shareIndex) => (
             <div key={`share-${shareIndex}`} className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Share {shareIndex}</div>
+              <div className="mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
               <div className="flex flex-wrap gap-2">
                 <ConceptShiftBadge shiftType="DS1" />
                 <ConceptShiftBadge shiftType="DS2" />
@@ -130,8 +130,8 @@ export default function MemberDashboard() {
           ))}
           {fractionalBlocks > 0 ? (
             <div className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
-                Fractional ({(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hrs)
+              <div className="mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>
+                Fractional Share ({(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hours)
               </div>
               <div className="flex flex-wrap gap-2">
                 <ConceptShiftBadge shiftType="DS1" />
@@ -140,7 +140,7 @@ export default function MemberDashboard() {
             </div>
           ) : null}
         </div>
-        <div className="mt-4 text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        <div className="mt-4 text-base" style={{ color: CONCEPT_THEME.text }}>
           Assigned now: {currentMemberAssignments.length} total ({memberShiftCounts.DS1 || 0} DS1, {memberShiftCounts.DS2 || 0} DS2, {memberShiftCounts.NS || 0} NS).
         </div>
       </div>

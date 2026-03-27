@@ -21,7 +21,7 @@ export default function LoginScreen({
   return (
     <div
       className="app-screen px-4 py-6 sm:px-6 sm:py-10 concept-font-body"
-      style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 52%, #f3efe7 100%)` }}
+      style={{ background: `radial-gradient(circle at top, #ffffff 0%, ${CONCEPT_THEME.cream} 56%, ${CONCEPT_THEME.sand} 100%)` }}
     >
       <div className="app-screen-content mx-auto flex w-full max-w-2xl items-center justify-center concept-anim-fade">
         <div
@@ -32,12 +32,12 @@ export default function LoginScreen({
             <div>
               <div className="inline-flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.navy }}>
                 <span className="concept-font-display text-lg font-bold">SERCAT</span>
-                <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: CONCEPT_THEME.amberOnAmber }}>Cycle {cycle?.id || '2026-1'}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: CONCEPT_THEME.accentOnAccent }}>Cycle {cycle?.id || '2026-1'}</span>
               </div>
             </div>
 
             <div className="mt-6">
-              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.amberText }}>Member Sign In</p>
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.accentText }}>Member Sign In</p>
               <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>Welcome back</h1>
               <p className="mt-3 text-sm leading-6" style={{ color: CONCEPT_THEME.muted }}>
                 Sign in with your institutional email and password to continue to the SERCAT portal.
@@ -99,7 +99,7 @@ export default function LoginScreen({
               ) : null}
 
               {loginError ? (
-                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: '#fff1f1', borderColor: '#fecaca', color: '#b91c1c' }}>
+                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
                   {loginError}
                 </div>
               ) : null}
@@ -117,7 +117,7 @@ export default function LoginScreen({
               <div className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: CONCEPT_THEME.navyMuted }}>Need access?</div>
               <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
                 SERCAT accounts are created by the administrator. Contact{' '}
-                <a className="font-semibold" href="mailto:admin@ser-cat.org" style={{ color: CONCEPT_THEME.amberText }}>
+                <a className="font-semibold" href="mailto:admin@ser-cat.org" style={{ color: CONCEPT_THEME.accentText }}>
                   admin@ser-cat.org
                 </a>{' '}
                 to request an account.
@@ -132,7 +132,7 @@ export default function LoginScreen({
                 type="button"
                 onClick={onShowActivate}
                 className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5"
-                style={{ background: `${CONCEPT_THEME.navy}10`, color: CONCEPT_THEME.navy }}
+                style={{ background: CONCEPT_THEME.tealLight, color: CONCEPT_THEME.teal }}
               >
                 Activate your account
               </button>

@@ -1,5 +1,6 @@
 import { SHIFT_HOURS, SHIFT_ORDER, WHOLE_SLOT_ORDER } from '../lib/constants';
 import { addDays, daysBetween, generateDateRange } from '../lib/dates';
+import { countRemainingWholeShareSlots, countWholeShareSlots, getActiveWholeSlotKeysForShare } from '../lib/whole-share';
 
 export function computeEntitlements(members) {
   return members.filter((m) => m.status === 'ACTIVE').map((m) => ({
@@ -14,6 +15,13 @@ export function computeEntitlements(members) {
 export function buildDemandMap(wholePrefs, fracPrefs) {
   const counts = {};
   wholePrefs.forEach((p) => {
+    if (
+      p.shareIndex
+      && p.slotKey
+      && !getActiveWholeSlotKeysForShare(wholePrefs, p.shareIndex, p.memberId).includes(p.slotKey)
+    ) {
+      return;
+    }
     if (!p.firstChoiceDate) return;
     counts[p.firstChoiceDate] = (counts[p.firstChoiceDate] || 0) + 1;
   });
@@ -40,9 +48,8 @@ export function runSchedulingEngine(input) {
   const memberNeedScore = (memberId, roundHint = 1) => {
     const e = entitlementMap.get(memberId);
     if (!e) return 0;
-    const remainingWhole = Math.max(0, e.wholeShares - roundHint + 1);
     const fractionalBlocks = Math.ceil(Math.max(0, e.fractionalHours) / 6);
-    return remainingWhole * WHOLE_SLOT_ORDER.length + fractionalBlocks;
+    return countRemainingWholeShareSlots(wholeSharePreferences, e.wholeShares, roundHint, memberId) + fractionalBlocks;
   };
   const winPenaltyMultiplier = (memberId) => {
     const e = entitlementMap.get(memberId);
@@ -74,7 +81,7 @@ export function runSchedulingEngine(input) {
   const blockedSlotSet = new Set(cycle.blockedSlots || []);
   const dateSlots = allDates.filter((d) => !blockedDateSet.has(d)).map((d) => ({ date: d, isFullDay: true }));
   const fullDayCount = dateSlots.length;
-  const totalWholeDemand = entitlements.reduce((s, e) => s + e.wholeShares * WHOLE_SLOT_ORDER.length, 0);
+  const totalWholeDemand = entitlements.reduce((s, e) => s + countWholeShareSlots(wholeSharePreferences, e.wholeShares, e.memberId), 0);
   addLog('Phase 1', 'Pool Built', `${fullDayCount} available dates, ${totalWholeDemand} whole-share shift slots requested`);
 
   const demandMap = buildDemandMap(wholeSharePreferences, fractionalPreferences);
@@ -112,6 +119,7 @@ export function runSchedulingEngine(input) {
         .filter(
           (p) => p.shareIndex === round
             && (p.slotKey || (p.shiftType === 'NS' ? 'NS' : p.shiftType === 'DS2' ? 'DAY2' : 'DAY1')) === slotKey
+            && getActiveWholeSlotKeysForShare(wholeSharePreferences, p.shareIndex, p.memberId).includes(slotKey)
             && p.firstChoiceDate
             && roundMembers.some((m) => m.memberId === p.memberId),
         )
@@ -412,11 +420,11 @@ export function runSchedulingEngine(input) {
   const warnings = [];
   entitlements.forEach((e) => {
     const ma = assignments.filter((a) => a.memberId === e.memberId);
-    const expectedWholeSlots = e.wholeShares * WHOLE_SLOT_ORDER.length;
+    const expectedWholeSlots = countWholeShareSlots(wholeSharePreferences, e.wholeShares, e.memberId);
     const wholeAssigned = ma.filter((a) => a.shareIndex > 0).length;
     if (wholeAssigned !== expectedWholeSlots) errors.push(`${e.memberId}: expected ${expectedWholeSlots} whole-share shift slots, got ${wholeAssigned}`);
     for (let si = 1; si <= e.wholeShares; si += 1) {
-      WHOLE_SLOT_ORDER.forEach((slotKey) => {
+      getActiveWholeSlotKeysForShare(wholeSharePreferences, si, e.memberId).forEach((slotKey) => {
         const sa = ma.filter((a) => a.shareIndex === si && a.slotKey === slotKey);
         if (sa.length !== 1) errors.push(`${e.memberId} share ${si} ${slotKey}: expected 1 assignment, got ${sa.length}`);
         if (slotKey === 'NS' && sa.length === 1 && sa[0].shiftType !== 'NS') {
@@ -433,7 +441,7 @@ export function runSchedulingEngine(input) {
     const ma = assignments.filter((a) => a.memberId === e.memberId);
     const scores = [];
     for (let si = 1; si <= e.wholeShares; si += 1) {
-      WHOLE_SLOT_ORDER.forEach((slotKey) => {
+      getActiveWholeSlotKeysForShare(wholeSharePreferences, si, e.memberId).forEach((slotKey) => {
         const sa = ma.find((a) => a.shareIndex === si && a.slotKey === slotKey);
         if (!sa) return;
         const prefScore = sa.assignmentType === 'FIRST_CHOICE' ? config.satisfactionWeights.firstChoice

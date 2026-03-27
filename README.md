@@ -14,4 +14,4 @@ npm run dev
 
 - This app keeps all logic client-side for Phase 1.
 - Persistence uses browser localStorage instead of the Python + SQLite runner.
-- The original runner remains in `../sercat_jsx_runner`.
+

@@ -13,20 +13,28 @@ export const SHIFT_LABELS = {
   DS2: 'DS2 (3pm-9pm)',
   NS: 'NS (9pm-9am)',
 };
+export const SHIFT_TIME_LABELS = {
+  DS1: 'Morning (9:00 AM - 3:00 PM)',
+  DS2: 'Afternoon (3:00 PM - 9:00 PM)',
+  NS: 'Night (9:00 PM - 9:00 AM)',
+};
 export const MEMBER_PORTAL_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'availability', label: 'Availability Calendar' },
-  { id: 'preferences', label: 'Submit Preferences' },
-  { id: 'schedule', label: 'My Schedule' },
-  { id: 'shiftChanges', label: 'Shift Changes' },
+  { id: 'availability', label: 'Availability' },
+  { id: 'preferences', label: 'Preferences' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'shiftChanges', label: 'Shift Change' },
+  { id: 'comments', label: 'Comments' },
+  { id: 'profile', label: 'Profile' },
 ];
 export const ADMIN_PORTAL_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'members', label: 'Members & Shares' },
-  { id: 'cycle', label: 'Run Cycles' },
-  { id: 'engine', label: 'Engine & Schedule' },
-  { id: 'fairness', label: 'Fairness' },
+  { id: 'members', label: 'Member Info' },
+  { id: 'cycle', label: 'Availability Calendar' },
+  { id: 'engine', label: 'Schedule' },
+  { id: 'fairness', label: 'Member Satisfaction Score' },
   { id: 'shiftChanges', label: 'Shift Changes' },
+  { id: 'comments', label: 'Comments' },
   { id: 'conflicts', label: 'Conflict Log' },
 ];
 export const SHIFT_PLAIN_LABELS = {

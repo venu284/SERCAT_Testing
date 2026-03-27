@@ -12,12 +12,12 @@ function StatusBadge({ status }) {
     INVITED: {
       label: 'Pending Activation',
       background: CONCEPT_THEME.amberLight,
-      color: CONCEPT_THEME.amberOnAmber,
+      color: CONCEPT_THEME.accentOnAccent,
     },
     DEACTIVATED: {
       label: 'Deactivated',
-      background: '#f3f4f6',
-      color: '#6b7280',
+      background: CONCEPT_THEME.sand,
+      color: CONCEPT_THEME.muted,
     },
   };
 
@@ -38,7 +38,7 @@ function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCan
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => onChangePi(member.id)}
+          onClick={() => onChangePi(member)}
           className="rounded-full px-3 py-1.5 text-xs font-semibold"
           style={{ background: `${CONCEPT_THEME.sky}16`, color: CONCEPT_THEME.sky }}
         >
@@ -46,9 +46,9 @@ function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCan
         </button>
         <button
           type="button"
-          onClick={() => onDeactivate(member.id)}
+          onClick={() => onDeactivate(member)}
           className="rounded-full px-3 py-1.5 text-xs font-semibold"
-          style={{ background: '#fef2f2', color: '#b91c1c' }}
+          style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }}
         >
           Deactivate
         </button>
@@ -61,17 +61,17 @@ function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCan
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => onResendInvite(member.id)}
+          onClick={() => onResendInvite(member)}
           className="rounded-full px-3 py-1.5 text-xs font-semibold"
-          style={{ background: `${CONCEPT_THEME.amber}14`, color: CONCEPT_THEME.amberText }}
+          style={{ background: `${CONCEPT_THEME.amber}14`, color: CONCEPT_THEME.accentText }}
         >
           Re-send Invite
         </button>
         <button
           type="button"
-          onClick={() => onCancelInvite(member.id)}
+          onClick={() => onCancelInvite(member)}
           className="rounded-full px-3 py-1.5 text-xs font-semibold"
-          style={{ background: '#f3f4f6', color: '#6b7280' }}
+          style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}
         >
           Cancel
         </button>
@@ -82,12 +82,208 @@ function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCan
   return (
     <button
       type="button"
-      onClick={() => onReinvite(member.id)}
+      onClick={() => onReinvite(member)}
       className="rounded-full px-3 py-1.5 text-xs font-semibold"
       style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}
     >
       Re-invite
     </button>
+  );
+}
+
+function NoticeBanner({ notice, onDismiss }) {
+  if (!notice) return null;
+
+  const tones = {
+    success: {
+      background: CONCEPT_THEME.emeraldLight,
+      borderColor: `${CONCEPT_THEME.emerald}33`,
+      color: CONCEPT_THEME.emerald,
+    },
+    error: {
+      background: CONCEPT_THEME.errorLight,
+      borderColor: `${CONCEPT_THEME.error}33`,
+      color: CONCEPT_THEME.error,
+    },
+    info: {
+      background: CONCEPT_THEME.skyLight,
+      borderColor: `${CONCEPT_THEME.sky}33`,
+      color: CONCEPT_THEME.sky,
+    },
+  };
+  const tone = tones[notice.tone] || tones.info;
+
+  return (
+    <div className="rounded-2xl border px-4 py-4 shadow-sm" style={{ background: tone.background, borderColor: tone.borderColor }}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold" style={{ color: tone.color }}>{notice.title}</div>
+          <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.text }}>{notice.message}</div>
+          {notice.inviteToken ? (
+            <div className="mt-3 rounded-xl border px-3 py-2" style={{ background: 'rgba(255,255,255,0.72)', borderColor: tone.borderColor }}>
+              <div className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: tone.color }}>Activation Token</div>
+              <div className="mt-1 font-mono text-sm" style={{ color: CONCEPT_THEME.text }}>{notice.inviteToken}</div>
+              {notice.email ? (
+                <div className="mt-2 text-xs" style={{ color: CONCEPT_THEME.muted }}>
+                  In production, an email would be sent to {notice.email}.
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-full px-3 py-1 text-xs font-semibold"
+          style={{ background: 'rgba(255,255,255,0.72)', color: tone.color }}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModalFrame({ title, children, onClose, actions }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(15,42,74,0.42)] p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-3xl border bg-white p-5 shadow-2xl"
+        style={{ borderColor: CONCEPT_THEME.borderLight }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h4>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-4">{children}</div>
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">{actions}</div>
+      </div>
+    </div>
+  );
+}
+
+function PiDetailsModal({ modalState, onClose, onChange, onSubmit }) {
+  if (!modalState) return null;
+  const memberLabel = modalState.member?.name || modalState.member?.id || 'member';
+  const isChange = modalState.type === 'changePi';
+
+  return (
+    <ModalFrame
+      title={isChange ? `Change PI for ${memberLabel}` : `Re-invite ${memberLabel}`}
+      onClose={onClose}
+      actions={(
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+            style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+          >
+            {isChange ? 'Save PI Change' : 'Create Invite'}
+          </button>
+        </>
+      )}
+    >
+      <p className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        {isChange
+          ? 'Update the PI contact details, then generate a fresh activation invite for the new PI.'
+          : 'Enter the PI contact details to generate a fresh activation invite for this institution.'}
+      </p>
+
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>PI Name</span>
+        <input
+          type="text"
+          value={modalState.piName || ''}
+          onChange={(event) => onChange('piName', event.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          placeholder="Principal investigator name"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>PI Email</span>
+        <input
+          type="email"
+          value={modalState.piEmail || ''}
+          onChange={(event) => onChange('piEmail', event.target.value)}
+          className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+          style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          placeholder="pi@institution.edu"
+        />
+      </label>
+
+      {modalState.error ? (
+        <div className="rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+          {modalState.error}
+        </div>
+      ) : null}
+    </ModalFrame>
+  );
+}
+
+function ConfirmActionModal({ modalState, onClose, onSubmit }) {
+  if (!modalState) return null;
+  const memberLabel = modalState.member?.name || modalState.member?.id || 'member';
+  const isDeactivate = modalState.type === 'deactivate';
+  const title = isDeactivate ? `Deactivate ${memberLabel}?` : `Cancel invite for ${memberLabel}?`;
+  const description = isDeactivate
+    ? 'This will disable member sign-in until the institution is re-invited.'
+    : 'This will remove the pending invite and mark the institution as deactivated.';
+
+  return (
+    <ModalFrame
+      title={title}
+      onClose={onClose}
+      actions={(
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+          >
+            Keep Current State
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+            style={{ background: isDeactivate ? CONCEPT_THEME.error : CONCEPT_THEME.text, color: 'white' }}
+          >
+            {isDeactivate ? 'Deactivate Member' : 'Cancel Invite'}
+          </button>
+        </>
+      )}
+    >
+      <p className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{description}</p>
+      {modalState.error ? (
+        <div className="rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+          {modalState.error}
+        </div>
+      ) : null}
+    </ModalFrame>
   );
 }
 
@@ -112,7 +308,6 @@ export default function MembersAndShares() {
     testAccounts,
     memberLoginAccounts,
     piAccessAccounts,
-    submittedPreferenceNotes,
     resendMemberInvite,
     cancelMemberInvite,
     deactivateMember,
@@ -120,24 +315,176 @@ export default function MembersAndShares() {
     reinviteMember,
   } = useMockApp();
 
+  const [notice, setNotice] = React.useState(null);
+  const [memberFormError, setMemberFormError] = React.useState('');
+  const [modalState, setModalState] = React.useState(null);
+
   const showLegacyRequests = pendingRegistrationCount > 0 || resolvedRegistrationRequests.length > 0;
+
+  const setNewMemberField = (field, value) => {
+    setNewMemberForm((prev) => ({ ...prev, [field]: value }));
+    if (memberFormError) setMemberFormError('');
+  };
+
+  const showNotice = (tone, title, message, extra = {}) => {
+    setNotice({ tone, title, message, ...extra });
+  };
+
+  const openPiModal = (type, member) => {
+    setNotice(null);
+    setModalState({
+      type,
+      member,
+      piName: member.piName || '',
+      piEmail: member.piEmail || '',
+      error: '',
+    });
+  };
+
+  const openConfirmModal = (type, member) => {
+    setNotice(null);
+    setModalState({
+      type,
+      member,
+      error: '',
+    });
+  };
+
+  const closeModal = () => {
+    setModalState(null);
+  };
+
+  const updateModalField = (field, value) => {
+    setModalState((prev) => (
+      prev
+        ? {
+          ...prev,
+          [field]: value,
+          error: '',
+        }
+        : prev
+    ));
+  };
+
+  const handleResendInvite = (member) => {
+    setNotice(null);
+    const result = resendMemberInvite(member.id);
+    if (!result?.ok) {
+      showNotice('error', 'Unable to refresh invite', result?.error || 'Unable to refresh invite.');
+      return;
+    }
+    showNotice(
+      'success',
+      'Invitation refreshed',
+      `Invitation refreshed for ${result.piName || member.piName || member.id}.`,
+      { inviteToken: result.inviteToken, email: result.piEmail },
+    );
+  };
+
+  const handleModalSubmit = () => {
+    if (!modalState?.member) return;
+
+    const memberLabel = modalState.member.name || modalState.member.id;
+    let result;
+    let nextNotice = null;
+
+    if (modalState.type === 'changePi') {
+      result = changeMemberPi(modalState.member.id, {
+        piName: modalState.piName,
+        piEmail: modalState.piEmail,
+      });
+      if (result?.ok) {
+        nextNotice = {
+          tone: 'success',
+          title: 'PI change saved',
+          message: `PI change saved for ${memberLabel}.`,
+          inviteToken: result.inviteToken,
+          email: result.piEmail,
+        };
+      }
+    } else if (modalState.type === 'reinvite') {
+      result = reinviteMember(modalState.member.id, {
+        piName: modalState.piName,
+        piEmail: modalState.piEmail,
+      });
+      if (result?.ok) {
+        nextNotice = {
+          tone: 'success',
+          title: 'Invitation created',
+          message: `Invitation created for ${result.piName || memberLabel}.`,
+          inviteToken: result.inviteToken,
+          email: result.piEmail,
+        };
+      }
+    } else if (modalState.type === 'cancelInvite') {
+      result = cancelMemberInvite(modalState.member.id);
+      if (result?.ok) {
+        nextNotice = {
+          tone: 'success',
+          title: 'Invitation cancelled',
+          message: `Pending invite cancelled for ${memberLabel}.`,
+        };
+      }
+    } else if (modalState.type === 'deactivate') {
+      result = deactivateMember(modalState.member.id);
+      if (result?.ok) {
+        nextNotice = {
+          tone: 'success',
+          title: 'Member deactivated',
+          message: `${memberLabel} has been deactivated.`,
+        };
+      }
+    }
+
+    if (!result?.ok) {
+      setModalState((prev) => (
+        prev
+          ? {
+            ...prev,
+            error: result?.error || 'Unable to complete this action.',
+          }
+          : prev
+      ));
+      return;
+    }
+
+    closeModal();
+    setNotice(nextNotice);
+  };
+
+  const handleAddMember = () => {
+    setNotice(null);
+    const result = addMember();
+    if (!result?.ok) {
+      setMemberFormError(result?.error || 'Unable to create invite.');
+      return;
+    }
+
+    setMemberFormError('');
+    showNotice(
+      'success',
+      'Invitation created',
+      `Invitation created for ${result.piName}.`,
+      { inviteToken: result.inviteToken, email: result.piEmail },
+    );
+  };
 
   return (
     <div className="space-y-4 concept-font-body">
       {showLegacyRequests ? (
         <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Legacy Registration Requests</h3>
-              <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+              <p className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
                 Historical self-registration requests remain available here for reference and cleanup.
               </p>
             </div>
             <span
               className="inline-flex rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{
-                background: pendingRegistrationCount > 0 ? CONCEPT_THEME.amberLight : '#f3f4f6',
-                color: pendingRegistrationCount > 0 ? CONCEPT_THEME.amberOnAmber : '#6b7280',
+                background: pendingRegistrationCount > 0 ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
+                color: pendingRegistrationCount > 0 ? CONCEPT_THEME.accentOnAccent : CONCEPT_THEME.muted,
               }}
             >
               Pending: {pendingRegistrationCount}
@@ -181,7 +528,7 @@ export default function MembersAndShares() {
                     </div>
 
                     {actionError ? (
-                      <div className="mt-2 rounded-xl border px-3 py-2 text-xs" style={{ background: '#fff1f1', borderColor: '#fecaca', color: '#b91c1c' }}>
+                      <div className="mt-2 rounded-xl border px-3 py-2 text-xs" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
                         {actionError}
                       </div>
                     ) : null}
@@ -199,7 +546,7 @@ export default function MembersAndShares() {
                         type="button"
                         onClick={() => rejectRegistrationRequest(request.id)}
                         className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                        style={{ background: '#fff1f1', color: '#b91c1c' }}
+                        style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }}
                       >
                         Reject
                       </button>
@@ -209,7 +556,7 @@ export default function MembersAndShares() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl border px-4 py-4 text-sm" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+            <div className="rounded-2xl border px-4 py-4 text-sm" style={{ background: CONCEPT_THEME.cream, borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
               No pending legacy registration requests.
             </div>
           )}
@@ -221,14 +568,14 @@ export default function MembersAndShares() {
                 {resolvedRegistrationRequests.slice(0, 6).map((request) => {
                   const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
                   return (
-                    <div key={request.id} className="rounded-2xl border px-4 py-3 text-xs" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight }}>
+                    <div key={request.id} className="rounded-2xl border px-4 py-3 text-xs" style={{ background: CONCEPT_THEME.cream, borderColor: CONCEPT_THEME.borderLight }}>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>{institutionDisplayName} ({request.institutionMemberId})</span>
                         <span
                           className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.14em]"
                           style={{
-                            background: request.status === 'Approved' ? CONCEPT_THEME.emeraldLight : '#fff1f1',
-                            color: request.status === 'Approved' ? CONCEPT_THEME.emerald : '#b91c1c',
+                            background: request.status === 'Approved' ? CONCEPT_THEME.emeraldLight : CONCEPT_THEME.errorLight,
+                            color: request.status === 'Approved' ? CONCEPT_THEME.emerald : CONCEPT_THEME.error,
                           }}
                         >
                           {request.status}
@@ -248,11 +595,13 @@ export default function MembersAndShares() {
         </div>
       ) : null}
 
+      {notice ? <NoticeBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+
       <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Members & Shares</h3>
-            <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+            <p className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
               Manage institution records, PI invitations, and member status from one place.
             </p>
           </div>
@@ -335,11 +684,11 @@ export default function MembersAndShares() {
                   <td className="px-2 py-3">
                     <ActionButtons
                       member={member}
-                      onDeactivate={deactivateMember}
-                      onChangePi={changeMemberPi}
-                      onResendInvite={resendMemberInvite}
-                      onCancelInvite={cancelMemberInvite}
-                      onReinvite={reinviteMember}
+                      onDeactivate={(nextMember) => openConfirmModal('deactivate', nextMember)}
+                      onChangePi={(nextMember) => openPiModal('changePi', nextMember)}
+                      onResendInvite={handleResendInvite}
+                      onCancelInvite={(nextMember) => openConfirmModal('cancelInvite', nextMember)}
+                      onReinvite={(nextMember) => openPiModal('reinvite', nextMember)}
                     />
                   </td>
                 </tr>
@@ -352,7 +701,7 @@ export default function MembersAndShares() {
       <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="mb-4">
           <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Add New Member</h3>
-          <p className="text-xs mt-1" style={{ color: CONCEPT_THEME.muted }}>
+          <p className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
             Creating a member now generates an invite instead of an immediately active account.
           </p>
         </div>
@@ -361,14 +710,14 @@ export default function MembersAndShares() {
           <input
             placeholder="Member ID"
             value={newMemberForm.id}
-            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, id: event.target.value }))}
+            onChange={(event) => setNewMemberField('id', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
           <input
             placeholder="Institution name"
             value={newMemberForm.name}
-            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, name: event.target.value }))}
+            onChange={(event) => setNewMemberField('name', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
@@ -378,14 +727,14 @@ export default function MembersAndShares() {
             step="0.01"
             placeholder="Shares"
             value={newMemberForm.shares}
-            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, shares: event.target.value }))}
+            onChange={(event) => setNewMemberField('shares', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
           <input
             placeholder="PI name"
             value={newMemberForm.piName}
-            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, piName: event.target.value }))}
+            onChange={(event) => setNewMemberField('piName', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
@@ -393,23 +742,29 @@ export default function MembersAndShares() {
             type="email"
             placeholder="PI email"
             value={newMemberForm.piEmail}
-            onChange={(event) => setNewMemberForm((prev) => ({ ...prev, piEmail: event.target.value }))}
+            onChange={(event) => setNewMemberField('piEmail', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
           <button
             type="button"
-            onClick={addMember}
+            onClick={handleAddMember}
             className="rounded-xl px-4 py-2.5 text-xs font-bold text-white"
             style={{ background: CONCEPT_THEME.navy }}
           >
             Create Invite
           </button>
         </div>
+
+        {memberFormError ? (
+          <div className="mt-3 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+            {memberFormError}
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="concept-font-display text-lg font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Testing Accounts</h3>
+        <h3 className="concept-font-display mb-4 text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Testing Accounts</h3>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
@@ -450,27 +805,22 @@ export default function MembersAndShares() {
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="concept-font-display text-lg font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Member Preference Notes</h3>
-        <div className="space-y-2 text-xs">
-          {submittedPreferenceNotes.length === 0 ? (
-            <div className="rounded-2xl border px-4 py-4" style={{ background: '#fafafa', borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
-              No member notes submitted yet.
-            </div>
-          ) : null}
-          {submittedPreferenceNotes.map((entry) => (
-            <div key={`${entry.memberId}-note`} className="rounded-2xl border p-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-              <div className="font-semibold" style={{ color: COLORS[entry.memberId] || CONCEPT_THEME.navy }}>
-                {entry.memberId} - {entry.memberName}
-              </div>
-              <div className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
-                {entry.submitted ? 'Submitted with preferences' : 'Draft note (not submitted yet)'}
-              </div>
-              <div className="mt-2 whitespace-pre-wrap" style={{ color: CONCEPT_THEME.text }}>{entry.note}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {modalState?.type === 'changePi' || modalState?.type === 'reinvite' ? (
+        <PiDetailsModal
+          modalState={modalState}
+          onClose={closeModal}
+          onChange={updateModalField}
+          onSubmit={handleModalSubmit}
+        />
+      ) : null}
+
+      {modalState?.type === 'cancelInvite' || modalState?.type === 'deactivate' ? (
+        <ConfirmActionModal
+          modalState={modalState}
+          onClose={closeModal}
+          onSubmit={handleModalSubmit}
+        />
+      ) : null}
     </div>
   );
 }

@@ -12,6 +12,10 @@ export default function AdminDashboard() {
     submittedCount,
     schedulePublication,
     cycle,
+    dbStatus,
+    dbBusy,
+    loadFromDatabase,
+    saveCurrentToDatabase,
   } = useMockApp();
 
   const preferenceDeadline = cycle.preferenceDeadline || addDays(cycle.startDate, -7);
@@ -26,6 +30,31 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-5 concept-font-body concept-anim-fade">
+      <div className="rounded-2xl border bg-white px-3 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Admin workspace</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
+            {dbStatus}
+          </span>
+          <button
+            onClick={loadFromDatabase}
+            disabled={dbBusy}
+            className="rounded-xl px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed"
+            style={{ background: dbBusy ? CONCEPT_THEME.sandDark : CONCEPT_THEME.sand, color: dbBusy ? CONCEPT_THEME.subtle : CONCEPT_THEME.text, border: `1px solid ${CONCEPT_THEME.border}` }}
+          >
+            Load Local
+          </button>
+          <button
+            onClick={saveCurrentToDatabase}
+            disabled={dbBusy}
+            className="rounded-xl px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed"
+            style={{ background: dbBusy ? CONCEPT_THEME.sandDark : CONCEPT_THEME.emeraldLight, color: dbBusy ? CONCEPT_THEME.subtle : CONCEPT_THEME.emerald, border: `1px solid ${dbBusy ? CONCEPT_THEME.border : `${CONCEPT_THEME.emerald}33`}` }}
+          >
+            Save Local
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-2xl overflow-hidden concept-anim-pulse" style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.amberLight} 0%, ${CONCEPT_THEME.amberSoft} 100%)`, border: `1px solid ${CONCEPT_THEME.amber}44` }}>
         <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${CONCEPT_THEME.amber}20` }}>
@@ -40,7 +69,7 @@ export default function AdminDashboard() {
             <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.navyMuted }}>
               {published
                 ? 'Members can now view assignments. Use Engine & Schedule to revise or move back to draft.'
-                : `${submittedCount}/${activeMembers.length} active members submitted. Open Engine & Schedule to generate or publish.`}
+                : `${submittedCount}/${activeMembers.length} active members submitted. Open Schedule to generate or publish.`}
             </p>
           </div>
           <button
@@ -49,10 +78,10 @@ export default function AdminDashboard() {
             className="px-6 py-3 rounded-xl text-sm font-bold flex-shrink-0"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
           >
-            {'Open Engine ->'}
+            {'Open Schedule'}
           </button>
         </div>
-        <div className="px-6 pb-4 text-sm font-semibold" style={{ color: CONCEPT_THEME.amberOnAmber }}>
+        <div className="px-6 pb-4 text-sm font-semibold" style={{ color: CONCEPT_THEME.accentOnAccent }}>
           Cycle {cycle.id} | Preference deadline: {formatCalendarDate(preferenceDeadline)}
         </div>
       </div>
@@ -60,9 +89,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Active Members', value: activeMembers.length, sub: 'in cycle', accent: CONCEPT_THEME.navy },
-          { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.amberText },
+          { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.accentText },
           { label: 'Submissions', value: `${submittedCount}/${activeMembers.length || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky },
-          { label: 'Publication', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted },
+          { label: 'Schedule', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
             <div className="mb-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>{stat.label}</div>
@@ -87,7 +116,7 @@ export default function AdminDashboard() {
                   borderColor: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.amber : CONCEPT_THEME.sandDark,
                 }}
               />
-              <div className="mt-1 text-xs font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.amberText : CONCEPT_THEME.muted }}>
+              <div className="mt-1 text-xs font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.accentText : CONCEPT_THEME.muted }}>
                 {item.label}
               </div>
               <div className="text-xs text-center" style={{ color: CONCEPT_THEME.muted }}>

@@ -10,6 +10,7 @@ import {
   MEMBER_PORTAL_TABS,
   SHIFT_LABELS,
   SHIFT_ORDER,
+  SHIFT_TIME_LABELS,
 } from './constants';
 import {
   addDays,
@@ -31,6 +32,7 @@ import {
 import {
   normalizeMemberAccessAccount,
   normalizeMemberAccessAccounts,
+  normalizeMemberComments,
   normalizeMemberPreferences,
   normalizeMemberRecord,
   normalizeRegistrationRequests,
@@ -61,6 +63,58 @@ function buildActivationSummary(member) {
     piName: member.piName || member.id,
     piEmail: member.piEmail || '',
   };
+}
+
+function buildInitialMemberComments(memberList = []) {
+  const memberIds = new Set(memberList.map((member) => member.id));
+  const seeded = {};
+
+  memberIds.forEach((memberId) => {
+    seeded[memberId] = [];
+  });
+
+  if (memberIds.has('UGA')) {
+    seeded.UGA = [
+      {
+        id: 'CMT-UGA-1',
+        memberId: 'UGA',
+        subject: 'Beamline timing clarification',
+        message: 'Could you confirm whether the March weekend calibration window affects overnight staffing expectations for UGA users?',
+        status: 'Read',
+        createdAt: '2026-03-10T14:30:00Z',
+        updatedAt: '2026-03-11T09:00:00Z',
+        readAt: '2026-03-11T09:00:00Z',
+      },
+      {
+        id: 'CMT-UGA-2',
+        memberId: 'UGA',
+        subject: 'Preference submission follow-up',
+        message: 'Thanks for the reminder. We have now finalized our preferred dates and will watch for the published schedule.',
+        status: 'Replied',
+        createdAt: '2026-03-05T17:10:00Z',
+        updatedAt: '2026-03-06T13:15:00Z',
+        readAt: '2026-03-06T11:20:00Z',
+        adminReply: 'Thanks for the update. We have your submitted dates on file and will notify you once the draft schedule is published.',
+        adminReplyAt: '2026-03-06T13:15:00Z',
+      },
+    ];
+  }
+
+  if (memberIds.has('MIT') && seeded.MIT.length === 0) {
+    seeded.MIT = [
+      {
+        id: 'CMT-MIT-1',
+        memberId: 'MIT',
+        subject: 'Detector setup note',
+        message: 'Our PI asked whether the new detector setup checklist should be completed before arrival or during onsite orientation.',
+        status: 'Sent',
+        createdAt: '2026-03-12T11:45:00Z',
+        updatedAt: '2026-03-12T11:45:00Z',
+      },
+    ];
+  }
+
+  return normalizeMemberComments(seeded, memberList);
 }
 
 function getDemoPreferenceDeadline(cycle) {
@@ -113,6 +167,7 @@ function getDefaultState() {
     activationSummary: null,
     registrationRequests: [],
     memberAccessAccounts: [],
+    memberComments: buildInitialMemberComments(INITIAL_MEMBERS.map(normalizeMemberRecord)),
     registrationApprovalDrafts: {},
     registrationActionErrors: {},
     currentView: 'admin',
@@ -122,7 +177,6 @@ function getDefaultState() {
     newMemberForm: { ...DEFAULT_NEW_MEMBER_FORM },
     schedulePublication: { ...DEFAULT_SCHEDULE_PUBLICATION },
     engineProgress: { ...DEFAULT_ENGINE_PROGRESS },
-    memberScheduleView: 'agenda',
     selectedShiftChangeSource: '',
     expandedMemberRequestId: '',
     shiftChangeSubmittedFlash: false,
@@ -155,6 +209,7 @@ export function MockStateProvider({ children }) {
   const [activationSummary, setActivationSummary] = useState(defaults.activationSummary);
   const [registrationRequests, setRegistrationRequests] = useState(defaults.registrationRequests);
   const [memberAccessAccounts, setMemberAccessAccounts] = useState(defaults.memberAccessAccounts);
+  const [memberComments, setMemberComments] = useState(defaults.memberComments);
   const [registrationApprovalDrafts, setRegistrationApprovalDrafts] = useState(defaults.registrationApprovalDrafts);
   const [registrationActionErrors, setRegistrationActionErrors] = useState(defaults.registrationActionErrors);
   const [currentView, setCurrentView] = useState(defaults.currentView);
@@ -164,7 +219,6 @@ export function MockStateProvider({ children }) {
   const [newMemberForm, setNewMemberForm] = useState(defaults.newMemberForm);
   const [schedulePublication, setSchedulePublication] = useState(defaults.schedulePublication);
   const [engineProgress, setEngineProgress] = useState(defaults.engineProgress);
-  const [memberScheduleView, setMemberScheduleView] = useState(defaults.memberScheduleView);
   const [selectedShiftChangeSource, setSelectedShiftChangeSource] = useState(defaults.selectedShiftChangeSource);
   const [expandedMemberRequestId, setExpandedMemberRequestId] = useState(defaults.expandedMemberRequestId);
   const [shiftChangeSubmittedFlash, setShiftChangeSubmittedFlash] = useState(defaults.shiftChangeSubmittedFlash);
@@ -237,7 +291,6 @@ export function MockStateProvider({ children }) {
     setMemberStatusFilter('all');
     setNewMemberForm({ ...DEFAULT_NEW_MEMBER_FORM });
     setEngineProgress({ ...DEFAULT_ENGINE_PROGRESS });
-    setMemberScheduleView('agenda');
     setSelectedShiftChangeSource('');
     setExpandedMemberRequestId('');
     setShiftChangeSubmittedFlash(false);
@@ -261,6 +314,7 @@ export function MockStateProvider({ children }) {
     shiftChangeRequests,
     registrationRequests,
     memberAccessAccounts,
+    memberComments,
     algorithm: {
       ...ALGORITHM_PROFILE,
       capturedAt: new Date().toISOString(),
@@ -283,6 +337,7 @@ export function MockStateProvider({ children }) {
     shiftChangeRequests,
     registrationRequests,
     memberAccessAccounts,
+    memberComments,
   ]);
 
   const applySnapshot = useCallback((snapshot, sourceLabel = 'Loaded local state') => {
@@ -339,6 +394,10 @@ export function MockStateProvider({ children }) {
     setShiftChangeRequests(normalizeShiftChangeRequests(snapshot?.shiftChangeRequests));
     setRegistrationRequests(normalizeRegistrationRequests(snapshot?.registrationRequests));
     setMemberAccessAccounts(normalizeMemberAccessAccounts(snapshot?.memberAccessAccounts));
+    setMemberComments(normalizeMemberComments(
+      snapshot?.memberComments || buildInitialMemberComments(loadedMembers),
+      loadedMembers,
+    ));
     setActivateToken('');
     setActivateForm({ ...DEFAULT_ACTIVATE_FORM });
     setActivationSummary(null);
@@ -602,6 +661,174 @@ export function MockStateProvider({ children }) {
     }
   }, [resetScheduleArtifacts]);
 
+  const saveMemberProfile = useCallback((memberId, patch) => {
+    const member = members.find((entry) => entry.id === memberId);
+    if (!member) {
+      return { ok: false, error: 'Member record not found.' };
+    }
+
+    const nextPiName = String(patch.piName ?? member.piName ?? '').trim();
+    const nextPiPhone = String(patch.piPhone ?? member.piPhone ?? '').trim();
+    const nextPiRole = String(patch.piRole ?? member.piRole ?? '').trim();
+    const emailChanged = patch.piEmail !== undefined;
+    const nextPiEmail = emailChanged ? normalizeEmail(patch.piEmail) : member.piEmail;
+
+    if (!nextPiName) {
+      return { ok: false, error: 'PI name is required.' };
+    }
+    if (!nextPiEmail || !isValidEmail(nextPiEmail)) {
+      return { ok: false, error: 'Enter a valid PI email address.' };
+    }
+
+    const duplicateMember = members.some(
+      (entry) => entry.id !== memberId && entry.status !== 'DEACTIVATED' && normalizeEmail(entry.piEmail) === nextPiEmail,
+    );
+    const duplicateAccess = memberAccessAccounts.some(
+      (account) => account.memberId !== memberId && account.status === 'ACTIVE' && normalizeEmail(account.email) === nextPiEmail,
+    );
+    if (duplicateMember || duplicateAccess) {
+      return { ok: false, error: 'That PI email is already in use.' };
+    }
+
+    updateMember(memberId, {
+      piName: nextPiName,
+      piEmail: nextPiEmail,
+      piPhone: nextPiPhone,
+      piRole: nextPiRole,
+    });
+
+    if (emailChanged) {
+      setMemberAccessAccounts((prev) => prev.map((account) => (
+        account.memberId === memberId && account.status === 'ACTIVE'
+          ? normalizeMemberAccessAccount({
+            ...account,
+            email: nextPiEmail,
+            username: nextPiEmail,
+          })
+          : account
+      )));
+      setSession((prev) => (
+        prev?.role === 'member' && prev.memberId === memberId
+          ? { ...prev, username: nextPiEmail }
+          : prev
+      ));
+    }
+
+    return { ok: true };
+  }, [memberAccessAccounts, members, updateMember]);
+
+  const submitMemberComment = useCallback((memberId, payload) => {
+    const member = members.find((entry) => entry.id === memberId);
+    if (!member) {
+      return { ok: false, error: 'Member record not found.' };
+    }
+
+    const subject = String(payload.subject || '').trim();
+    const message = String(payload.message || '').trim();
+    if (!subject) {
+      return { ok: false, error: 'Subject is required.' };
+    }
+    if (!message) {
+      return { ok: false, error: 'Message is required.' };
+    }
+
+    const now = new Date().toISOString();
+    const nextComment = {
+      id: `CMT-${memberId}-${Date.now()}`,
+      memberId,
+      subject,
+      message,
+      status: 'Sent',
+      createdAt: now,
+      updatedAt: now,
+      readAt: '',
+      adminReply: '',
+      adminReplyAt: '',
+    };
+
+    setMemberComments((prev) => ({
+      ...prev,
+      [memberId]: [
+        normalizeMemberComments({ [memberId]: [nextComment] }, [member])[memberId][0],
+        ...(prev[memberId] || []),
+      ],
+    }));
+
+    return { ok: true, comment: nextComment };
+  }, [members]);
+
+  const markMemberCommentRead = useCallback((memberId, commentId) => {
+    const member = members.find((entry) => entry.id === memberId);
+    if (!member) {
+      return { ok: false, error: 'Member record not found.' };
+    }
+
+    const existingComment = (memberComments[memberId] || []).find((entry) => entry.id === commentId);
+    if (!existingComment) {
+      return { ok: false, error: 'Comment not found.' };
+    }
+    if (existingComment.status !== 'Sent') {
+      return { ok: true, comment: existingComment };
+    }
+
+    const now = new Date().toISOString();
+    const updatedComment = normalizeMemberComments({
+      [memberId]: [{
+        ...existingComment,
+        status: 'Read',
+        readAt: existingComment.readAt || now,
+        updatedAt: now,
+      }],
+    }, [member])[memberId][0];
+
+    setMemberComments((prev) => ({
+      ...prev,
+      [memberId]: (prev[memberId] || []).map((entry) => (
+        entry.id === commentId ? updatedComment : entry
+      )),
+    }));
+
+    return { ok: true, comment: updatedComment };
+  }, [memberComments, members]);
+
+  const replyToMemberComment = useCallback((memberId, commentId, replyText) => {
+    const member = members.find((entry) => entry.id === memberId);
+    if (!member) {
+      return { ok: false, error: 'Member record not found.' };
+    }
+
+    const existingComment = (memberComments[memberId] || []).find((entry) => entry.id === commentId);
+    if (!existingComment) {
+      return { ok: false, error: 'Comment not found.' };
+    }
+
+    const adminReply = String(replyText || '').trim();
+    if (!adminReply) {
+      return { ok: false, error: 'Reply message is required.' };
+    }
+
+    const now = new Date().toISOString();
+    const updatedComment = normalizeMemberComments({
+      [memberId]: [{
+        ...existingComment,
+        status: 'Replied',
+        readAt: existingComment.readAt || now,
+        adminReply,
+        adminReplyAt: now,
+        updatedAt: now,
+      }],
+    }, [member])[memberId][0];
+
+    setMemberComments((prev) => ({
+      ...prev,
+      [memberId]: (prev[memberId] || []).map((entry) => (
+        entry.id === commentId ? updatedComment : entry
+      )),
+    }));
+
+    return { ok: true, comment: updatedComment };
+  }, [memberComments, members]);
+
   const setRegistrationApprovalDraft = useCallback((requestId, patch) => {
     setRegistrationApprovalDrafts((prev) => ({
       ...prev,
@@ -728,53 +955,52 @@ export function MockStateProvider({ children }) {
     setRegistrationActionErrors((prev) => ({ ...prev, [requestId]: '' }));
   }, [registrationRequests, registrationApprovalDrafts]);
 
-  const requestInviteDetails = useCallback((member, heading = 'Invite PI') => {
-    const piNameInput = window.prompt(`${heading}\n\nPI name`, member?.piName || '');
-    if (piNameInput === null) return null;
-    const piName = piNameInput.trim();
+  const validateInviteDetails = useCallback((memberId, details) => {
+    const piName = String(details?.piName || '').trim();
     if (!piName) {
-      window.alert('PI name is required.');
-      return null;
+      return { ok: false, error: 'PI name is required.' };
     }
 
-    const piEmailInput = window.prompt(`${heading}\n\nPI email`, member?.piEmail || '');
-    if (piEmailInput === null) return null;
-    const piEmail = normalizeEmail(piEmailInput);
+    const piEmail = normalizeEmail(details?.piEmail);
     if (!isValidEmail(piEmail)) {
-      window.alert('A valid PI email is required.');
-      return null;
+      return { ok: false, error: 'A valid PI email is required.' };
     }
 
     const duplicateMember = members.some(
-      (entry) => entry.id !== member?.id && entry.status !== 'DEACTIVATED' && normalizeEmail(entry.piEmail) === piEmail,
+      (entry) => entry.id !== memberId && entry.status !== 'DEACTIVATED' && normalizeEmail(entry.piEmail) === piEmail,
     );
     const duplicateAccess = memberAccessAccounts.some(
-      (account) => account.memberId !== member?.id && account.status === 'ACTIVE' && normalizeEmail(account.email) === piEmail,
+      (account) => account.memberId !== memberId && account.status === 'ACTIVE' && normalizeEmail(account.email) === piEmail,
     );
     if (duplicateMember || duplicateAccess) {
-      window.alert('That PI email is already in use.');
-      return null;
+      return { ok: false, error: 'That PI email is already in use.' };
     }
 
-    return { piName, piEmail };
+    return { ok: true, details: { piName, piEmail } };
   }, [memberAccessAccounts, members]);
 
   const resendMemberInvite = useCallback((memberId) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'INVITED');
-    if (!member) return;
+    if (!member) {
+      return { ok: false, error: 'Pending invite not found.' };
+    }
 
     const inviteToken = buildInviteToken(member.id);
     const invitedAt = new Date().toISOString();
     updateMember(memberId, { inviteToken, invitedAt, activatedAt: null });
-    window.alert(
-      `Invitation refreshed for ${member.piName || member.id}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${member.piEmail}.`,
-    );
+    return {
+      ok: true,
+      inviteToken,
+      piName: member.piName || member.id,
+      piEmail: member.piEmail || '',
+    };
   }, [members, updateMember]);
 
   const cancelMemberInvite = useCallback((memberId) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'INVITED');
-    if (!member) return;
-    if (!window.confirm(`Cancel the pending invite for ${member.name || member.id}?`)) return;
+    if (!member) {
+      return { ok: false, error: 'Pending invite not found.' };
+    }
 
     updateMember(memberId, {
       status: 'DEACTIVATED',
@@ -787,12 +1013,14 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+    return { ok: true };
   }, [members, updateMember]);
 
   const deactivateMember = useCallback((memberId) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
-    if (!member) return;
-    if (!window.confirm(`Deactivate ${member.name || member.id}? This will disable member sign-in until re-invited.`)) return;
+    if (!member) {
+      return { ok: false, error: 'Active member not found.' };
+    }
 
     updateMember(memberId, {
       status: 'DEACTIVATED',
@@ -802,14 +1030,20 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+    return { ok: true };
   }, [members, updateMember]);
 
-  const changeMemberPi = useCallback((memberId) => {
+  const changeMemberPi = useCallback((memberId, nextDetails) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
-    if (!member) return;
+    if (!member) {
+      return { ok: false, error: 'Active member not found.' };
+    }
 
-    const details = requestInviteDetails(member, `Change PI for ${member.name || member.id}`);
-    if (!details) return;
+    const validation = validateInviteDetails(memberId, nextDetails);
+    if (!validation.ok) {
+      return validation;
+    }
+    const details = validation.details;
 
     const inviteToken = buildInviteToken(member.id);
     const invitedAt = new Date().toISOString();
@@ -825,17 +1059,25 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
-    window.alert(
-      `PI change saved for ${member.name || member.id}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${details.piEmail}.`,
-    );
-  }, [members, requestInviteDetails, updateMember]);
+    return {
+      ok: true,
+      inviteToken,
+      piName: details.piName,
+      piEmail: details.piEmail,
+    };
+  }, [members, updateMember, validateInviteDetails]);
 
-  const reinviteMember = useCallback((memberId) => {
+  const reinviteMember = useCallback((memberId, nextDetails) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'DEACTIVATED');
-    if (!member) return;
+    if (!member) {
+      return { ok: false, error: 'Deactivated member not found.' };
+    }
 
-    const details = requestInviteDetails(member, `Re-invite PI for ${member.name || member.id}`);
-    if (!details) return;
+    const validation = validateInviteDetails(memberId, nextDetails);
+    if (!validation.ok) {
+      return validation;
+    }
+    const details = validation.details;
 
     const inviteToken = buildInviteToken(member.id);
     const invitedAt = new Date().toISOString();
@@ -851,10 +1093,13 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
-    window.alert(
-      `Invitation created for ${details.piName}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${details.piEmail}.`,
-    );
-  }, [members, requestInviteDetails, updateMember]);
+    return {
+      ok: true,
+      inviteToken,
+      piName: details.piName,
+      piEmail: details.piEmail,
+    };
+  }, [members, updateMember, validateInviteDetails]);
 
   const toggleDateBlocked = useCallback((date) => {
     setCycle((prev) => {
@@ -885,32 +1130,25 @@ export function MockStateProvider({ children }) {
     const piEmail = normalizeEmail(newMemberForm.piEmail);
 
     if (!id) {
-      window.alert('Enter a member ID.');
-      return;
+      return { ok: false, error: 'Enter a member ID.' };
     }
     if (!Number.isFinite(shares) || shares <= 0) {
-      window.alert('Shares must be greater than 0.');
-      return;
+      return { ok: false, error: 'Shares must be greater than 0.' };
     }
     if (members.some((member) => member.id === id)) {
-      window.alert(`Member ${id} already exists.`);
-      return;
+      return { ok: false, error: `Member ${id} already exists.` };
     }
     if (!piName) {
-      window.alert('PI name is required.');
-      return;
+      return { ok: false, error: 'PI name is required.' };
     }
     if (!piEmail || !isValidEmail(piEmail)) {
-      window.alert('A valid PI email is required.');
-      return;
+      return { ok: false, error: 'A valid PI email is required.' };
     }
     if (members.some((member) => normalizeEmail(member.piEmail) === piEmail && member.status !== 'DEACTIVATED')) {
-      window.alert('That PI email is already assigned to another member.');
-      return;
+      return { ok: false, error: 'That PI email is already assigned to another member.' };
     }
     if (memberAccessAccounts.some((account) => account.status === 'ACTIVE' && normalizeEmail(account.email) === piEmail)) {
-      window.alert('That PI email already has active member access.');
-      return;
+      return { ok: false, error: 'That PI email already has active member access.' };
     }
 
     ensureMemberPalette(id, members.length);
@@ -935,9 +1173,13 @@ export function MockStateProvider({ children }) {
     setCurrentView('admin');
     setLoginError('');
     setNewMemberForm({ ...DEFAULT_NEW_MEMBER_FORM });
-    window.alert(
-      `Invitation created for ${piName}.\n\nActivation token: ${inviteToken}\n\nIn production, an email would be sent to ${piEmail}.`,
-    );
+    return {
+      ok: true,
+      memberId: id,
+      inviteToken,
+      piName,
+      piEmail,
+    };
   }, [memberAccessAccounts, members, newMemberForm]);
 
   const runEngine = useCallback(() => {
@@ -1106,6 +1348,9 @@ export function MockStateProvider({ children }) {
       day: 'numeric',
     });
   }, []);
+  const formatMemberShiftTiming = useCallback((shiftType) => (
+    SHIFT_TIME_LABELS[shiftType] || shiftType || 'Unassigned'
+  ), []);
   const scheduleRelativeDayLabel = useCallback((dateStr) => {
     const delta = daysBetweenSigned(todayDate, dateStr);
     if (delta === 0) return 'Today';
@@ -1151,6 +1396,8 @@ export function MockStateProvider({ children }) {
       preferences: preferencesBadge,
       schedule: scheduleBadge,
       shiftChanges: memberShiftChangeSummary.pending > 0 ? `${memberShiftChangeSummary.pending}` : '',
+      comments: '',
+      profile: '',
     };
   }, [
     schedulePublication.status,
@@ -1192,7 +1439,7 @@ export function MockStateProvider({ children }) {
     if (!selectedShiftChangeSource) {
       setShiftChangeForm((prev) => {
         if (!prev.requestedDate && !prev.requestedShiftType && !prev.reason) return prev;
-        return { requestedDate: '', requestedShiftType: '', reason: prev.reason };
+        return { requestedDate: '', requestedShiftType: '', reason: '' };
       });
       return;
     }
@@ -1224,17 +1471,13 @@ export function MockStateProvider({ children }) {
 
   useEffect(() => {
     if (memberShiftChangeError) setMemberShiftChangeError('');
-  }, [selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShiftType, shiftChangeForm.reason]);
+  }, [selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShiftType]);
 
   const submitShiftChangeRequest = useCallback((event) => {
     event.preventDefault();
     if (!activeMember) return;
     if (!selectedShiftChangeAssignmentObj) {
       setMemberShiftChangeError('Select an assigned shift to request a change.');
-      return;
-    }
-    if (!shiftChangeForm.reason.trim()) {
-      setMemberShiftChangeError('Reason is required.');
       return;
     }
     if (shiftChangeForm.requestedDate && !availableShiftRequestDatesForSelection.includes(shiftChangeForm.requestedDate)) {
@@ -1253,7 +1496,7 @@ export function MockStateProvider({ children }) {
       sourceShiftType: selectedShiftChangeAssignmentObj.shiftType,
       requestedDate: shiftChangeForm.requestedDate || '',
       requestedShiftType: shiftChangeForm.requestedShiftType || '',
-      reason: shiftChangeForm.reason.trim(),
+      reason: '',
       status: 'Pending',
       createdAt: new Date().toISOString(),
       adminNote: '',
@@ -1277,10 +1520,11 @@ export function MockStateProvider({ children }) {
   ]);
 
   const downloadMemberSchedulePdf = useCallback(() => {
-    if (!activeMember) return;
+    if (!activeMember) {
+      return { ok: false, error: 'Member account not found.' };
+    }
     if (!hasGeneratedSchedule) {
-      window.alert('Schedule is not generated yet.');
-      return;
+      return { ok: false, error: 'Schedule is not generated yet.' };
     }
 
     const sortedAssignments = [...currentMemberAssignments].sort((a, b) => {
@@ -1291,8 +1535,7 @@ export function MockStateProvider({ children }) {
 
     const popup = window.open('', '_blank');
     if (!popup) {
-      window.alert('Pop-up blocked. Please allow pop-ups to download your schedule PDF.');
-      return;
+      return { ok: false, error: 'Pop-up blocked. Please allow pop-ups to download your schedule PDF.' };
     }
 
     const rowsHtml = sortedAssignments.length > 0
@@ -1301,7 +1544,7 @@ export function MockStateProvider({ children }) {
             <td>${idx + 1}</td>
             <td>${escapeHtml(formatCalendarDate(assignment.date))}</td>
             <td>${escapeHtml(assignment.shiftType)}</td>
-            <td>${escapeHtml(SHIFT_LABELS[assignment.shiftType] || assignment.shiftType)}</td>
+            <td>${escapeHtml(SHIFT_TIME_LABELS[assignment.shiftType] || SHIFT_LABELS[assignment.shiftType] || assignment.shiftType)}</td>
           </tr>
         `).join('')
       : '<tr><td colspan="4">No shifts assigned for this cycle.</td></tr>';
@@ -1353,6 +1596,7 @@ export function MockStateProvider({ children }) {
 </body>
 </html>`);
     popup.document.close();
+    return { ok: true };
   }, [activeMember, hasGeneratedSchedule, currentMemberAssignments, cycle.startDate, cycle.endDate]);
 
   const updateShiftDraft = useCallback((requestId, patch) => {
@@ -1507,7 +1751,9 @@ export function MockStateProvider({ children }) {
     const sample = {
       MIT: {
         wholeShare: [
-          ...sampleWholeShare(1, '2026-03-03', '2026-03-10', 'DS2', 'DS2'),
+          { shareIndex: 1, slotKey: 'DAY1', shiftType: 'NS', firstChoiceDate: '2026-03-03', secondChoiceDate: '2026-03-10' },
+          { shareIndex: 1, slotKey: 'DAY2', shiftType: 'DS1', firstChoiceDate: '', secondChoiceDate: '' },
+          { shareIndex: 1, slotKey: 'NS', shiftType: 'NS', firstChoiceDate: '2026-03-17', secondChoiceDate: '2026-03-24' },
           ...sampleWholeShare(2, '2026-03-24', '2026-03-31'),
           ...sampleWholeShare(3, '2026-04-14', '2026-04-21'),
         ],
@@ -1582,6 +1828,8 @@ export function MockStateProvider({ children }) {
     setRegistrationRequests,
     memberAccessAccounts,
     setMemberAccessAccounts,
+    memberComments,
+    setMemberComments,
     registrationApprovalDrafts,
     registrationActionErrors,
     currentView,
@@ -1598,8 +1846,6 @@ export function MockStateProvider({ children }) {
     setSchedulePublication,
     engineProgress,
     setEngineProgress,
-    memberScheduleView,
-    setMemberScheduleView,
     selectedShiftChangeSource,
     setSelectedShiftChangeSource,
     expandedMemberRequestId,
@@ -1629,6 +1875,10 @@ export function MockStateProvider({ children }) {
     handleSignOut,
     updatePreference,
     updateMember,
+    saveMemberProfile,
+    submitMemberComment,
+    markMemberCommentRead,
+    replyToMemberComment,
     setRegistrationApprovalDraft,
     approveRegistrationRequest,
     rejectRegistrationRequest,
@@ -1679,6 +1929,7 @@ export function MockStateProvider({ children }) {
     schedulePastAssignments,
     nextUpcomingAssignment,
     formatMemberShiftDate,
+    formatMemberShiftTiming,
     scheduleRelativeDayLabel,
     scheduleMonths,
     memberAssignmentMapByDate,
@@ -1709,6 +1960,7 @@ export function MockStateProvider({ children }) {
     activationSummary,
     registrationRequests,
     memberAccessAccounts,
+    memberComments,
     registrationApprovalDrafts,
     registrationActionErrors,
     currentView,
@@ -1718,7 +1970,6 @@ export function MockStateProvider({ children }) {
     newMemberForm,
     schedulePublication,
     engineProgress,
-    memberScheduleView,
     selectedShiftChangeSource,
     expandedMemberRequestId,
     shiftChangeSubmittedFlash,
@@ -1744,6 +1995,10 @@ export function MockStateProvider({ children }) {
     handleSignOut,
     updatePreference,
     updateMember,
+    saveMemberProfile,
+    submitMemberComment,
+    markMemberCommentRead,
+    replyToMemberComment,
     setRegistrationApprovalDraft,
     approveRegistrationRequest,
     rejectRegistrationRequest,
@@ -1794,6 +2049,7 @@ export function MockStateProvider({ children }) {
     schedulePastAssignments,
     nextUpcomingAssignment,
     formatMemberShiftDate,
+    formatMemberShiftTiming,
     scheduleRelativeDayLabel,
     scheduleMonths,
     memberAssignmentMapByDate,
