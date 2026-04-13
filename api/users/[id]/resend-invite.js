@@ -6,6 +6,8 @@ import { withAdmin } from '../../../lib/middleware/with-admin.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
 import { generateToken, tokenExpiresAt } from '../../../lib/auth-utils.js';
+import { sendEmail } from '../../../lib/email.js';
+import { accountInviteEmail } from '../../../lib/email-templates.js';
 
 const resendInviteSchema = z.object({
   activationToken: z.string().trim().min(1).optional(),
@@ -39,8 +41,13 @@ async function handler(req, res) {
       email: user.email,
     });
 
-    console.log(`[RESEND INVITE] Token for ${user.email}: ${activationToken}`);
-    console.log(`[RESEND INVITE] Link: ${process.env.APP_URL}/activate?token=${activationToken}`);
+    const emailData = accountInviteEmail({
+      name: user.name,
+      email: user.email,
+      activationToken,
+      institutionName: null,
+    });
+    void sendEmail({ to: user.email, ...emailData });
 
     return res.status(200).json({
       data: {

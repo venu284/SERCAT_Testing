@@ -8,6 +8,8 @@ import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { sendEmail } from '../../lib/email.js';
+import { accountInviteEmail } from '../../lib/email-templates.js';
 
 const rowSchema = z.object({
   institutionName: z.string().trim().min(1),
@@ -89,7 +91,15 @@ async function handler(req, res) {
         }).returning();
         summary.usersCreated++;
         summary.inviteTokens.push({ email: row.piEmail, name: row.piName, token: activationToken });
-        console.log(`[UPLOAD INVITE] ${row.piEmail}: ${activationToken}`);
+        void sendEmail({
+          to: row.piEmail,
+          ...accountInviteEmail({
+            name: row.piName,
+            email: row.piEmail,
+            activationToken,
+            institutionName: row.institutionName,
+          }),
+        });
       } else {
         summary.usersExisting++;
         if (pi.institutionId !== inst.id || pi.name !== row.piName) {

@@ -7,6 +7,8 @@ import { users } from '../../../../db/schema/users.js';
 import { institutions } from '../../../../db/schema/institutions.js';
 import { withAuth } from '../../../../lib/middleware/with-auth.js';
 import { withMethod } from '../../../../lib/middleware/with-method.js';
+import { sendEmail } from '../../../../lib/email.js';
+import { preferenceConfirmationEmail } from '../../../../lib/email-templates.js';
 
 const submitPreferenceSchema = z.object({
   preferences: z.array(z.object({
@@ -100,6 +102,23 @@ async function handler(req, res) {
       .from(preferences)
       .where(and(eq(preferences.cycleId, cycleId), eq(preferences.piId, piId)))
       .orderBy(preferences.shareIndex, preferences.slotKey);
+
+    const [piUser] = await db.select().from(users).where(eq(users.id, piId)).limit(1);
+    if (piUser) {
+      const preferenceSummary = body.preferences
+        .filter((p) => p.choice1Date)
+        .map((p) => `Share ${p.shareIndex} ${p.slotKey}: 1st choice ${p.choice1Date}${p.choice2Date ? `, 2nd choice ${p.choice2Date}` : ''}`)
+        .join('<br>');
+
+      void sendEmail({
+        to: piUser.email,
+        ...preferenceConfirmationEmail({
+          name: piUser.name,
+          cycleName: cycle.name,
+          preferenceSummary,
+        }),
+      });
+    }
 
     return res.status(200).json({ data: inserted });
   } catch (err) {

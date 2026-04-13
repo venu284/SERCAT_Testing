@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { sendEmail } from '../../lib/email.js';
+import { passwordResetEmail } from '../../lib/email-templates.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 
 const resetSchema = z.object({
@@ -29,8 +31,12 @@ async function handler(req, res) {
         updatedAt: new Date(),
       }).where(eq(users.id, user.id));
 
-      console.log(`[PASSWORD RESET] Token for ${body.email}: ${resetToken}`);
-      console.log(`[PASSWORD RESET] Link: ${process.env.APP_URL}/reset-password?token=${resetToken}`);
+      const emailData = passwordResetEmail({
+        name: user.name,
+        email: user.email,
+        resetToken,
+      });
+      void sendEmail({ to: user.email, ...emailData });
     }
 
     return res.status(200).json({

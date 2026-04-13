@@ -7,6 +7,8 @@ import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { sendEmail } from '../../lib/email.js';
+import { accountInviteEmail } from '../../lib/email-templates.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
 
 const createUserSchema = z.object({
@@ -115,8 +117,13 @@ async function handler(req, res) {
       role: body.role,
     });
 
-    console.log(`[INVITE] Token for ${body.email}: ${activationToken}`);
-    console.log(`[INVITE] Link: ${process.env.APP_URL}/activate?token=${activationToken}`);
+    const emailData = accountInviteEmail({
+      name: body.name,
+      email: body.email,
+      activationToken,
+      institutionName: null,
+    });
+    void sendEmail({ to: body.email, ...emailData });
 
     return res.status(201).json({
       data: {
