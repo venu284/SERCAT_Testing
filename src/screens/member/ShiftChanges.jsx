@@ -5,6 +5,7 @@ import { useMockApp } from '../../lib/mock-state';
 
 export default function ShiftChanges() {
   const {
+    cycle,
     sortedCurrentMemberAssignments,
     assignmentKey,
     selectedShiftChangeSource,
@@ -100,19 +101,19 @@ export default function ShiftChanges() {
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-2 gap-2.5" onSubmit={submitShiftChangeRequest}>
-            <select
+            <input
+              type="date"
               value={shiftChangeForm.requestedDate}
-              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedDate: e.target.value }))}
+              min={cycle.startDate}
+              max={cycle.endDate}
+              onChange={(e) => {
+                const date = e.target.value;
+                if (date && !availableShiftRequestDatesForSelection.includes(date)) return;
+                setShiftChangeForm((prev) => ({ ...prev, requestedDate: date }));
+              }}
               className="rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
-            >
-              <option value="">Select Date</option>
-              {availableShiftRequestDatesForSelection.map((date) => (
-                <option key={`shift-change-date-${date}`} value={date}>
-                  {formatMemberShiftDate(date)} ({date})
-                </option>
-              ))}
-            </select>
+            />
             <select
               value={shiftChangeForm.requestedShiftType}
               onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShiftType: e.target.value }))}

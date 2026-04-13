@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { INITIAL_MEMBERS } from '../data/members';
 import { INITIAL_CYCLE } from '../data/cycle';
 import { ALGORITHM_PROFILE, DEFAULT_CONFIG } from '../data/config';
@@ -29,6 +30,7 @@ import {
   normalizeLoginKey,
   sanitizeUsername,
 } from './auth';
+import { api } from './api';
 import {
   normalizeMemberAccessAccount,
   normalizeMemberAccessAccounts,
@@ -42,6 +44,7 @@ import {
 } from './normalizers';
 import { clearStoredSnapshot, loadStoredSnapshot, saveStoredSnapshot } from './storage';
 import { ensureMemberPalette, simpleHash } from './theme';
+import { useServerSync } from '../hooks/useServerSync';
 
 const MockStateContext = createContext(null);
 const DEFAULT_SCHEDULE_PUBLICATION = { status: 'draft', publishedAt: '', draftedAt: '' };
@@ -190,7 +193,7 @@ function getDefaultState() {
   };
 }
 
-export function MockStateProvider({ children }) {
+export function MockStateProvider({ children, externalSession, onExternalSignOut }) {
   const defaultsRef = useRef(getDefaultState());
   const defaults = defaultsRef.current;
 
@@ -200,7 +203,9 @@ export function MockStateProvider({ children }) {
   const [config, setConfig] = useState(defaults.config);
   const [preferences, setPreferences] = useState(defaults.preferences);
   const [results, setResults] = useState(defaults.results);
-  const [session, setSession] = useState(defaults.session);
+  const [internalSession, setInternalSession] = useState(defaults.session);
+  const session = externalSession !== undefined ? externalSession : internalSession;
+  const setSession = externalSession !== undefined ? () => {} : setInternalSession;
   const [authScreen, setAuthScreen] = useState(defaults.authScreen);
   const [loginForm, setLoginForm] = useState(defaults.loginForm);
   const [loginError, setLoginError] = useState(defaults.loginError);
@@ -231,9 +236,23 @@ export function MockStateProvider({ children }) {
   const [dbBusy, setDbBusy] = useState(defaults.dbBusy);
   const [hasLoadedSnapshot, setHasLoadedSnapshot] = useState(false);
   const demoBaselineRef = useRef(deriveDemoBaselineSnapshot(currentRunSnapshot));
+  const prevExternalSessionRef = useRef(externalSession);
 
   const testAccounts = useMemo(() => buildTestAccounts(members, memberAccessAccounts), [members, memberAccessAccounts]);
   const isAdminSession = session?.role === 'admin';
+  const membersRef = useRef(members);
+  membersRef.current = members;
+  const isAuthenticated = session !== null;
+  const queryClient = useQueryClient();
+  void queryClient;
+  const serverSync = useServerSync({
+    isAuthenticated,
+    setMembers,
+    setCycle,
+    setPreferences,
+    setQueue,
+    membersRef,
+  });
   const memberDirectory = useMemo(
     () => Object.fromEntries(members.map((member) => [member.id, member])),
     [members],
@@ -245,6 +264,9 @@ export function MockStateProvider({ children }) {
       if (currentView !== 'admin' && !members.some((member) => member.id === currentView)) {
         setCurrentView('admin');
       }
+      return;
+    }
+    if (externalSession !== undefined && !serverSync.dataReady) {
       return;
     }
     const signedInMember = members.find((member) => member.id === session.memberId);
@@ -263,7 +285,7 @@ export function MockStateProvider({ children }) {
     if (currentView !== session.memberId) {
       setCurrentView(session.memberId);
     }
-  }, [session, currentView, members]);
+  }, [session, currentView, members, externalSession, serverSync.dataReady]);
 
   const resetScheduleArtifacts = useCallback(() => {
     setResults(null);
@@ -299,6 +321,35 @@ export function MockStateProvider({ children }) {
     setAdminShiftDrafts({});
     setAdminShiftActionErrors({});
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && serverSync.dataReady) {
+      setDbStatus('Connected to SERCAT database');
+    }
+  }, [isAuthenticated, serverSync.dataReady]);
+
+  useEffect(() => {
+    if (externalSession === undefined) return;
+    const prev = prevExternalSessionRef.current;
+    prevExternalSessionRef.current = externalSession;
+
+    if (externalSession && !prev) {
+      if (externalSession.role === 'admin') {
+        setCurrentView('admin');
+        setAdminTab('dashboard');
+      } else if (externalSession.memberId) {
+        setCurrentView(externalSession.memberId);
+        setMemberTab('dashboard');
+      }
+    }
+
+    if (!externalSession && prev) {
+      resetEphemeralUiState();
+      setCurrentView('admin');
+      setAdminTab('dashboard');
+      setMemberTab('dashboard');
+    }
+  }, [externalSession, resetEphemeralUiState]);
 
   const buildSnapshot = useCallback((overrides = {}) => ({
     members,
@@ -422,10 +473,19 @@ export function MockStateProvider({ children }) {
   }, []);
 
   const saveCurrentToDatabase = useCallback(() => {
+    if (externalSession !== undefined) {
+      setDbStatus('Connected to SERCAT database');
+      return;
+    }
     saveStateToStorage(buildSnapshot(), 'manual-save');
-  }, [buildSnapshot, saveStateToStorage]);
+  }, [externalSession, buildSnapshot, saveStateToStorage]);
 
   const loadFromDatabase = useCallback(() => {
+    if (externalSession !== undefined) {
+      serverSync.refetchAll();
+      setDbStatus('Refreshed from SERCAT database');
+      return true;
+    }
     setDbBusy(true);
     try {
       const snapshot = loadStoredSnapshot();
@@ -438,9 +498,14 @@ export function MockStateProvider({ children }) {
     } finally {
       setDbBusy(false);
     }
-  }, [applySnapshot]);
+  }, [externalSession, serverSync.refetchAll, applySnapshot]);
 
   useEffect(() => {
+    if (hasLoadedSnapshot) return;
+    if (externalSession !== undefined) {
+      setHasLoadedSnapshot(true);
+      return;
+    }
     const storedSnapshot = loadStoredSnapshot();
     if (storedSnapshot) {
       applySnapshot(storedSnapshot, 'Loaded from browser storage');
@@ -449,22 +514,30 @@ export function MockStateProvider({ children }) {
       applySnapshot(demoBaselineRef.current, 'Loaded standard demo baseline');
     }
     setHasLoadedSnapshot(true);
-  }, [applySnapshot]);
+  }, [applySnapshot, hasLoadedSnapshot, externalSession]);
 
   useEffect(() => {
-    if (!hasLoadedSnapshot) return;
+    if (!hasLoadedSnapshot || externalSession !== undefined) return;
     saveStoredSnapshot(buildSnapshot());
-  }, [hasLoadedSnapshot, buildSnapshot]);
+  }, [hasLoadedSnapshot, externalSession, buildSnapshot]);
 
   const resetToDemoBaseline = useCallback(() => {
+    if (externalSession !== undefined) {
+      serverSync.refetchAll();
+      return;
+    }
     demoBaselineRef.current = deriveDemoBaselineSnapshot(currentRunSnapshot);
     clearStoredSnapshot();
     resetEphemeralUiState();
     applySnapshot(demoBaselineRef.current, 'Reset to standard demo baseline');
     saveStoredSnapshot(demoBaselineRef.current);
-  }, [applySnapshot, resetEphemeralUiState]);
+  }, [externalSession, serverSync.refetchAll, applySnapshot, resetEphemeralUiState]);
 
   const handleSignIn = useCallback((event) => {
+    if (externalSession !== undefined) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     const loginKey = normalizeLoginKey(loginForm.username);
     const username = sanitizeUsername(loginForm.username);
@@ -514,13 +587,17 @@ export function MockStateProvider({ children }) {
     }
 
     setLoginError('Invalid email or password.');
-  }, [loginForm, members, testAccounts]);
+  }, [externalSession, loginForm, members, testAccounts]);
 
   const handleSSOSignIn = useCallback(() => {
     setLoginError('SSO is shown in prototype mode. Please use username/password for this local demo.');
   }, []);
 
   const handleActivate = useCallback((event) => {
+    if (externalSession !== undefined) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     const token = activateToken.trim();
     const { password, confirmPassword, phone } = activateForm;
@@ -592,18 +669,38 @@ export function MockStateProvider({ children }) {
     setActivateForm({ ...DEFAULT_ACTIVATE_FORM });
     setActivationSummary(buildActivationSummary(activatedMember));
     setAuthScreen('activateSuccess');
-  }, [activateForm, activateToken, members, resetScheduleArtifacts]);
+  }, [externalSession, activateForm, activateToken, members, resetScheduleArtifacts]);
 
   const handleSignOut = useCallback(() => {
+    if (onExternalSignOut) {
+      void onExternalSignOut();
+      return;
+    }
     resetEphemeralUiState();
     setCurrentView('admin');
     setAdminTab('dashboard');
     setMemberTab('dashboard');
-  }, [resetEphemeralUiState]);
+  }, [resetEphemeralUiState, onExternalSignOut]);
 
   const updatePreference = useCallback((memberId, prefs) => {
     setPreferences((prev) => ({ ...prev, [memberId]: prefs }));
-  }, []);
+    const member = members.find((m) => m.id === memberId);
+    const cycleId = cycle._dbId;
+    if (externalSession !== undefined && member?._piUserId && cycleId && prefs.wholeShare) {
+      const apiPrefs = prefs.wholeShare
+        .filter((p) => p.firstChoiceDate || p.secondChoiceDate)
+        .map((p) => ({
+          shareIndex: p.shareIndex,
+          slotKey: p.slotKey,
+          choice1Date: p.firstChoiceDate || null,
+          choice2Date: p.secondChoiceDate || null,
+        }));
+
+      void api.post(`/cycles/${cycleId}/preferences`, { preferences: apiPrefs }).catch((err) => {
+        console.error('Failed to persist preferences:', err);
+      });
+    }
+  }, [members, cycle._dbId, externalSession]);
 
   const updateMember = useCallback((memberId, patch) => {
     const nextStatus = patch.status ? String(patch.status).toUpperCase() : '';
@@ -659,7 +756,24 @@ export function MockStateProvider({ children }) {
     if (shouldResetSchedule) {
       resetScheduleArtifacts();
     }
-  }, [resetScheduleArtifacts]);
+
+    if (externalSession !== undefined && patch.shares !== undefined) {
+      const member = members.find((m) => m.id === memberId);
+      if (member?._shareId) {
+        const newShares = Math.max(0, parseFloat((Number(patch.shares) || 0).toFixed(2)));
+        const newWhole = Math.floor(newShares);
+        const newFrac = parseFloat((newShares - newWhole).toFixed(2));
+        void api.put(`/shares/${member._shareId}`, {
+          wholeShares: newWhole,
+          fractionalShares: newFrac,
+        }).then(() => {
+          serverSync.refetchAll();
+        }).catch((err) => {
+          console.error('Failed to update share:', err);
+        });
+      }
+    }
+  }, [externalSession, members, resetScheduleArtifacts, serverSync]);
 
   const saveMemberProfile = useCallback((memberId, patch) => {
     const member = members.find((entry) => entry.id === memberId);
@@ -988,13 +1102,22 @@ export function MockStateProvider({ children }) {
     const inviteToken = buildInviteToken(member.id);
     const invitedAt = new Date().toISOString();
     updateMember(memberId, { inviteToken, invitedAt, activatedAt: null });
+
+    if (externalSession !== undefined && member._piUserId) {
+      void api.post(`/users/${member._piUserId}/resend-invite`, { activationToken: inviteToken })
+        .then(() => serverSync.refetchAll())
+        .catch((err) => {
+          console.error('Failed to resend invite:', err);
+        });
+    }
+
     return {
       ok: true,
       inviteToken,
       piName: member.piName || member.id,
       piEmail: member.piEmail || '',
     };
-  }, [members, updateMember]);
+  }, [externalSession, members, updateMember, serverSync]);
 
   const cancelMemberInvite = useCallback((memberId) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'INVITED');
@@ -1013,8 +1136,17 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+
+    if (externalSession !== undefined && member._piUserId) {
+      void api.delete(`/users/${member._piUserId}`)
+        .then(() => serverSync.refetchAll())
+        .catch((err) => {
+          console.error('Failed to cancel invite:', err);
+        });
+    }
+
     return { ok: true };
-  }, [members, updateMember]);
+  }, [externalSession, members, updateMember, serverSync]);
 
   const deactivateMember = useCallback((memberId) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
@@ -1030,8 +1162,17 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+
+    if (externalSession !== undefined && member._piUserId) {
+      void api.delete(`/users/${member._piUserId}`)
+        .then(() => serverSync.refetchAll())
+        .catch((err) => {
+          console.error('Failed to deactivate member:', err);
+        });
+    }
+
     return { ok: true };
-  }, [members, updateMember]);
+  }, [externalSession, members, updateMember, serverSync]);
 
   const changeMemberPi = useCallback((memberId, nextDetails) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'ACTIVE');
@@ -1059,13 +1200,28 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+
+    if (externalSession !== undefined && member._piUserId) {
+      void api.put(`/users/${member._piUserId}`, {
+        name: details.piName,
+        email: details.piEmail,
+        institutionId: member._institutionUuid || null,
+        resetActivation: true,
+        activationToken: inviteToken,
+      }).then(() => {
+        serverSync.refetchAll();
+      }).catch((err) => {
+        console.error('Failed to change PI:', err);
+      });
+    }
+
     return {
       ok: true,
       inviteToken,
       piName: details.piName,
       piEmail: details.piEmail,
     };
-  }, [members, updateMember, validateInviteDetails]);
+  }, [externalSession, members, updateMember, validateInviteDetails, serverSync]);
 
   const reinviteMember = useCallback((memberId, nextDetails) => {
     const member = members.find((entry) => entry.id === memberId && entry.status === 'DEACTIVATED');
@@ -1093,23 +1249,117 @@ export function MockStateProvider({ children }) {
     setMemberAccessAccounts((prev) => prev.map((account) => (
       account.memberId === memberId ? { ...account, status: 'INACTIVE' } : account
     )));
+
+    if (externalSession !== undefined && member._piUserId) {
+      void api.put(`/users/${member._piUserId}`, {
+        name: details.piName,
+        email: details.piEmail,
+        institutionId: member._institutionUuid || null,
+        isActive: true,
+        resetActivation: true,
+        activationToken: inviteToken,
+      }).then(() => {
+        serverSync.refetchAll();
+      }).catch((err) => {
+        console.error('Failed to re-invite member:', err);
+      });
+    }
+
     return {
       ok: true,
       inviteToken,
       piName: details.piName,
       piEmail: details.piEmail,
     };
-  }, [members, updateMember, validateInviteDetails]);
+  }, [externalSession, members, updateMember, validateInviteDetails, serverSync]);
+
+  const persistCycleChange = useCallback(async (patch) => {
+    if (externalSession === undefined) return;
+    const dbId = cycle._dbId;
+    if (!dbId) return;
+
+    try {
+      if (patch.startDate || patch.endDate || patch.preferenceDeadline || patch.id) {
+        await api.put(`/cycles/${dbId}`, {
+          ...(patch.id !== undefined && { name: patch.id }),
+          ...(patch.startDate !== undefined && { startDate: patch.startDate }),
+          ...(patch.endDate !== undefined && { endDate: patch.endDate }),
+          ...(patch.preferenceDeadline !== undefined && { preferenceDeadline: patch.preferenceDeadline }),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to persist cycle change:', err);
+    }
+  }, [externalSession, cycle._dbId]);
+
+  const cyclePersistTimer = useRef(null);
+  const prevCycleRef = useRef(null);
+
+  useEffect(() => {
+    if (!cycle._dbId) return;
+    if (!prevCycleRef.current) {
+      prevCycleRef.current = cycle;
+      return;
+    }
+
+    const prev = prevCycleRef.current;
+    prevCycleRef.current = cycle;
+
+    const changed = prev.id !== cycle.id
+      || prev.startDate !== cycle.startDate
+      || prev.endDate !== cycle.endDate
+      || prev.preferenceDeadline !== cycle.preferenceDeadline;
+    if (!changed) return;
+
+    clearTimeout(cyclePersistTimer.current);
+    cyclePersistTimer.current = setTimeout(() => {
+      void persistCycleChange({
+        id: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate,
+        preferenceDeadline: cycle.preferenceDeadline,
+      });
+    }, 1000);
+
+    return () => clearTimeout(cyclePersistTimer.current);
+  }, [
+    cycle.id,
+    cycle.startDate,
+    cycle.endDate,
+    cycle.preferenceDeadline,
+    cycle._dbId,
+    persistCycleChange,
+  ]);
 
   const toggleDateBlocked = useCallback((date) => {
     setCycle((prev) => {
       const blockedDates = new Set(prev.blockedDates || []);
       if (blockedDates.has(date)) blockedDates.delete(date);
       else blockedDates.add(date);
-      return { ...prev, blockedDates: [...blockedDates].sort() };
+      const next = { ...prev, blockedDates: [...blockedDates].sort() };
+
+      if (externalSession !== undefined && prev._dbId) {
+        const allDates = [];
+        const start = new Date(prev.startDate);
+        const end = new Date(prev.endDate);
+        const blocked = new Set(next.blockedDates);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const ds = d.toISOString().split('T')[0];
+          allDates.push({ date: ds, isAvailable: !blocked.has(ds) });
+        }
+        void api.post(`/cycles/${prev._dbId}/dates`, { dates: allDates })
+          .then(() => {
+            serverSync.refetchAll();
+          })
+          .catch((err) => {
+          console.error('Failed to persist date toggle:', err);
+        });
+      }
+
+      return next;
     });
     setResults(null);
-  }, []);
+  }, [externalSession, serverSync]);
 
   const toggleSlotBlocked = useCallback((date, shiftType) => {
     setCycle((prev) => {
@@ -1173,6 +1423,29 @@ export function MockStateProvider({ children }) {
     setCurrentView('admin');
     setLoginError('');
     setNewMemberForm({ ...DEFAULT_NEW_MEMBER_FORM });
+    resetScheduleArtifacts();
+
+    if (externalSession !== undefined) {
+      const wholeShares = Math.floor(shares);
+      const fractionalShares = parseFloat((shares - wholeShares).toFixed(2));
+      void api.post('/shares/upload', {
+        rows: [{
+          institutionName: name,
+          abbreviation: id,
+          piName,
+          piEmail,
+          wholeShares,
+          fractionalShares,
+          activationToken: inviteToken,
+        }],
+      }).then(() => {
+        serverSync.refetchAll();
+      }).catch((err) => {
+        console.error('Failed to create member:', err);
+        setDbStatus('Failed to create member in SERCAT database');
+      });
+    }
+
     return {
       ok: true,
       memberId: id,
@@ -1180,7 +1453,7 @@ export function MockStateProvider({ children }) {
       piName,
       piEmail,
     };
-  }, [memberAccessAccounts, members, newMemberForm]);
+  }, [externalSession, memberAccessAccounts, members, newMemberForm, resetScheduleArtifacts, serverSync]);
 
   const runEngine = useCallback(() => {
     if (!isAdminSession) return;
@@ -1211,9 +1484,11 @@ export function MockStateProvider({ children }) {
       setSchedulePublication(nextPublication);
       setAdminTab('engine');
       setEngineProgress({ running: false, value: 100, message: 'Draft ready for review.' });
-      saveStateToStorage(buildSnapshot({ results: result, adminTab: 'engine', schedulePublication: nextPublication }), 'engine-run');
+      if (externalSession === undefined) {
+        saveStateToStorage(buildSnapshot({ results: result, adminTab: 'engine', schedulePublication: nextPublication }), 'engine-run');
+      }
     }, 240);
-  }, [isAdminSession, preferences, cycle, members, queue, config, buildSnapshot, saveStateToStorage]);
+  }, [isAdminSession, preferences, cycle, members, queue, config, externalSession, buildSnapshot, saveStateToStorage]);
 
   const publishSchedule = useCallback(() => {
     if (!isAdminSession || !results) return;
@@ -1223,8 +1498,10 @@ export function MockStateProvider({ children }) {
       publishedAt: new Date().toISOString(),
     };
     setSchedulePublication(nextPublication);
-    saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-publish');
-  }, [isAdminSession, results, schedulePublication, adminTab, buildSnapshot, saveStateToStorage]);
+    if (externalSession === undefined) {
+      saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-publish');
+    }
+  }, [isAdminSession, results, schedulePublication, adminTab, externalSession, buildSnapshot, saveStateToStorage]);
 
   const markScheduleDraft = useCallback(() => {
     if (!isAdminSession || !results) return;
@@ -1234,8 +1511,10 @@ export function MockStateProvider({ children }) {
       publishedAt: '',
     };
     setSchedulePublication(nextPublication);
-    saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-unpublish');
-  }, [isAdminSession, results, schedulePublication, adminTab, buildSnapshot, saveStateToStorage]);
+    if (externalSession === undefined) {
+      saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-unpublish');
+    }
+  }, [isAdminSession, results, schedulePublication, adminTab, externalSession, buildSnapshot, saveStateToStorage]);
 
   const submittedCount = Object.values(preferences).filter((pref) => pref.submitted).length;
   const activeMembers = members.filter((member) => member.status === 'ACTIVE');
@@ -1390,13 +1669,19 @@ export function MockStateProvider({ children }) {
       : daysUntilPreferenceDeadline < 0
         ? 'Late'
         : 'Action';
+    const commentsBadge = (() => {
+      if (!activeMember) return '';
+      const myComments = memberComments[activeMember.id] || [];
+      const repliedCount = myComments.filter((entry) => entry.status === 'Replied').length;
+      return repliedCount > 0 ? `${repliedCount}` : '';
+    })();
     return {
       dashboard: '',
       availability: hasAvailabilityCalendar ? 'Live' : 'N/A',
       preferences: preferencesBadge,
       schedule: scheduleBadge,
       shiftChanges: memberShiftChangeSummary.pending > 0 ? `${memberShiftChangeSummary.pending}` : '',
-      comments: '',
+      comments: commentsBadge,
       profile: '',
     };
   }, [
@@ -1406,6 +1691,8 @@ export function MockStateProvider({ children }) {
     daysUntilPreferenceDeadline,
     hasAvailabilityCalendar,
     memberShiftChangeSummary.pending,
+    memberComments,
+    activeMember,
   ]);
   const submittedPreferenceNotes = useMemo(() => members
     .map((member) => {
@@ -1824,6 +2111,7 @@ export function MockStateProvider({ children }) {
     activateForm,
     setActivateForm,
     activationSummary,
+    setActivationSummary,
     registrationRequests,
     setRegistrationRequests,
     memberAccessAccounts,
@@ -1860,6 +2148,9 @@ export function MockStateProvider({ children }) {
     adminShiftActionErrors,
     dbStatus,
     dbBusy,
+    serverDataReady: serverSync.dataReady,
+    serverDataLoading: serverSync.isLoading,
+    refetchServerData: serverSync.refetchAll,
     testAccounts,
     isAdminSession,
     memberDirectory,
@@ -1980,6 +2271,9 @@ export function MockStateProvider({ children }) {
     adminShiftActionErrors,
     dbStatus,
     dbBusy,
+    serverSync.dataReady,
+    serverSync.isLoading,
+    serverSync.refetchAll,
     testAccounts,
     isAdminSession,
     memberDirectory,

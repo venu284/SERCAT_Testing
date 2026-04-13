@@ -74,7 +74,12 @@ export default function PreferenceFormScreen() {
     myPrefs.wholeShare,
     myPrefs.fractional,
   ]);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(() => {
+    const firstIncomplete = wizardSteps.findIndex(
+      (step) => !step.firstChoiceDate || !step.secondChoiceDate,
+    );
+    return firstIncomplete >= 0 ? firstIncomplete : Math.max(0, wizardSteps.length - 1);
+  });
   const [pickingChoice, setPickingChoice] = useState(1);
   const [justPicked, setJustPicked] = useState('');
   const [stepToast, setStepToast] = useState('');

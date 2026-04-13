@@ -45,7 +45,7 @@ export default function MemberDashboard() {
 
   return (
     <div className="space-y-5 concept-font-body concept-anim-fade">
-      <div className="rounded-2xl overflow-hidden concept-anim-pulse" style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.amberLight} 0%, ${CONCEPT_THEME.amberSoft} 100%)`, border: `1px solid ${CONCEPT_THEME.amber}44` }}>
+      <div className={`rounded-2xl overflow-hidden ${!isPreferenceSubmitted ? 'concept-anim-pulse' : ''}`} style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.amberLight} 0%, ${CONCEPT_THEME.amberSoft} 100%)`, border: `1px solid ${CONCEPT_THEME.amber}44` }}>
         <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${CONCEPT_THEME.amber}20` }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={CONCEPT_THEME.amber} strokeWidth="2" strokeLinecap="round">
@@ -79,9 +79,9 @@ export default function MemberDashboard() {
 
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-            <div className="mb-1 text-base font-bold" style={{ color: CONCEPT_THEME.text }}>{stat.label}</div>
-            <div className="concept-font-display text-2xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
-            <div className="mt-0.5 text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>{stat.sub}</div>
+            <div className="mb-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>{stat.label}</div>
+            <div className="concept-font-display text-xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
+            {stat.sub ? <div className="mt-0.5 text-sm" style={{ color: CONCEPT_THEME.muted }}>{stat.sub}</div> : null}
           </div>
         ))}
       </div>
@@ -113,14 +113,14 @@ export default function MemberDashboard() {
       </div>
 
       <div className="rounded-2xl px-6 py-5" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-        <h3 className="concept-font-display text-lg font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Shift Allocation</h3>
-        <p className="mb-4 text-base" style={{ color: CONCEPT_THEME.text }}>
+        <h3 className="concept-font-display text-base font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>Shift Allocation</h3>
+        <p className="mb-3 text-sm" style={{ color: CONCEPT_THEME.muted }}>
           Whole shares include Morning, Afternoon, and Night shifts. Fractional Share include Morning or Afternoon shifts.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Array.from({ length: activeMemberEntitlement.wholeShares }, (_, idx) => idx + 1).map((shareIndex) => (
             <div key={`share-${shareIndex}`} className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
+              <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
               <div className="flex flex-wrap gap-2">
                 <ConceptShiftBadge shiftType="DS1" />
                 <ConceptShiftBadge shiftType="DS2" />
@@ -130,7 +130,7 @@ export default function MemberDashboard() {
           ))}
           {fractionalBlocks > 0 ? (
             <div className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>
+              <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
                 Fractional Share ({(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hours)
               </div>
               <div className="flex flex-wrap gap-2">
@@ -140,7 +140,7 @@ export default function MemberDashboard() {
             </div>
           ) : null}
         </div>
-        <div className="mt-4 text-base" style={{ color: CONCEPT_THEME.text }}>
+        <div className="mt-3 text-sm" style={{ color: CONCEPT_THEME.muted }}>
           Assigned now: {currentMemberAssignments.length} total ({memberShiftCounts.DS1 || 0} DS1, {memberShiftCounts.DS2 || 0} DS2, {memberShiftCounts.NS || 0} NS).
         </div>
       </div>

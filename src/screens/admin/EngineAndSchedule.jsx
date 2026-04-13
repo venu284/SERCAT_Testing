@@ -1,6 +1,6 @@
 import React from 'react';
 import CalendarResults from '../../components/CalendarResults';
-import { COLORS } from '../../lib/theme';
+import { COLORS, CONCEPT_THEME } from '../../lib/theme';
 import { useMockApp } from '../../lib/mock-state';
 
 export default function EngineAndSchedule() {
@@ -21,18 +21,60 @@ export default function EngineAndSchedule() {
   } = useMockApp();
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-2 text-sm">Schedule Generator</h3>
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          <button onClick={loadSamplePrefs} className="px-3 py-2 rounded bg-purple-100 text-purple-700 text-xs font-semibold hover:bg-purple-200">Load Sample Data</button>
-          <button onClick={runEngine} disabled={engineProgress.running || activeMembers.length === 0} className={`px-4 py-2 rounded text-xs font-bold ${engineProgress.running || activeMembers.length === 0 ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Generate Schedule ({submittedCount}/{activeMembers.length} submitted)</button>
-          {results && schedulePublication.status === 'draft' && <button onClick={publishSchedule} className="px-3 py-2 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hover:bg-emerald-200">Publish Schedule</button>}
-          {results && schedulePublication.status === 'published' && <button onClick={markScheduleDraft} className="px-3 py-2 rounded bg-amber-100 text-amber-700 text-xs font-semibold hover:bg-amber-200">Move Back To Draft</button>}
-          <span className={`px-2 py-1 rounded text-xs font-semibold ${schedulePublication.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{schedulePublication.status === 'published' ? 'Published' : 'Draft Review'}</span>
+    <div className="space-y-4 concept-font-body">
+      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <h3 className="concept-font-display text-lg font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Schedule Generator</h3>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={loadSamplePrefs}
+            className="rounded-xl px-3 py-2 text-sm font-semibold"
+            style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text, border: `1px solid ${CONCEPT_THEME.border}` }}
+          >
+            Load Sample Data
+          </button>
+          <button
+            onClick={runEngine}
+            disabled={engineProgress.running || activeMembers.length === 0}
+            className="rounded-xl px-4 py-2.5 text-sm font-bold transition-all disabled:cursor-not-allowed"
+            style={{
+              background: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+              color: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.muted : 'white',
+            }}
+          >
+            Generate Schedule ({submittedCount}/{activeMembers.length} submitted)
+          </button>
+          {results && schedulePublication.status === 'draft' && (
+            <button
+              onClick={publishSchedule}
+              className="rounded-xl px-4 py-2 text-sm font-bold"
+              style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
+            >
+              Publish Schedule
+            </button>
+          )}
+          {results && schedulePublication.status === 'published' && (
+            <button
+              onClick={markScheduleDraft}
+              className="rounded-xl px-4 py-2 text-sm font-bold"
+              style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}
+            >
+              Move Back To Draft
+            </button>
+          )}
+          <span
+            className="rounded-full px-3 py-1.5 text-xs font-bold"
+            style={{
+              background: schedulePublication.status === 'published' ? CONCEPT_THEME.emeraldLight : CONCEPT_THEME.amberLight,
+              color: schedulePublication.status === 'published' ? CONCEPT_THEME.emerald : CONCEPT_THEME.accentOnAccent,
+            }}
+          >
+            {schedulePublication.status === 'published' ? 'Published' : 'Draft Review'}
+          </span>
         </div>
-        <div className="h-2 bg-gray-100 rounded overflow-hidden"><div className="h-full bg-blue-600 transition-all" style={{ width: `${engineProgress.value}%` }} /></div>
-        <div className="text-xs text-gray-500 mt-1">{engineProgress.message}</div>
+        <div className="mt-3 h-2 rounded-full overflow-hidden" style={{ background: CONCEPT_THEME.sand }}>
+          <div className="h-full rounded-full transition-all" style={{ width: `${engineProgress.value}%`, background: CONCEPT_THEME.navy }} />
+        </div>
+        <div className="mt-1.5 text-xs" style={{ color: CONCEPT_THEME.muted }}>{engineProgress.message}</div>
       </div>
 
       <CalendarResults
@@ -45,12 +87,30 @@ export default function EngineAndSchedule() {
       />
 
       {results && (
-        <div className="bg-white rounded-lg border p-4 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-2 text-sm">Generated Assignment Table</h3>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+          <h3 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Generated Assignment Table</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead><tr className="border-b text-gray-500"><th className="text-left py-1 px-2">Member</th><th className="text-left py-1 px-2">Date</th><th className="text-left py-1 px-2">Shift</th><th className="text-left py-1 px-2">Type</th><th className="text-left py-1 px-2">Share</th></tr></thead>
-              <tbody>{results.assignments.map((assignment, idx) => <tr key={`${assignment.memberId}-${assignment.date}-${assignment.shiftType}-${idx}`} className="border-b border-gray-50"><td className="py-1.5 px-2" style={{ color: COLORS[assignment.memberId] }}>{assignment.memberId}</td><td className="py-1.5 px-2">{assignment.date}</td><td className="py-1.5 px-2">{assignment.shiftType}</td><td className="py-1.5 px-2">{assignment.assignmentType}</td><td className="py-1.5 px-2">{assignment.shareIndex || '-'}</td></tr>)}</tbody>
+              <thead>
+                <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+                  <th className="px-2 py-1 text-left">Member</th>
+                  <th className="px-2 py-1 text-left">Date</th>
+                  <th className="px-2 py-1 text-left">Shift</th>
+                  <th className="px-2 py-1 text-left">Type</th>
+                  <th className="px-2 py-1 text-left">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.assignments.map((assignment, idx) => (
+                  <tr key={`${assignment.memberId}-${assignment.date}-${assignment.shiftType}-${idx}`} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                    <td className="px-2 py-1.5" style={{ color: COLORS[assignment.memberId] }}>{assignment.memberId}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.date}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.shiftType}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.assignmentType}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.shareIndex || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>

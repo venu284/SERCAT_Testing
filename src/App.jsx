@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
 import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
@@ -20,7 +20,8 @@ import AdminComments from './screens/admin/AdminComments';
 import ConflictLog from './screens/admin/ConflictLog';
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
-import { useMockApp } from './lib/mock-state';
+import { MockStateProvider, useMockApp } from './lib/mock-state';
+import { useAuth } from './contexts/AuthContext';
 
 const MEMBER_ROUTE_BY_TAB = {
   dashboard: '/member/dashboard',
@@ -282,7 +283,7 @@ function MemberPreviewSwitcher({
   );
 }
 
-export default function App() {
+function AppContent({ authUser, authLogin, authLogout, authActivate, authRequestReset }) {
   const {
     session,
     authScreen,
@@ -296,6 +297,7 @@ export default function App() {
     activateForm,
     setActivateForm,
     activationSummary,
+    setActivationSummary,
     handleSignIn,
     handleSSOSignIn,
     handleActivate,
@@ -314,11 +316,87 @@ export default function App() {
     pendingRegistrationCount,
     dbStatus,
     dbBusy,
+    serverDataReady,
+    serverDataLoading,
     loadFromDatabase,
     resetToDemoBaseline,
     saveCurrentToDatabase,
     results,
   } = useMockApp();
+
+  void authRequestReset;
+
+  const realHandleSignIn = useCallback(async (event) => {
+    event.preventDefault();
+    setLoginError('');
+    const email = loginForm.username?.trim().toLowerCase();
+    const password = loginForm.password;
+    if (!email || !password) {
+      setLoginError('Enter both email and password.');
+      return;
+    }
+    try {
+      await authLogin(email, password);
+      setLoginForm({ username: '', password: '' });
+      setLoginError('');
+      setAuthScreen('login');
+    } catch (err) {
+      setLoginError(err.message || 'Invalid email or password.');
+    }
+  }, [loginForm, authLogin, setLoginError, setLoginForm, setAuthScreen]);
+
+  const realHandleActivate = useCallback(async (event) => {
+    event.preventDefault();
+    setLoginError('');
+    const token = activateToken.trim();
+    const { password, confirmPassword, phone } = activateForm;
+
+    if (!token) {
+      setLoginError('Enter the activation token from your invite email.');
+      return;
+    }
+    if (!password || password.length < 8) {
+      setLoginError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setLoginError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      const result = await authActivate(token, password, confirmPassword, phone);
+      setActivationSummary({
+        memberId: result.user?.id || '',
+        memberName: result.user?.institutionName || '',
+        piName: result.user?.name || '',
+        piEmail: result.user?.email || '',
+      });
+      setAuthScreen('activateSuccess');
+      setLoginError('');
+      setActivateToken('');
+      setActivateForm({ password: '', confirmPassword: '', phone: '' });
+    } catch (err) {
+      setLoginError(err.message || 'Invalid or expired activation token.');
+    }
+  }, [
+    activateForm,
+    activateToken,
+    authActivate,
+    setActivationSummary,
+    setActivateForm,
+    setActivateToken,
+    setAuthScreen,
+    setLoginError,
+  ]);
+
+  const realHandleSignOut = useCallback(async () => {
+    await authLogout();
+  }, [authLogout]);
+
+  const effectiveHandleSignIn = authUser !== undefined ? realHandleSignIn : handleSignIn;
+  const effectiveHandleActivate = authUser !== undefined ? realHandleActivate : handleActivate;
+  const effectiveHandleSignOut = authUser !== undefined ? realHandleSignOut : handleSignOut;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -397,7 +475,7 @@ export default function App() {
             setActivateToken={setActivateToken}
             activateForm={activateForm}
             setActivateForm={setActivateForm}
-            handleActivate={handleActivate}
+            handleActivate={effectiveHandleActivate}
             loginError={loginError}
             members={members}
             cycle={cycle}
@@ -428,9 +506,9 @@ export default function App() {
           loginForm={loginForm}
           setLoginForm={setLoginForm}
           loginError={loginError}
-          handleSignIn={handleSignIn}
+          handleSignIn={effectiveHandleSignIn}
           handleSSOSignIn={handleSSOSignIn}
-          handleResetDemoData={resetToDemoBaseline}
+          handleResetDemoData={authUser !== undefined ? () => {} : resetToDemoBaseline}
           onShowActivate={() => {
             setAuthScreen('activate');
             setLoginError('');
@@ -438,6 +516,20 @@ export default function App() {
           members={members}
           cycle={cycle}
         />
+      </>
+    );
+  }
+
+  if (session && serverDataLoading && !serverDataReady) {
+    return (
+      <>
+        <ConceptFontStyles />
+        <div className="flex min-h-screen items-center justify-center" style={{ background: '#faf8f5' }}>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#0f2a4a' }}>SERCAT</div>
+            <div className="mt-2 text-sm" style={{ color: '#8896a7' }}>Loading data...</div>
+          </div>
+        </div>
       </>
     );
   }
@@ -502,7 +594,7 @@ export default function App() {
                   </div>
                 </div>
                 <button
-                  onClick={handleSignOut}
+                  onClick={effectiveHandleSignOut}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -539,7 +631,7 @@ export default function App() {
                   </div>
                 </div>
                 <button
-                  onClick={handleSignOut}
+                  onClick={effectiveHandleSignOut}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -580,7 +672,7 @@ export default function App() {
                   </div>
                 </div>
                 <button
-                  onClick={handleSignOut}
+                  onClick={effectiveHandleSignOut}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -722,5 +814,47 @@ export default function App() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function App() {
+  const { user, loading, login, logout, activate, requestReset } = useAuth();
+
+  const externalSession = React.useMemo(() => {
+    if (!user) return null;
+    if (user.role === 'admin') {
+      return { role: 'admin', username: user.email };
+    }
+    return {
+      role: 'member',
+      username: user.email,
+      memberId: user.institutionAbbreviation || user.institutionId || user.email,
+    };
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ background: '#faf8f5' }}>
+        <div className="text-center">
+          <div className="text-lg font-semibold" style={{ color: '#0f2a4a' }}>SERCAT</div>
+          <div className="mt-2 text-sm" style={{ color: '#8896a7' }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <MockStateProvider
+      externalSession={externalSession}
+      onExternalSignOut={logout}
+    >
+      <AppContent
+        authUser={user}
+        authLogin={login}
+        authLogout={logout}
+        authActivate={activate}
+        authRequestReset={requestReset}
+      />
+    </MockStateProvider>
   );
 }
