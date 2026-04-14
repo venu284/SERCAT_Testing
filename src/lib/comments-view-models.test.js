@@ -124,3 +124,41 @@ test('toAdminCommentInbox maps institution and PI fields onto the inbox model', 
     },
   ]);
 });
+
+test('toAdminCommentInbox falls back to screen-safe labels when institution and PI metadata are null', () => {
+  const result = toAdminCommentInbox([
+    {
+      id: 'comment-5',
+      subject: 'Missing metadata',
+      message: 'This comment has no institution details.',
+      status: 'sent',
+      createdAt: '2026-04-14T09:00:00Z',
+      updatedAt: '2026-04-14T09:15:00Z',
+      readAt: null,
+      adminReply: null,
+      adminReplyAt: null,
+      institutionAbbreviation: null,
+      institutionName: null,
+      piName: null,
+      piEmail: null,
+    },
+  ]);
+
+  expect(result).toEqual([
+    {
+      id: 'comment-5',
+      subject: 'Missing metadata',
+      message: 'This comment has no institution details.',
+      status: 'Sent',
+      createdAt: '2026-04-14T09:00:00Z',
+      updatedAt: '2026-04-14T09:15:00Z',
+      readAt: '',
+      adminReply: '',
+      adminReplyAt: '',
+      memberId: 'PI',
+      memberName: 'Unknown institution',
+      piName: 'Principal Investigator',
+      piEmail: '-',
+    },
+  ]);
+});
