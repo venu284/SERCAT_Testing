@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
 import { useComments, useUpdateComment } from '../../hooks/useApiData';
 import { toAdminCommentInbox } from '../../lib/comments-view-models';
@@ -21,6 +21,9 @@ export default function AdminComments() {
   const [replyDrafts, setReplyDrafts] = useState({});
   const [replyError, setReplyError] = useState('');
   const [replySuccessId, setReplySuccessId] = useState('');
+  const readMarkedIdsRef = useRef(new Set());
+  const pendingReplyIdsRef = useRef(new Set());
+  const [pendingReplyIds, setPendingReplyIds] = useState({});
 
   const inbox = useMemo(() => toAdminCommentInbox(commentsQuery.data), [commentsQuery.data]);
 
@@ -30,12 +33,15 @@ export default function AdminComments() {
     setReplyError('');
     setReplySuccessId('');
 
-    if (nextExpanded && entry.status === 'Sent') {
+    if (nextExpanded && entry.status === 'Sent' && !readMarkedIdsRef.current.has(entry.id)) {
+      readMarkedIdsRef.current.add(entry.id);
       updateComment.mutate({ id: entry.id, status: 'read' });
     }
   };
 
   const handleReplySubmit = async (entry) => {
+    if (pendingReplyIdsRef.current.has(entry.id)) return;
+
     const replyText = (replyDrafts[entry.id] ?? entry.adminReply ?? '').trim();
 
     if (!replyText) {
@@ -44,14 +50,25 @@ export default function AdminComments() {
       return;
     }
 
+    pendingReplyIdsRef.current.add(entry.id);
+    setPendingReplyIds((prev) => ({ ...prev, [entry.id]: true }));
+    setReplyError('');
+    setReplySuccessId('');
+
     try {
       await updateComment.mutateAsync({ id: entry.id, adminReply: replyText });
       setReplyDrafts((prev) => ({ ...prev, [entry.id]: replyText }));
-      setReplyError('');
       setReplySuccessId(entry.id);
     } catch (err) {
       setReplyError(err?.message || 'Unable to save reply.');
-      setReplySuccessId('');
+    } finally {
+      pendingReplyIdsRef.current.delete(entry.id);
+      setPendingReplyIds((prev) => {
+        if (!prev[entry.id]) return prev;
+        const next = { ...prev };
+        delete next[entry.id];
+        return next;
+      });
     }
   };
 
@@ -100,6 +117,7 @@ export default function AdminComments() {
               const tone = buildStatusTone(entry.status);
               const expanded = expandedCommentId === entry.id;
               const replyValue = replyDrafts[entry.id] ?? entry.adminReply ?? '';
+              const replyPending = Boolean(pendingReplyIds[entry.id]);
               const institutionName = entry.memberName;
               const piName = entry.piName;
               const piEmail = entry.piEmail;
@@ -189,10 +207,11 @@ export default function AdminComments() {
                         <button
                           type="button"
                           onClick={() => handleReplySubmit(entry)}
+                          disabled={replyPending}
                           className="rounded-xl px-4 py-2.5 text-sm font-bold"
-                          style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+                          style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: replyPending ? 0.7 : 1 }}
                         >
-                          {entry.adminReply ? 'Update Reply' : 'Send Reply'}
+                          {replyPending ? 'Saving...' : entry.adminReply ? 'Update Reply' : 'Send Reply'}
                         </button>
                       </div>
                     </div>

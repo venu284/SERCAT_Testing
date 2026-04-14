@@ -95,6 +95,51 @@ test('renders API-backed inbox and uses the comments API hooks for read and repl
   expect(await screen.findByText('Reply saved.')).toBeInTheDocument();
 });
 
+test('marks a sent comment read only once when it is reopened before refetch', async () => {
+  const user = userEvent.setup();
+  const updateComment = useUpdateComment();
+
+  render(<AdminComments />);
+
+  const sentCardButton = screen.getByRole('button', { name: /Beamline timing clarification/i });
+
+  await user.click(sentCardButton);
+  await user.click(sentCardButton);
+  await user.click(sentCardButton);
+
+  expect(updateComment.mutate).toHaveBeenCalledTimes(1);
+  expect(updateComment.mutate).toHaveBeenCalledWith({ id: 'comment-1', status: 'read' });
+});
+
+test('saves a reply only once while the first save is still pending', async () => {
+  const user = userEvent.setup();
+  let resolveSave;
+  const pendingSave = new Promise((resolve) => {
+    resolveSave = resolve;
+  });
+  updateCommentState = {
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockReturnValue(pendingSave),
+    isPending: false,
+  };
+
+  render(<AdminComments />);
+
+  await user.click(screen.getByRole('button', { name: /Beamline timing clarification/i }));
+  const replyInput = screen.getByPlaceholderText('Type a reply back to this member.');
+  await user.type(replyInput, 'Need to adjust the plan.');
+
+  const sendButton = screen.getByRole('button', { name: 'Send Reply' });
+  await user.click(sendButton);
+  await user.click(sendButton);
+
+  expect(updateCommentState.mutateAsync).toHaveBeenCalledTimes(1);
+  expect(sendButton).toBeDisabled();
+
+  resolveSave();
+  await screen.findByText('Reply saved.');
+});
+
 test('shows the empty inbox state when the comments query returns no rows', async () => {
   commentsState = {
     data: [],
@@ -134,6 +179,30 @@ test('keeps stale inbox data visible when the query errors and surfaces a non-de
   expect(await screen.findByText('Cached inbox item')).toBeInTheDocument();
   expect(screen.getByText('Unable to load the comments inbox.')).toBeInTheDocument();
   expect(screen.getByText('Lakeside College')).toBeInTheDocument();
+});
+
+test('shows the loading state while the comments query is in flight', async () => {
+  commentsState = {
+    data: undefined,
+    isLoading: true,
+    isError: false,
+  };
+
+  render(<AdminComments />);
+
+  expect(await screen.findByText('Loading member comments...')).toBeInTheDocument();
+});
+
+test('shows the hard error state when the inbox has no cached rows', async () => {
+  commentsState = {
+    data: undefined,
+    isLoading: false,
+    isError: true,
+  };
+
+  render(<AdminComments />);
+
+  expect(await screen.findByText('Unable to load the comments inbox.')).toBeInTheDocument();
 });
 
 test('shows the API error text when saving a reply fails', async () => {
