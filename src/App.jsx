@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
 import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
@@ -283,24 +283,9 @@ function MemberPreviewSwitcher({
   );
 }
 
-function AppContent({ authUser, authLogin, authLogout, authActivate, authRequestReset }) {
+function AppContent({ authUser, authLogout }) {
   const {
     session,
-    authScreen,
-    setAuthScreen,
-    loginForm,
-    setLoginForm,
-    loginError,
-    setLoginError,
-    activateToken,
-    setActivateToken,
-    activateForm,
-    setActivateForm,
-    activationSummary,
-    setActivationSummary,
-    handleSignIn,
-    handleSSOSignIn,
-    handleActivate,
     isAdminSession,
     currentView,
     setCurrentView,
@@ -319,84 +304,10 @@ function AppContent({ authUser, authLogin, authLogout, authActivate, authRequest
     serverDataReady,
     serverDataLoading,
     loadFromDatabase,
-    resetToDemoBaseline,
     saveCurrentToDatabase,
     results,
   } = useMockApp();
-
-  void authRequestReset;
-
-  const realHandleSignIn = useCallback(async (event) => {
-    event.preventDefault();
-    setLoginError('');
-    const email = loginForm.username?.trim().toLowerCase();
-    const password = loginForm.password;
-    if (!email || !password) {
-      setLoginError('Enter both email and password.');
-      return;
-    }
-    try {
-      await authLogin(email, password);
-      setLoginForm({ username: '', password: '' });
-      setLoginError('');
-      setAuthScreen('login');
-    } catch (err) {
-      setLoginError(err.message || 'Invalid email or password.');
-    }
-  }, [loginForm, authLogin, setLoginError, setLoginForm, setAuthScreen]);
-
-  const realHandleActivate = useCallback(async (event) => {
-    event.preventDefault();
-    setLoginError('');
-    const token = activateToken.trim();
-    const { password, confirmPassword, phone } = activateForm;
-
-    if (!token) {
-      setLoginError('Enter the activation token from your invite email.');
-      return;
-    }
-    if (!password || password.length < 8) {
-      setLoginError('Password must be at least 8 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setLoginError('Passwords do not match.');
-      return;
-    }
-
-    try {
-      const result = await authActivate(token, password, confirmPassword, phone);
-      setActivationSummary({
-        memberId: result.user?.id || '',
-        memberName: result.user?.institutionName || '',
-        piName: result.user?.name || '',
-        piEmail: result.user?.email || '',
-      });
-      setAuthScreen('activateSuccess');
-      setLoginError('');
-      setActivateToken('');
-      setActivateForm({ password: '', confirmPassword: '', phone: '' });
-    } catch (err) {
-      setLoginError(err.message || 'Invalid or expired activation token.');
-    }
-  }, [
-    activateForm,
-    activateToken,
-    authActivate,
-    setActivationSummary,
-    setActivateForm,
-    setActivateToken,
-    setAuthScreen,
-    setLoginError,
-  ]);
-
-  const realHandleSignOut = useCallback(async () => {
-    await authLogout();
-  }, [authLogout]);
-
-  const effectiveHandleSignIn = authUser !== undefined ? realHandleSignIn : handleSignIn;
-  const effectiveHandleActivate = authUser !== undefined ? realHandleActivate : handleActivate;
-  const effectiveHandleSignOut = authUser !== undefined ? realHandleSignOut : handleSignOut;
+  const effectiveHandleSignOut = authUser !== undefined ? authLogout : handleSignOut;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -406,21 +317,16 @@ function AppContent({ authUser, authLogin, authLogout, authActivate, authRequest
   const showAdminShell = inAdminArea && isAdminSession;
 
   useEffect(() => {
-    if (!session) {
-      if (location.pathname !== '/login') {
-        navigate('/login', { replace: true });
-      }
-      return;
-    }
+    if (!session) return;
 
     if (session.role === 'admin') {
-      if (location.pathname === '/' || location.pathname === '/login') {
+      if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/activate') {
         navigate('/admin/dashboard', { replace: true });
       }
       return;
     }
 
-    if (location.pathname === '/' || location.pathname === '/login' || location.pathname.startsWith('/admin/')) {
+    if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/activate' || location.pathname.startsWith('/admin/')) {
       navigate('/member/dashboard', { replace: true });
     }
   }, [session, location.pathname, navigate]);
@@ -465,57 +371,14 @@ function AppContent({ authUser, authLogin, authLogout, authActivate, authRequest
   };
 
   if (!session) {
-    if (authScreen === 'activate' || authScreen === 'activateSuccess') {
-      return (
-        <>
-          <ConceptFontStyles />
-          <ActivateAccountScreen
-            authScreen={authScreen}
-            activateToken={activateToken}
-            setActivateToken={setActivateToken}
-            activateForm={activateForm}
-            setActivateForm={setActivateForm}
-            handleActivate={effectiveHandleActivate}
-            loginError={loginError}
-            members={members}
-            cycle={cycle}
-            activationSummary={activationSummary}
-            onActivated={(email = '') => {
-              setAuthScreen('login');
-              setLoginError('');
-              setActivateToken('');
-              setActivateForm({ password: '', confirmPassword: '', phone: '' });
-              setLoginForm({ username: email, password: '' });
-            }}
-            onBackToLogin={() => {
-              setAuthScreen('login');
-              setLoginError('');
-              setActivateToken('');
-              setActivateForm({ password: '', confirmPassword: '', phone: '' });
-              setLoginForm((prev) => ({ ...prev, password: '' }));
-            }}
-          />
-        </>
-      );
-    }
-
     return (
       <>
         <ConceptFontStyles />
-        <LoginScreen
-          loginForm={loginForm}
-          setLoginForm={setLoginForm}
-          loginError={loginError}
-          handleSignIn={effectiveHandleSignIn}
-          handleSSOSignIn={handleSSOSignIn}
-          handleResetDemoData={authUser !== undefined ? () => {} : resetToDemoBaseline}
-          onShowActivate={() => {
-            setAuthScreen('activate');
-            setLoginError('');
-          }}
-          members={members}
-          cycle={cycle}
-        />
+        <Routes>
+          <Route path="/login" element={<LoginScreen />} />
+          <Route path="/activate" element={<ActivateAccountScreen />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
       </>
     );
   }
@@ -548,7 +411,7 @@ function AppContent({ authUser, authLogin, authLogout, authActivate, authRequest
       <Route path="/member/preferences" element={activeMember ? <PreferenceForm /> : <MemberRouteFallback />} />
       <Route path="/member/schedule" element={activeMember ? <MySchedule /> : <MemberRouteFallback />} />
       <Route path="/member/shift-changes" element={activeMember ? <ShiftChanges /> : <MemberRouteFallback />} />
-      <Route path="/member/comments" element={activeMember ? <MemberComments /> : <MemberRouteFallback />} />
+      <Route path="/member/comments" element={session.role === 'member' ? <MemberComments /> : <MemberRouteFallback />} />
       <Route path="/member/profile" element={activeMember ? <MemberProfile /> : <MemberRouteFallback />} />
       <Route path="/admin/dashboard" element={isAdminSession ? <AdminDashboard /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/members" element={isAdminSession ? <MembersAndShares /> : <Navigate to="/member/dashboard" replace />} />
@@ -818,7 +681,7 @@ function AppContent({ authUser, authLogin, authLogout, authActivate, authRequest
 }
 
 export default function App() {
-  const { user, loading, login, logout, activate, requestReset } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   const externalSession = React.useMemo(() => {
     if (!user) return null;
@@ -850,10 +713,7 @@ export default function App() {
     >
       <AppContent
         authUser={user}
-        authLogin={login}
         authLogout={logout}
-        authActivate={activate}
-        authRequestReset={requestReset}
       />
     </MockStateProvider>
   );

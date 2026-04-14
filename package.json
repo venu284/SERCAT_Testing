@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "node --test lib/scheduling/engine.test.js src/lib/data-mappers.test.js src/lib/server-bridge.test.js src/lib/notification-bell-utils.test.js lib/swap-request-utils.test.js && vite build",
+    "check": "node --test lib/scheduling/engine.test.js src/lib/data-mappers.test.js src/lib/server-bridge.test.js src/lib/notification-bell-utils.test.js lib/swap-request-utils.test.js && vitest run src/lib/comments-view-models.test.js src/screens/member/MemberComments.test.jsx src/screens/admin/AdminComments.test.jsx src/screens/auth/LoginScreen.test.jsx src/screens/auth/ActivateAccountScreen.test.jsx && vite build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

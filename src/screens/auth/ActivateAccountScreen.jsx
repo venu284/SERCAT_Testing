@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { CONCEPT_THEME } from '../../lib/theme';
 
 function BrandingPanel({ cycleId = '2026-1' }) {
@@ -45,65 +47,51 @@ function BrandingPanel({ cycleId = '2026-1' }) {
   );
 }
 
-function ReadOnlyInvitationCard({ member }) {
-  return (
-    <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
-      <div className="grid gap-3 text-sm" style={{ color: CONCEPT_THEME.text }}>
-        <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>ORG</span>
-          <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Institution</div>
-            <div className="font-semibold">{member.name || member.id} ({member.id})</div>
-          </div>
-        </div>
-        <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.skyLight, color: CONCEPT_THEME.sky }}>PI</span>
-          <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Principal Investigator</div>
-            <div className="font-semibold">{member.piName || member.id}</div>
-          </div>
-        </div>
-        <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}>ID</span>
-          <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Email</div>
-            <div className="font-semibold">{member.piEmail}</div>
-          </div>
-        </div>
-        <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}>ADM</span>
-          <div>
-            <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Access</div>
-            <div className="font-semibold">Set by admin</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+export default function ActivateAccountScreen({ cycle }) {
+  const navigate = useNavigate();
+  const { activate } = useAuth();
+  const [activateToken, setActivateToken] = useState('');
+  const [activateForm, setActivateForm] = useState({ password: '', confirmPassword: '', phone: '' });
+  const [loginError, setLoginError] = useState('');
+  const [activationSummary, setActivationSummary] = useState(null);
 
-export default function ActivateAccountScreen({
-  authScreen,
-  activateToken,
-  setActivateToken,
-  activateForm,
-  setActivateForm,
-  handleActivate,
-  loginError,
-  members,
-  onActivated,
-  onBackToLogin,
-  cycle,
-  activationSummary,
-}) {
-  const trimmedToken = activateToken.trim();
-  const invitedMember = useMemo(
-    () => members.find((member) => member.inviteToken === trimmedToken && member.status === 'INVITED') || null,
-    [members, trimmedToken],
-  );
+  const handleActivate = async (event) => {
+    event.preventDefault();
 
-  if (authScreen === 'activateSuccess') {
-    const summary = activationSummary || {};
+    const token = activateToken.trim();
+    const { password, confirmPassword, phone } = activateForm;
+
+    if (!token) {
+      setLoginError('Enter the activation token from your invite email.');
+      return;
+    }
+    if (!password || password.length < 8) {
+      setLoginError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setLoginError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      const result = await activate(token, password, confirmPassword, phone);
+      setActivationSummary({
+        memberId: result.user?.id || '',
+        memberName: result.user?.institutionName || '',
+        piName: result.user?.name || '',
+        piEmail: result.user?.email || '',
+      });
+      setLoginError('');
+      setActivateToken('');
+      setActivateForm({ password: '', confirmPassword: '', phone: '' });
+    } catch (err) {
+      setLoginError(err?.message || 'Invalid or expired activation token.');
+    }
+  };
+
+  if (activationSummary) {
+    const summary = activationSummary;
     return (
       <div
         className="app-screen px-4 py-6 sm:px-6 sm:py-10 concept-font-body"
@@ -143,7 +131,7 @@ export default function ActivateAccountScreen({
 
               <button
                 type="button"
-                onClick={() => onActivated(summary.piEmail || '')}
+                onClick={() => navigate('/login', { replace: true, state: { email: activationSummary?.piEmail || '' } })}
                 className="mt-8 w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5"
                 style={{ background: CONCEPT_THEME.navy }}
               >
@@ -167,30 +155,29 @@ export default function ActivateAccountScreen({
         <div className="app-screen-content flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
           <div className="w-full max-w-md">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: invitedMember ? CONCEPT_THEME.emerald : CONCEPT_THEME.accentText }}>
-                {invitedMember ? 'Valid Invitation' : 'Activate Access'}
-              </p>
+              <p className="text-sm uppercase tracking-[0.24em]" style={{ color: CONCEPT_THEME.accentText }}>Activate Access</p>
               <h1 className="concept-font-display mt-3 text-4xl font-bold leading-tight" style={{ color: CONCEPT_THEME.navy }}>
                 Complete Your Account
               </h1>
               <p className="mt-3 text-sm leading-6" style={{ color: CONCEPT_THEME.muted }}>
-                Paste the activation token from your invite email to load your institution details, then choose your password.
+                Paste the activation token from your invite email, then choose your password to complete account setup.
               </p>
             </div>
 
             <form className="mt-8 space-y-4" onSubmit={handleActivate}>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                <label htmlFor="activate-token" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
                   Activation Token
                 </label>
                 <input
+                  id="activate-token"
                   type="text"
                   value={activateToken}
                   onChange={(event) => setActivateToken(event.target.value)}
                   className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
                   style={{
                     background: CONCEPT_THEME.sand,
-                    borderColor: invitedMember ? `${CONCEPT_THEME.emerald}55` : CONCEPT_THEME.border,
+                    borderColor: CONCEPT_THEME.border,
                     color: CONCEPT_THEME.text,
                   }}
                   placeholder="Paste the invite token"
@@ -203,76 +190,66 @@ export default function ActivateAccountScreen({
                 </div>
               ) : null}
 
-              {invitedMember ? (
-                <>
-                  <ReadOnlyInvitationCard member={invitedMember} />
+              <div>
+                <label htmlFor="activate-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                  Set Password
+                </label>
+                <input
+                  id="activate-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={activateForm.password}
+                  onChange={(event) => setActivateForm((prev) => ({ ...prev, password: event.target.value }))}
+                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                  style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+                  placeholder="At least 8 characters"
+                />
+              </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
-                      Set Password
-                    </label>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={activateForm.password}
-                      onChange={(event) => setActivateForm((prev) => ({ ...prev, password: event.target.value }))}
-                      className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
-                      style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
-                      placeholder="At least 8 characters"
-                    />
-                  </div>
+              <div>
+                <label htmlFor="activate-confirm-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                  Confirm Password
+                </label>
+                <input
+                  id="activate-confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={activateForm.confirmPassword}
+                  onChange={(event) => setActivateForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                  style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+                  placeholder="Re-enter your password"
+                />
+              </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={activateForm.confirmPassword}
-                      onChange={(event) => setActivateForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
-                      className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
-                      style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
-                      placeholder="Re-enter your password"
-                    />
-                  </div>
+              <div>
+                <label htmlFor="activate-phone" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                  Phone (Optional)
+                </label>
+                <input
+                  id="activate-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={activateForm.phone}
+                  onChange={(event) => setActivateForm((prev) => ({ ...prev, phone: event.target.value }))}
+                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                  style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+                  placeholder="Office or mobile number"
+                />
+              </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
-                      Phone (Optional)
-                    </label>
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={activateForm.phone}
-                      onChange={(event) => setActivateForm((prev) => ({ ...prev, phone: event.target.value }))}
-                      className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
-                      style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
-                      placeholder="Office or mobile number"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5"
-                    style={{ background: CONCEPT_THEME.navy }}
-                  >
-                    Activate Account
-                  </button>
-                </>
-              ) : (
-                <div className="rounded-[28px] border px-5 py-5" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}30` }}>
-                  <div className="text-xs uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.accentOnAccent }}>Before you continue</div>
-                  <p className="mt-2 text-sm leading-6" style={{ color: CONCEPT_THEME.navy }}>
-                    Activation tokens are generated by the admin when an invite is created or re-sent. If you do not have a token, contact <a href="mailto:admin@ser-cat.org" className="font-semibold">admin@ser-cat.org</a>.
-                  </p>
-                </div>
-              )}
+              <button
+                type="submit"
+                className="w-full rounded-2xl px-4 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5"
+                style={{ background: CONCEPT_THEME.navy }}
+              >
+                Activate Account
+              </button>
             </form>
 
             <div className="mt-6 text-sm" style={{ color: CONCEPT_THEME.muted }}>
               Already have an account?{' '}
-              <button type="button" onClick={onBackToLogin} className="font-semibold" style={{ color: CONCEPT_THEME.sky }}>
+              <button type="button" onClick={() => navigate('/login', { replace: true })} className="font-semibold" style={{ color: CONCEPT_THEME.sky }}>
                 Sign in
               </button>
             </div>
