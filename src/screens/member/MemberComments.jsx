@@ -117,7 +117,7 @@ export default function MemberComments() {
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             Loading comments...
           </div>
-        ) : commentsQuery.isError ? (
+        ) : !history.length && commentsQuery.isError ? (
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             Unable to load comment history.
           </div>
@@ -127,6 +127,11 @@ export default function MemberComments() {
           </div>
         ) : (
           <div className="space-y-3">
+            {commentsQuery.isError ? (
+              <div className="rounded-xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+                Unable to load comment history.
+              </div>
+            ) : null}
             {history.map((entry) => {
               const tone = buildStatusTone(entry.status);
               return (
