@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import { useComments, useCreateComment } from '../../hooks/useApiData';
+import { toMemberCommentHistory } from '../../lib/comments-view-models';
 
 function buildStatusTone(status) {
   if (status === 'Read') {
@@ -13,31 +14,36 @@ function buildStatusTone(status) {
 }
 
 export default function MemberComments() {
-  const { activeMember, memberComments, submitMemberComment } = useMockApp();
+  const commentsQuery = useComments();
+  const createComment = useCreateComment();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const history = useMemo(
-    () => (activeMember ? (memberComments[activeMember.id] || []) : []),
-    [activeMember, memberComments],
-  );
+  const history = useMemo(() => toMemberCommentHistory(commentsQuery.data), [commentsQuery.data]);
 
-  if (!activeMember) return null;
-
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const result = submitMemberComment(activeMember.id, { subject, message });
-    if (!result?.ok) {
-      setError(result?.error || 'Unable to submit your comment.');
+    const trimmedSubject = subject.trim();
+    const trimmedMessage = message.trim();
+
+    if (!trimmedSubject || !trimmedMessage) {
+      setError('Both subject and message are required.');
       setSuccess('');
       return;
     }
-    setSubject('');
-    setMessage('');
-    setError('');
-    setSuccess('Comment sent to the scheduling team.');
+
+    try {
+      await createComment.mutateAsync({ subject: trimmedSubject, message: trimmedMessage });
+      setSubject('');
+      setMessage('');
+      setError('');
+      setSuccess('Comment sent to the scheduling team.');
+    } catch (err) {
+      setError(err?.message || 'Unable to submit your comment.');
+      setSuccess('');
+    }
   };
 
   return (
@@ -90,10 +96,11 @@ export default function MemberComments() {
         <div className="mt-5">
           <button
             type="submit"
+            disabled={createComment.isPending}
             className="rounded-xl px-4 py-2.5 text-sm font-bold"
-            style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+            style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: createComment.isPending ? 0.7 : 1 }}
           >
-            Submit
+            {createComment.isPending ? 'Submitting...' : 'Submit'}
           </button>
         </div>
       </form>
@@ -106,7 +113,15 @@ export default function MemberComments() {
           </span>
         </div>
 
-        {history.length === 0 ? (
+        {commentsQuery.isLoading ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+            Loading comments...
+          </div>
+        ) : commentsQuery.isError ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+            Unable to load comment history.
+          </div>
+        ) : history.length === 0 ? (
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             No comments submitted yet.
           </div>
