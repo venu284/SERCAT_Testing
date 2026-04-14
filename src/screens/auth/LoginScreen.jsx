@@ -1,22 +1,40 @@
-import React, { useMemo } from 'react';
-import { normalizeEmail } from '../../lib/auth';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { CONCEPT_THEME } from '../../lib/theme';
 
-export default function LoginScreen({
-  loginForm,
-  setLoginForm,
-  loginError,
-  handleSignIn,
-  handleResetDemoData,
-  onShowActivate,
-  members = [],
-  cycle,
-}) {
-  const invitedMember = useMemo(() => {
-    const loginKey = normalizeEmail(loginForm.username);
-    if (!loginKey) return null;
-    return members.find((member) => normalizeEmail(member.piEmail) === loginKey && member.status === 'INVITED') || null;
-  }, [loginForm.username, members]);
+export default function LoginScreen({ cycle }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  useEffect(() => {
+    if (location.state?.email) {
+      setLoginForm((prev) => ({ ...prev, email: location.state.email }));
+    }
+  }, [location.state?.email]);
+
+  const handleSignIn = async (event) => {
+    event.preventDefault();
+
+    const email = loginForm.email.trim().toLowerCase();
+    const password = loginForm.password;
+
+    if (!email || !password) {
+      setLoginError('Enter both email and password.');
+      return;
+    }
+
+    try {
+      setLoginError('');
+      await login(email, password);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setLoginError(err?.message || 'Invalid email or password.');
+    }
+  };
 
   return (
     <div
@@ -46,14 +64,15 @@ export default function LoginScreen({
 
             <form className="mt-8 space-y-4" onSubmit={handleSignIn}>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                <label htmlFor="login-email" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
                   Email Address
                 </label>
                 <input
+                  id="login-email"
                   type="text"
                   autoComplete="username"
-                  value={loginForm.username}
-                  onChange={(event) => setLoginForm((prev) => ({ ...prev, username: event.target.value }))}
+                  value={loginForm.email}
+                  onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
                   className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
                   style={{
                     background: CONCEPT_THEME.sand,
@@ -66,7 +85,7 @@ export default function LoginScreen({
 
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <label className="block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                  <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
                     Password
                   </label>
                   <a
@@ -78,6 +97,7 @@ export default function LoginScreen({
                   </a>
                 </div>
                 <input
+                  id="login-password"
                   type="password"
                   autoComplete="current-password"
                   value={loginForm.password}
@@ -91,12 +111,6 @@ export default function LoginScreen({
                   placeholder="Enter your password"
                 />
               </div>
-
-              {invitedMember ? (
-                <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}44`, color: CONCEPT_THEME.navy }}>
-                  {invitedMember.name} is still pending activation. Use the activation link from your invite email before signing in.
-                </div>
-              ) : null}
 
               {loginError ? (
                 <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
@@ -130,26 +144,12 @@ export default function LoginScreen({
               </div>
               <button
                 type="button"
-                onClick={onShowActivate}
+                onClick={() => navigate('/activate')}
                 className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5"
                 style={{ background: CONCEPT_THEME.tealLight, color: CONCEPT_THEME.teal }}
               >
                 Activate your account
               </button>
-            </div>
-
-            <div className="mt-8 border-t pt-5" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-              <button
-                type="button"
-                onClick={handleResetDemoData}
-                className="w-full rounded-2xl border px-4 py-3 text-xs font-bold uppercase tracking-[0.22em]"
-                style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}
-              >
-                Reset Demo Data
-              </button>
-              <p className="mt-2 text-center text-[11px] leading-5" style={{ color: CONCEPT_THEME.muted }}>
-                Restores the local prototype baseline so invite, activation, and member access can be tested from a clean state.
-              </p>
             </div>
           </div>
         </div>
