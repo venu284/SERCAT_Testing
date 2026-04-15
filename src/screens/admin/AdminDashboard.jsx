@@ -18,13 +18,29 @@ function StatusCard({ title, detail }) {
 }
 
 function extractRows(payload) {
-  return Array.isArray(payload) ? payload : [];
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function normalizeDateOnly(value) {
+  if (typeof value === 'string') {
+    return value.split('T')[0];
+  }
+
+  return value ? toDateStr(new Date(value)) : '';
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { activeCycle, activeCycleId, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
-  const usersQuery = useUsers();
+  const usersQuery = useUsers({ limit: 1000 });
   const preferenceStatusQuery = usePreferenceStatus(activeCycleId);
   const scheduleQuery = useSchedule(activeCycleId);
 
@@ -65,11 +81,11 @@ export default function AdminDashboard() {
   };
   const schedulePublication = scheduleQuery.data || {};
   const preferenceDeadline = activeCycle.preferenceDeadline
-    ? toDateStr(new Date(activeCycle.preferenceDeadline))
+    ? normalizeDateOnly(activeCycle.preferenceDeadline)
     : addDays(activeCycle.startDate, -7);
   const published = schedulePublication.status === 'published';
-  const submittedCount = statusSummary.submitted || 0;
-  const activeMemberCount = statusSummary.total || activeMembers.length;
+  const submittedCount = statusSummary.submitted ?? 0;
+  const activeMemberCount = statusSummary.total ?? activeMembers.length;
   const submissionPct = activeMemberCount > 0 ? Math.round((submittedCount / activeMemberCount) * 100) : 0;
   const timeline = [
     { label: 'Cycle Start', date: activeCycle.startDate, done: localTodayDateStr() >= activeCycle.startDate },

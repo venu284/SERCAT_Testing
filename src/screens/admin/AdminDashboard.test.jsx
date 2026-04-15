@@ -22,7 +22,7 @@ vi.mock('../../hooks/useActiveCycle', () => ({
 }));
 
 vi.mock('../../hooks/useApiData', () => ({
-  useUsers: () => useUsers(),
+  useUsers: (params) => useUsers(params),
   usePreferenceStatus: (cycleId) => usePreferenceStatus(cycleId),
   useSchedule: (cycleId) => useSchedule(cycleId),
 }));
@@ -48,12 +48,17 @@ function buildActiveCycle(overrides = {}) {
 
 function buildUsersQuery(overrides = {}) {
   return {
-    data: [
-      { id: 'pi-1', role: 'pi', isActive: true, isActivated: true },
-      { id: 'pi-2', role: 'pi', isActive: true, isActivated: true },
-      { id: 'pi-3', role: 'pi', isActive: true, isActivated: false },
-      { id: 'staff-1', role: 'staff', isActive: true, isActivated: true },
-    ],
+    data: {
+      data: [
+        { id: 'pi-1', role: 'pi', isActive: true, isActivated: true },
+        { id: 'pi-2', role: 'pi', isActive: true, isActivated: true },
+        { id: 'pi-3', role: 'pi', isActive: true, isActivated: false },
+        { id: 'staff-1', role: 'staff', isActive: true, isActivated: true },
+      ],
+      total: 4,
+      page: 1,
+      limit: 50,
+    },
     isLoading: false,
     error: null,
     ...overrides,
@@ -96,6 +101,10 @@ function renderScreen() {
   );
 }
 
+function expectTextContent(text) {
+  expect(screen.getByText((_, node) => node?.textContent === text)).toBeInTheDocument();
+}
+
 describe('AdminDashboard', () => {
   beforeEach(() => {
     mockNavigate.mockReset();
@@ -121,13 +130,15 @@ describe('AdminDashboard', () => {
     expect(screen.getByText('1/2')).toBeInTheDocument();
     expect(screen.getByText('50% complete')).toBeInTheDocument();
     expect(screen.getByText('Published')).toBeInTheDocument();
+    expectTextContent('Cycle Spring 2026 | Preference deadline: Apr 13, 2026');
+    expect(useUsers).toHaveBeenCalledWith({ limit: 1000 });
     expect(usePreferenceStatus).toHaveBeenCalledWith('cycle-2026-spring');
     expect(useSchedule).toHaveBeenCalledWith('cycle-2026-spring');
   });
 
   it('shows a stable loading card while the live queries resolve', () => {
     useActiveCycle.mockReturnValue(buildActiveCycle({ activeCycle: null, activeCycleId: null, isLoading: true }));
-    useUsers.mockReturnValue(buildUsersQuery({ data: [], isLoading: true }));
+    useUsers.mockReturnValue(buildUsersQuery({ data: { data: [], total: 0, page: 1, limit: 50 }, isLoading: true }));
     usePreferenceStatus.mockReturnValue(buildPreferenceStatusQuery({ data: null, isLoading: true }));
     useSchedule.mockReturnValue(buildScheduleQuery({ data: null, isLoading: true }));
 
@@ -147,5 +158,53 @@ describe('AdminDashboard', () => {
 
     expect(screen.getByRole('heading', { name: 'Admin dashboard unavailable' })).toBeInTheDocument();
     expect(screen.getByText('No active cycle is available yet.')).toBeInTheDocument();
+  });
+
+  it('preserves zero summary values from preference status instead of falling back to member counts', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useUsers.mockReturnValue(buildUsersQuery());
+    usePreferenceStatus.mockReturnValue(buildPreferenceStatusQuery({
+      data: {
+        summary: {
+          total: 0,
+          submitted: 0,
+          pending: 0,
+        },
+      },
+    }));
+    useSchedule.mockReturnValue(buildScheduleQuery({ data: { id: 'schedule-1', status: 'draft', publishedAt: '' } }));
+
+    renderScreen();
+
+    expectTextContent('Active Members0in cycle');
+    expect(screen.getByText('0/0')).toBeInTheDocument();
+    expect(screen.getByText('0% complete')).toBeInTheDocument();
+  });
+
+  it('keeps the stored calendar date when preferenceDeadline includes a timezone', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle({
+      activeCycle: {
+        preferenceDeadline: '2026-04-13T00:30:00+14:00',
+      },
+    }));
+    useUsers.mockReturnValue(buildUsersQuery());
+    usePreferenceStatus.mockReturnValue(buildPreferenceStatusQuery());
+    useSchedule.mockReturnValue(buildScheduleQuery());
+
+    renderScreen();
+
+    expectTextContent('Cycle  | Preference deadline: Apr 13, 2026');
+  });
+
+  it('shows the explicit error card when any live query fails', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useUsers.mockReturnValue(buildUsersQuery({ error: new Error('users offline') }));
+    usePreferenceStatus.mockReturnValue(buildPreferenceStatusQuery());
+    useSchedule.mockReturnValue(buildScheduleQuery());
+
+    renderScreen();
+
+    expect(screen.getByRole('heading', { name: 'Unable to load admin dashboard' })).toBeInTheDocument();
+    expect(screen.getByText('users offline')).toBeInTheDocument();
   });
 });
