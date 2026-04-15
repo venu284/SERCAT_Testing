@@ -11,7 +11,20 @@ export function useInstitutions() {
 export function useUsers(params = {}) {
   return useQuery({
     queryKey: ['users', params],
-    queryFn: () => api.get('/users', { params }).then((r) => r.data),
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.set(key, String(value));
+        }
+      });
+
+      const query = searchParams.toString();
+      const url = query ? `/users?${query}` : '/users';
+
+      return api.get(url).then((r) => r.data);
+    },
   });
 }
 
