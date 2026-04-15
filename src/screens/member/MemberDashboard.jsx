@@ -3,27 +3,65 @@ import { useNavigate } from 'react-router-dom';
 import ConceptShiftBadge from '../../components/ConceptShiftBadge';
 import { addDays, formatCalendarDate, localTodayDateStr, toDateStr } from '../../lib/dates';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import { useMemberDashboardContext } from '../../hooks/useMemberDashboardContext';
+
+function StatusCard({ title, detail }) {
+  return (
+    <div
+      className="rounded-2xl px-6 py-5 concept-font-body concept-anim-fade"
+      style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
+    >
+      <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
+      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+    </div>
+  );
+}
 
 export default function MemberDashboard() {
   const navigate = useNavigate();
+  const { activeCycle, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
   const {
-    activeMember,
-    activeMemberEntitlement,
-    cycle,
+    member,
+    entitlement,
     preferenceDeadline,
     daysUntilPreferenceDeadline,
     isPreferenceSubmitted,
     schedulePublication,
     currentMemberAssignments,
     memberShiftCounts,
-  } = useMockApp();
+    isLoading,
+    error,
+  } = useMemberDashboardContext();
 
-  if (!activeMember) return null;
+  if (cycleLoading || isLoading) {
+    return (
+      <StatusCard
+        title="Loading member dashboard..."
+        detail="Fetching your current cycle, entitlement, and assignment summary."
+      />
+    );
+  }
 
-  const fractionalBlocks = Math.ceil((activeMemberEntitlement.fractionalHours || 0) / 6);
-  const totalSlots = activeMemberEntitlement.wholeShares * 3 + fractionalBlocks;
-  const totalChoices = totalSlots * 2;
+  if (cycleError || error) {
+    return (
+      <StatusCard
+        title="Unable to load member dashboard"
+        detail={(cycleError || error)?.message || 'Please try again in a moment.'}
+      />
+    );
+  }
+
+  if (!activeCycle || !member) {
+    return (
+      <StatusCard
+        title="Member dashboard unavailable"
+        detail={!activeCycle ? 'No active cycle is available yet.' : 'Your member record is not available yet.'}
+      />
+    );
+  }
+
+  const fractionalBlocks = Math.ceil((entitlement.fractionalHours || 0) / 6);
   const published = schedulePublication.status === 'published';
   const heroTitle = isPreferenceSubmitted ? 'Preferences already submitted' : 'Submit Your Preferences';
   const heroDetail = isPreferenceSubmitted
@@ -37,10 +75,10 @@ export default function MemberDashboard() {
         : `${daysUntilPreferenceDeadline} day(s) left before deadline.`);
 
   const timeline = [
-    { label: 'Cycle Starts', date: cycle.startDate, done: localTodayDateStr() >= cycle.startDate },
-    { label: 'Deadline', date: preferenceDeadline || addDays(cycle.startDate, -7), done: isPreferenceSubmitted, active: !isPreferenceSubmitted },
+    { label: 'Cycle Starts', date: activeCycle.startDate, done: localTodayDateStr() >= activeCycle.startDate },
+    { label: 'Deadline', date: preferenceDeadline || addDays(activeCycle.startDate, -7), done: isPreferenceSubmitted, active: !isPreferenceSubmitted },
     { label: 'Schedule', date: published ? (schedulePublication.publishedAt ? toDateStr(new Date(schedulePublication.publishedAt)) : 'Published') : 'Pending', done: published, active: !published },
-    { label: 'Cycle Ends', date: cycle.endDate, done: localTodayDateStr() > cycle.endDate },
+    { label: 'Cycle Ends', date: activeCycle.endDate, done: localTodayDateStr() > activeCycle.endDate },
   ];
 
   return (
@@ -54,7 +92,7 @@ export default function MemberDashboard() {
             </svg>
           </div>
           <div className="flex-1">
-            <div className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{heroTitle}</div>
+            <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{heroTitle}</h2>
             <p className="mt-1 text-lg" style={{ color: CONCEPT_THEME.text }}>{heroDetail}</p>
           </div>
           <button
@@ -73,9 +111,9 @@ export default function MemberDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Total Shares', value: activeMember.shares.toFixed(2), accent: CONCEPT_THEME.sky },
-          { label: 'Whole Shares', value: activeMemberEntitlement.wholeShares, accent: CONCEPT_THEME.navy },
-          { label: 'Fractional Share', value: `${(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hours`, accent: CONCEPT_THEME.afternoon },
+          { label: 'Total Shares', value: member.shares.toFixed(2), accent: CONCEPT_THEME.sky },
+          { label: 'Whole Shares', value: entitlement.wholeShares, accent: CONCEPT_THEME.navy },
+          { label: 'Fractional Share', value: `${(entitlement.fractionalHours || 0).toFixed(2)} hours`, accent: CONCEPT_THEME.afternoon },
 
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
@@ -118,24 +156,24 @@ export default function MemberDashboard() {
           Whole shares include Morning, Afternoon, and Night shifts. Fractional Share include Morning or Afternoon shifts.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {Array.from({ length: activeMemberEntitlement.wholeShares }, (_, idx) => idx + 1).map((shareIndex) => (
+          {Array.from({ length: entitlement.wholeShares }, (_, idx) => idx + 1).map((shareIndex) => (
             <div key={`share-${shareIndex}`} className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
               <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
               <div className="flex flex-wrap gap-2">
-                <ConceptShiftBadge shiftType="DS1" />
-                <ConceptShiftBadge shiftType="DS2" />
-                <ConceptShiftBadge shiftType="NS" />
+                <ConceptShiftBadge shift="DS1" />
+                <ConceptShiftBadge shift="DS2" />
+                <ConceptShiftBadge shift="NS" />
               </div>
             </div>
           ))}
           {fractionalBlocks > 0 ? (
             <div className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
               <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
-                Fractional Share ({(activeMemberEntitlement.fractionalHours || 0).toFixed(2)} hours)
+                Fractional Share ({(entitlement.fractionalHours || 0).toFixed(2)} hours)
               </div>
               <div className="flex flex-wrap gap-2">
-                <ConceptShiftBadge shiftType="DS1" />
-                <ConceptShiftBadge shiftType="DS2" />
+                <ConceptShiftBadge shift="DS1" />
+                <ConceptShiftBadge shift="DS2" />
               </div>
             </div>
           ) : null}
