@@ -152,6 +152,33 @@ describe('MemberDashboard', () => {
     expect(screen.getByText('No active cycle is available yet.')).toBeInTheDocument();
   });
 
+  it('shows the member-missing empty state when an active cycle exists but member data is unavailable', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
+      member: null,
+      entitlement: {
+        wholeShares: 0,
+        fractionalHours: 0,
+      },
+      isPreferenceSubmitted: false,
+      schedulePublication: {
+        status: '',
+        publishedAt: '',
+      },
+      currentMemberAssignments: [],
+      memberShiftCounts: {
+        DS1: 0,
+        DS2: 0,
+        NS: 0,
+      },
+    }));
+
+    renderScreen();
+
+    expect(screen.getByRole('heading', { name: 'Member dashboard unavailable' })).toBeInTheDocument();
+    expect(screen.getByText('Your member record is not available yet.')).toBeInTheDocument();
+  });
+
   it('shows the explicit error card when either hook returns an error', () => {
     useActiveCycle.mockReturnValue(buildActiveCycle({ error: new Error('cycle offline') }));
     useMemberDashboardContext.mockReturnValue(buildDashboardContext());
@@ -235,7 +262,7 @@ describe('MemberDashboard', () => {
     expect(screen.getByText('Aug 15, 2026')).toBeInTheDocument();
   });
 
-  it('renders whole-share cards from entitlement.wholeShares and the fractional section from entitlement.fractionalHours', () => {
+  it('maps whole-share and fractional-share allocation badges from the entitlement values', () => {
     useActiveCycle.mockReturnValue(buildActiveCycle());
     useMemberDashboardContext.mockReturnValue(buildDashboardContext({
       entitlement: {
@@ -249,5 +276,21 @@ describe('MemberDashboard', () => {
     expect(screen.getByText('Whole Share 1')).toBeInTheDocument();
     expect(screen.getByText('Whole Share 2')).toBeInTheDocument();
     expect(screen.getByText('Fractional Share (6.00 hours)')).toBeInTheDocument();
+
+    const wholeShareOneCard = screen.getByText('Whole Share 1').parentElement;
+    const wholeShareTwoCard = screen.getByText('Whole Share 2').parentElement;
+    const fractionalShareCard = screen.getByText('Fractional Share (6.00 hours)').parentElement;
+
+    expect(wholeShareOneCard).toHaveTextContent('Morning');
+    expect(wholeShareOneCard).toHaveTextContent('Afternoon');
+    expect(wholeShareOneCard).toHaveTextContent('Night');
+
+    expect(wholeShareTwoCard).toHaveTextContent('Morning');
+    expect(wholeShareTwoCard).toHaveTextContent('Afternoon');
+    expect(wholeShareTwoCard).toHaveTextContent('Night');
+
+    expect(fractionalShareCard).toHaveTextContent('Morning');
+    expect(fractionalShareCard).toHaveTextContent('Afternoon');
+    expect(fractionalShareCard).not.toHaveTextContent('Night');
   });
 });
