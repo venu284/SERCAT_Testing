@@ -19,7 +19,11 @@ function extractShareRows(payload) {
 
 function normalizePreferenceDeadline(cycle) {
   if (!cycle) return '';
-  if (cycle.preferenceDeadline) return cycle.preferenceDeadline;
+  if (typeof cycle.preferenceDeadline === 'string' && cycle.preferenceDeadline) {
+    return cycle.preferenceDeadline.includes('T')
+      ? cycle.preferenceDeadline.split('T')[0]
+      : cycle.preferenceDeadline;
+  }
   if (!cycle.startDate) return '';
   return addDays(cycle.startDate, -7);
 }

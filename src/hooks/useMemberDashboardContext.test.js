@@ -237,4 +237,61 @@ describe('useMemberDashboardContext', () => {
     expect(result.current.error).toEqual(expect.any(Error));
     expect(result.current.error.message).toBe('schedule offline');
   });
+
+  it('normalizes timezone-bearing preference deadlines to date-only strings for countdown math', () => {
+    useAuth.mockReturnValue({
+      user: {
+        id: 'pi-1',
+        name: 'Dr. Ada Lovelace',
+        institutionId: 'inst-1',
+      },
+    });
+
+    useActiveCycle.mockReturnValue({
+      activeCycle: {
+        id: 'cycle-2026-spring',
+        startDate: '2026-03-20',
+        preferenceDeadline: '2026-03-13T23:30:00Z',
+      },
+      activeCycleId: 'cycle-2026-spring',
+      isLoading: false,
+      error: null,
+    });
+
+    useMasterShares.mockReturnValue({
+      data: [
+        {
+          id: 'share-1',
+          piId: 'pi-1',
+          institutionId: 'inst-1',
+          institutionAbbreviation: 'SERCAT',
+          institutionName: 'SERCAT University',
+          wholeShares: 1,
+          fractionalShares: 0,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    usePreferences.mockReturnValue({
+      data: {
+        submittedAt: null,
+        submissions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    useSchedule.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useMemberDashboardContext());
+
+    expect(result.current.preferenceDeadline).toBe('2026-03-13');
+    expect(result.current.daysUntilPreferenceDeadline).toBe(3);
+  });
 });

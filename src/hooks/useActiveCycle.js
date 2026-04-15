@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useCycles } from './useApiData';
+import { selectActiveCycle } from './activeCycleSelection';
 
 function extractCycles(payload) {
   if (Array.isArray(payload)) {
@@ -19,7 +20,7 @@ export function useActiveCycle() {
   const cycles = useMemo(() => extractCycles(cyclesQuery.data), [cyclesQuery.data]);
 
   const activeCycle = useMemo(() => {
-    return cycles.find((cycle) => cycle?.status && cycle.status !== 'archived') || cycles[0] || null;
+    return selectActiveCycle(cycles);
   }, [cycles]);
 
   return {

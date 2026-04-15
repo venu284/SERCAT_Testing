@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { mapSharesToMembers, mapCycleToMock, mapPreferencesToMock } from '../lib/data-mappers';
+import { selectActiveCycle } from './activeCycleSelection';
 
 export function useServerSync({
   isAuthenticated,
@@ -32,11 +33,7 @@ export function useServerSync({
     staleTime: 60_000,
   });
 
-  const activeCycle = useMemo(() => (
-    cyclesQuery.data
-      ? cyclesQuery.data.find((c) => c.status !== 'archived') || cyclesQuery.data[0] || null
-      : null
-  ), [cyclesQuery.data]);
+  const activeCycle = useMemo(() => selectActiveCycle(cyclesQuery.data), [cyclesQuery.data]);
 
   const activeCycleId = activeCycle?.id || null;
 
