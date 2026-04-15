@@ -1,10 +1,20 @@
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockNavigate = vi.fn();
 const useActiveCycle = vi.fn();
 const useMemberDashboardContext = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 vi.mock('../../hooks/useActiveCycle', () => ({
   useActiveCycle: () => useActiveCycle(),
@@ -16,6 +26,53 @@ vi.mock('../../hooks/useMemberDashboardContext', () => ({
 
 import MemberDashboard from './MemberDashboard';
 
+function buildActiveCycle(overrides = {}) {
+  return {
+    activeCycle: {
+      id: 'cycle-2026-spring',
+      startDate: '2026-04-20',
+      endDate: '2026-05-20',
+      ...overrides.activeCycle,
+    },
+    isLoading: false,
+    error: null,
+    ...overrides,
+  };
+}
+
+function buildDashboardContext(overrides = {}) {
+  return {
+    member: {
+      id: 'SERCAT',
+      name: 'SERCAT University',
+      shares: 1.5,
+    },
+    entitlement: {
+      wholeShares: 1,
+      fractionalHours: 12,
+    },
+    preferenceDeadline: '2026-04-13',
+    daysUntilPreferenceDeadline: 0,
+    isPreferenceSubmitted: true,
+    schedulePublication: {
+      status: 'published',
+      publishedAt: '2026-04-14T12:00:00Z',
+    },
+    currentMemberAssignments: [
+      { id: 'assign-1', shift: 'DS1' },
+      { id: 'assign-2', shift: 'NS' },
+    ],
+    memberShiftCounts: {
+      DS1: 1,
+      DS2: 0,
+      NS: 1,
+    },
+    isLoading: false,
+    error: null,
+    ...overrides,
+  };
+}
+
 function renderScreen() {
   return render(
     <MemoryRouter>
@@ -26,50 +83,14 @@ function renderScreen() {
 
 describe('MemberDashboard', () => {
   beforeEach(() => {
+    mockNavigate.mockReset();
     useActiveCycle.mockReset();
     useMemberDashboardContext.mockReset();
   });
 
   it('renders the production-backed member dashboard values without useMockApp', () => {
-    useActiveCycle.mockReturnValue({
-      activeCycle: {
-        id: 'cycle-2026-spring',
-        startDate: '2026-04-20',
-        endDate: '2026-05-20',
-      },
-      isLoading: false,
-      error: null,
-    });
-
-    useMemberDashboardContext.mockReturnValue({
-      member: {
-        id: 'SERCAT',
-        name: 'SERCAT University',
-        shares: 1.5,
-      },
-      entitlement: {
-        wholeShares: 1,
-        fractionalHours: 12,
-      },
-      preferenceDeadline: '2026-04-13',
-      daysUntilPreferenceDeadline: 0,
-      isPreferenceSubmitted: true,
-      schedulePublication: {
-        status: 'published',
-        publishedAt: '2026-04-14T12:00:00Z',
-      },
-      currentMemberAssignments: [
-        { id: 'assign-1', shift: 'DS1' },
-        { id: 'assign-2', shift: 'NS' },
-      ],
-      memberShiftCounts: {
-        DS1: 1,
-        DS2: 0,
-        NS: 1,
-      },
-      isLoading: false,
-      error: null,
-    });
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext());
 
     renderScreen();
 
@@ -82,20 +103,14 @@ describe('MemberDashboard', () => {
   });
 
   it('shows a stable loading card instead of returning null', () => {
-    useActiveCycle.mockReturnValue({
-      activeCycle: null,
-      isLoading: true,
-      error: null,
-    });
-
-    useMemberDashboardContext.mockReturnValue({
+    useActiveCycle.mockReturnValue(buildActiveCycle({ activeCycle: null, isLoading: true }));
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
       member: null,
       entitlement: {
         wholeShares: 0,
         fractionalHours: 0,
       },
       preferenceDeadline: '',
-      daysUntilPreferenceDeadline: 0,
       isPreferenceSubmitted: false,
       schedulePublication: {
         status: '',
@@ -107,9 +122,7 @@ describe('MemberDashboard', () => {
         DS2: 0,
         NS: 0,
       },
-      isLoading: false,
-      error: null,
-    });
+    }));
 
     const { container } = renderScreen();
 
@@ -118,24 +131,8 @@ describe('MemberDashboard', () => {
   });
 
   it('shows a safe empty state when there is no active cycle', () => {
-    useActiveCycle.mockReturnValue({
-      activeCycle: null,
-      isLoading: false,
-      error: null,
-    });
-
-    useMemberDashboardContext.mockReturnValue({
-      member: {
-        id: 'SERCAT',
-        name: 'SERCAT University',
-        shares: 1.5,
-      },
-      entitlement: {
-        wholeShares: 1,
-        fractionalHours: 12,
-      },
-      preferenceDeadline: '',
-      daysUntilPreferenceDeadline: 0,
+    useActiveCycle.mockReturnValue(buildActiveCycle({ activeCycle: null }));
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
       isPreferenceSubmitted: false,
       schedulePublication: {
         status: '',
@@ -147,13 +144,110 @@ describe('MemberDashboard', () => {
         DS2: 0,
         NS: 0,
       },
-      isLoading: false,
-      error: null,
-    });
+    }));
 
     renderScreen();
 
     expect(screen.getByRole('heading', { name: 'Member dashboard unavailable' })).toBeInTheDocument();
     expect(screen.getByText('No active cycle is available yet.')).toBeInTheDocument();
+  });
+
+  it('shows the explicit error card when either hook returns an error', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle({ error: new Error('cycle offline') }));
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext());
+
+    renderScreen();
+
+    expect(screen.getByRole('heading', { name: 'Unable to load member dashboard' })).toBeInTheDocument();
+    expect(screen.getByText('cycle offline')).toBeInTheDocument();
+  });
+
+  it('routes submitted and published members to the schedule screen from the CTA', async () => {
+    const user = userEvent.setup();
+
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
+      isPreferenceSubmitted: true,
+      schedulePublication: {
+        status: 'published',
+        publishedAt: '2026-04-14T12:00:00Z',
+      },
+    }));
+
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Open My Schedule' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/member/schedule');
+  });
+
+  it('routes submitted but unpublished members back to preferences from the CTA', async () => {
+    const user = userEvent.setup();
+
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
+      isPreferenceSubmitted: true,
+      schedulePublication: {
+        status: 'draft',
+        publishedAt: '',
+      },
+    }));
+
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Review Preferences' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/member/preferences');
+  });
+
+  it('routes unsubmitted members to preferences from the CTA', async () => {
+    const user = userEvent.setup();
+
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
+      isPreferenceSubmitted: false,
+      daysUntilPreferenceDeadline: 2,
+      schedulePublication: {
+        status: '',
+        publishedAt: '',
+      },
+    }));
+
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Start Now ->' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/member/preferences');
+  });
+
+  it('renders cycle timeline dates from activeCycle start and end dates', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle({
+      activeCycle: {
+        startDate: '2026-07-01',
+        endDate: '2026-08-15',
+      },
+    }));
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext());
+
+    renderScreen();
+
+    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Aug 15, 2026')).toBeInTheDocument();
+  });
+
+  it('renders whole-share cards from entitlement.wholeShares and the fractional section from entitlement.fractionalHours', () => {
+    useActiveCycle.mockReturnValue(buildActiveCycle());
+    useMemberDashboardContext.mockReturnValue(buildDashboardContext({
+      entitlement: {
+        wholeShares: 2,
+        fractionalHours: 6,
+      },
+    }));
+
+    renderScreen();
+
+    expect(screen.getByText('Whole Share 1')).toBeInTheDocument();
+    expect(screen.getByText('Whole Share 2')).toBeInTheDocument();
+    expect(screen.getByText('Fractional Share (6.00 hours)')).toBeInTheDocument();
   });
 });
