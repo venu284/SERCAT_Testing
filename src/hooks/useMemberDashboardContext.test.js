@@ -88,7 +88,7 @@ describe('useMemberDashboardContext', () => {
 
     usePreferences.mockReturnValue({
       data: {
-        submittedAt: '2026-03-01T12:00:00Z',
+        submittedAt: null,
         submissions: [
           { piId: 'pi-1', submittedAt: '2026-03-01T12:00:00Z' },
         ],
@@ -135,6 +135,11 @@ describe('useMemberDashboardContext', () => {
     expect(result.current.preferenceDeadline).toBe('2026-03-13');
     expect(result.current.daysUntilPreferenceDeadline).toBe(3);
     expect(result.current.isPreferenceSubmitted).toBe(true);
+    expect(result.current.isPreferenceSubmitted).toBe(
+      Boolean(
+        usePreferences.mock.results[0].value.data.submissions.find((entry) => entry.piId === 'pi-1')?.submittedAt,
+      ),
+    );
     expect(result.current.schedulePublication).toEqual({
       status: 'published',
       publishedAt: '2026-03-05T15:30:00Z',
@@ -209,14 +214,7 @@ describe('useMemberDashboardContext', () => {
 
     const { result } = renderHook(() => useMemberDashboardContext());
 
-    expect(result.current.member).toEqual({
-      id: 'GLAB',
-      name: 'Grace Lab',
-      shares: 0,
-      status: 'ACTIVE',
-      _piUserId: 'pi-missing',
-      _institutionUuid: 'inst-missing',
-    });
+    expect(result.current.member).toBeNull();
     expect(result.current.entitlement).toEqual({
       wholeShares: 0,
       fractionalHours: 0,

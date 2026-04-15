@@ -25,6 +25,10 @@ function normalizePreferenceDeadline(cycle) {
 }
 
 function buildMember(user, share) {
+  if (!share) {
+    return null;
+  }
+
   const wholeShares = Number(share?.wholeShares) || 0;
   const fractionalShares = Number(share?.fractionalShares) || 0;
 
@@ -56,16 +60,12 @@ export function useMemberDashboardContext() {
   }, [shareRows, user]);
 
   const entitlement = useMemo(() => {
-    const hasMemberShareRow = shareRows.some(
-      (row) => row?.piId === member._piUserId || row?.institutionId === member._institutionUuid,
-    );
-
-    if (!hasMemberShareRow) {
+    if (!member) {
       return { wholeShares: 0, fractionalHours: 0 };
     }
 
     return computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
-  }, [member, shareRows]);
+  }, [member]);
 
   const preferenceDeadline = normalizePreferenceDeadline(cycleQuery.activeCycle);
   const todayDate = localTodayDateStr();
@@ -76,14 +76,16 @@ export function useMemberDashboardContext() {
   const preferencePayload = preferencesQuery.data || {};
   const submissionRows = Array.isArray(preferencePayload.submissions) ? preferencePayload.submissions : [];
   const isPreferenceSubmitted = Boolean(
-    preferencePayload.submittedAt
-      || submissionRows.some((entry) => entry?.piId === member._piUserId && entry?.submittedAt),
+    member && (
+      preferencePayload.submittedAt
+        || submissionRows.some((entry) => entry?.piId === member._piUserId && entry?.submittedAt)
+    ),
   );
 
   const schedulePayload = scheduleQuery.data || null;
   const scheduleAssignments = Array.isArray(schedulePayload?.assignments) ? schedulePayload.assignments : [];
   const currentMemberAssignments = scheduleAssignments.filter(
-    (assignment) => assignment?.piId === member._piUserId,
+    (assignment) => member && assignment?.piId === member._piUserId,
   );
   const memberShiftCounts = currentMemberAssignments.reduce(
     (counts, assignment) => {
