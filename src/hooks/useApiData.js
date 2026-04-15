@@ -11,7 +11,45 @@ export function useInstitutions() {
 export function useUsers(params = {}) {
   return useQuery({
     queryKey: ['users', params],
-    queryFn: () => {
+    queryFn: async () => {
+      const buildUrl = (queryParams) => {
+        const searchParams = new URLSearchParams();
+
+        Object.entries(queryParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            searchParams.set(key, String(value));
+          }
+        });
+
+        const query = searchParams.toString();
+        return query ? `/users?${query}` : '/users';
+      };
+
+      if (params.all) {
+        const { all: _all, ...restParams } = params;
+        const limit = restParams.limit ?? 100;
+        let page = 1;
+        let totalPages = 1;
+        let lastPagination = null;
+        const rows = [];
+
+        do {
+          const response = await api.get(buildUrl({ ...restParams, limit, page })).then((r) => r.data);
+          const pageRows = Array.isArray(response?.data) ? response.data : [];
+          const pagination = response?.pagination ?? null;
+
+          rows.push(...pageRows);
+          lastPagination = pagination;
+          totalPages = pagination?.totalPages ?? page;
+          page += 1;
+        } while (page <= totalPages);
+
+        return {
+          data: rows,
+          pagination: lastPagination,
+        };
+      }
+
       const searchParams = new URLSearchParams();
 
       Object.entries(params).forEach(([key, value]) => {

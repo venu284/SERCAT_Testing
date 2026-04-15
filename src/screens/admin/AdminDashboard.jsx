@@ -40,7 +40,7 @@ function normalizeDateOnly(value) {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { activeCycle, activeCycleId, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
-  const usersQuery = useUsers({ limit: 1000 });
+  const usersQuery = useUsers({ all: true });
   const preferenceStatusQuery = usePreferenceStatus(activeCycleId);
   const scheduleQuery = useSchedule(activeCycleId);
 

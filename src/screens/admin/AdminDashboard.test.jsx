@@ -131,7 +131,7 @@ describe('AdminDashboard', () => {
     expect(screen.getByText('50% complete')).toBeInTheDocument();
     expect(screen.getByText('Published')).toBeInTheDocument();
     expectTextContent('Cycle Spring 2026 | Preference deadline: Apr 13, 2026');
-    expect(useUsers).toHaveBeenCalledWith({ limit: 1000 });
+    expect(useUsers).toHaveBeenCalledWith({ all: true });
     expect(usePreferenceStatus).toHaveBeenCalledWith('cycle-2026-spring');
     expect(useSchedule).toHaveBeenCalledWith('cycle-2026-spring');
   });
