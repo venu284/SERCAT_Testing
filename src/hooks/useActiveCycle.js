@@ -1,8 +1,16 @@
 import { useMemo } from 'react';
 import { useCycles } from './useApiData';
 
-export function extractCycles(payload) {
-  return Array.isArray(payload) ? payload : [];
+function extractCycles(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
 }
 
 export function useActiveCycle() {

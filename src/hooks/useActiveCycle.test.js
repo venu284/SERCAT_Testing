@@ -16,11 +16,19 @@ describe('useActiveCycle', () => {
 
   it('selects the first non-archived cycle from the paginated cycles payload', () => {
     useCycles.mockReturnValue({
-      data: [
-        { id: 'cycle-archived', status: 'archived', name: 'Archived Cycle' },
-        { id: 'cycle-live', status: 'collecting', name: 'Live Cycle' },
-        { id: 'cycle-next', status: 'setup', name: 'Next Cycle' },
-      ],
+      data: {
+        data: [
+          { id: 'cycle-archived', status: 'archived', name: 'Archived Cycle' },
+          { id: 'cycle-live', status: 'collecting', name: 'Live Cycle' },
+          { id: 'cycle-next', status: 'setup', name: 'Next Cycle' },
+        ],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 3,
+          totalPages: 1,
+        },
+      },
       isLoading: false,
       error: null,
     });
@@ -39,10 +47,18 @@ describe('useActiveCycle', () => {
 
   it('falls back to the first cycle when every cycle is archived-like or missing status', () => {
     useCycles.mockReturnValue({
-      data: [
-        { id: 'cycle-old', status: 'archived', name: 'Old Cycle' },
-        { id: 'cycle-older', name: 'Older Cycle' },
-      ],
+      data: {
+        data: [
+          { id: 'cycle-old', status: 'archived', name: 'Old Cycle' },
+          { id: 'cycle-older', name: 'Older Cycle' },
+        ],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 2,
+          totalPages: 1,
+        },
+      },
       isLoading: false,
       error: null,
     });
@@ -59,7 +75,15 @@ describe('useActiveCycle', () => {
 
   it('returns a safe null state when the cycles query has no rows yet', () => {
     useCycles.mockReturnValue({
-      data: [],
+      data: {
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          totalPages: 0,
+        },
+      },
       isLoading: true,
       error: null,
     });
