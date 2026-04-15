@@ -375,8 +375,8 @@ function AppContent({ authUser, authLogout }) {
       <>
         <ConceptFontStyles />
         <Routes>
-          <Route path="/login" element={<LoginScreen />} />
-          <Route path="/activate" element={<ActivateAccountScreen />} />
+          <Route path="/login" element={<LoginScreen cycle={cycle} />} />
+          <Route path="/activate" element={<ActivateAccountScreen cycle={cycle} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </>
