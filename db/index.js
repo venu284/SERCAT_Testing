@@ -8,6 +8,7 @@ import * as masterShares from './schema/master-shares.js';
 import * as cycleShares from './schema/cycle-shares.js';
 import * as availableDates from './schema/available-dates.js';
 import * as preferences from './schema/preferences.js';
+import * as fractionalPreferences from './schema/fractional-preferences.js';
 import * as schedules from './schema/schedules.js';
 import * as scheduleAssignments from './schema/schedule-assignments.js';
 import * as swapRequests from './schema/swap-requests.js';
@@ -15,6 +16,7 @@ import * as deficitHistory from './schema/deficit-history.js';
 import * as preferenceHistory from './schema/preference-history.js';
 import * as runAnalytics from './schema/run-analytics.js';
 import * as notifications from './schema/notifications.js';
+import * as comments from './schema/comments.js';
 import * as auditLog from './schema/audit-log.js';
 
 dotenv.config({ path: '.env.local' });
@@ -31,6 +33,7 @@ export const db = drizzle(sql, {
     ...cycleShares,
     ...availableDates,
     ...preferences,
+    ...fractionalPreferences,
     ...schedules,
     ...scheduleAssignments,
     ...swapRequests,
@@ -38,6 +41,7 @@ export const db = drizzle(sql, {
     ...preferenceHistory,
     ...runAnalytics,
     ...notifications,
+    ...comments,
     ...auditLog,
   },
 });

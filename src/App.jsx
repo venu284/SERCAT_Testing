@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
+import NotificationBell from './components/NotificationBell';
 import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
 import LoginScreen from './screens/auth/LoginScreen';
 import MemberDashboard from './screens/member/MemberDashboard';
@@ -315,6 +316,7 @@ function AppContent({ authUser, authLogout }) {
   const inAdminArea = location.pathname.startsWith('/admin/');
   const showMemberShell = inMemberArea && Boolean(activeMember);
   const showAdminShell = inAdminArea && isAdminSession;
+  const showNotificationBell = authUser !== undefined;
 
   useEffect(() => {
     if (!session) return;
@@ -456,6 +458,7 @@ function AppContent({ authUser, authLogout }) {
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{profileInstitution}</div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
                   onClick={effectiveHandleSignOut}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
@@ -493,6 +496,7 @@ function AppContent({ authUser, authLogout }) {
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{adminProfileInstitution}</div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
                   onClick={effectiveHandleSignOut}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
@@ -534,6 +538,7 @@ function AppContent({ authUser, authLogout }) {
                     </div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
                   onClick={effectiveHandleSignOut}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"

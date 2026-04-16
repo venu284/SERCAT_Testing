@@ -25,17 +25,29 @@ async function request(endpoint, options = {}) {
 
   if (response.status === 204) return null;
 
-  const json = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let payload = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      payload = await response.json();
+    } catch (error) {
+      payload = null;
+    }
+  } else {
+    const text = await response.text();
+    payload = text ? { error: text } : null;
+  }
 
   if (!response.ok) {
     throw new ApiError(
-      json.error || 'Request failed',
-      json.code || 'UNKNOWN',
+      payload?.error || 'Request failed',
+      payload?.code || 'UNKNOWN',
       response.status,
     );
   }
 
-  return json;
+  return payload || { data: null };
 }
 
 export const api = {

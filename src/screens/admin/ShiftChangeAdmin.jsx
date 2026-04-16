@@ -34,11 +34,11 @@ export default function ShiftChangeAdmin() {
             ? { bg: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }
             : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent };
         const sourceDate = request.sourceDate || '';
-        const sourceShiftType = request.sourceShiftType || '';
+        const sourceShift = request.sourceShift || '';
         const effectiveRequestedDate = request.requestedDate || '';
-        const effectiveRequestedShift = request.requestedShiftType || '';
+        const effectiveRequestedShift = request.requestedShift || '';
         const effectiveReassignedDate = draft.reassignedDate || request.reassignedDate || effectiveRequestedDate || '';
-        const effectiveReassignedShift = draft.reassignedShiftType || request.reassignedShiftType || effectiveRequestedShift || '';
+        const effectiveReassignedShift = draft.reassignedShift || request.reassignedShift || effectiveRequestedShift || '';
         return (
           <div key={request.id} className="bg-white rounded-lg border p-4 shadow-sm space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -59,7 +59,7 @@ export default function ShiftChangeAdmin() {
               <div className="rounded-lg px-3 py-2" style={{ background: CONCEPT_THEME.sand }}>
                 <div className="font-semibold mb-0.5" style={{ color: CONCEPT_THEME.muted }}>Source Assignment</div>
                 <div style={{ color: CONCEPT_THEME.text }}>
-                  {sourceDate ? `${formatCalendarDate(sourceDate)} | ${SHIFT_UI_META[sourceShiftType]?.label || sourceShiftType}` : 'Missing source assignment in request'}
+                  {sourceDate ? `${formatCalendarDate(sourceDate)} | ${SHIFT_UI_META[sourceShift]?.label || sourceShift}` : 'Missing source assignment in request'}
                 </div>
               </div>
               <div className="rounded-lg px-3 py-2" style={{ background: CONCEPT_THEME.sand }}>
@@ -86,13 +86,13 @@ export default function ShiftChangeAdmin() {
               />
               <select
                 value={effectiveReassignedShift}
-                onChange={(e) => updateShiftDraft(request.id, { reassignedShiftType: e.target.value })}
+                onChange={(e) => updateShiftDraft(request.id, { reassignedShift: e.target.value })}
                 className="rounded border px-2 py-1.5 text-sm"
               >
                 <option value="">Select Shift</option>
-                {SHIFT_ORDER.map((shiftType) => (
-                  <option key={`${request.id}-shift-${shiftType}`} value={shiftType}>
-                    {SHIFT_UI_META[shiftType]?.label || shiftType}
+                {SHIFT_ORDER.map((shift) => (
+                  <option key={`${request.id}-shift-${shift}`} value={shift}>
+                    {SHIFT_UI_META[shift]?.label || shift}
                   </option>
                 ))}
               </select>

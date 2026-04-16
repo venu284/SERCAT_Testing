@@ -3,7 +3,7 @@ import { eq, and, ilike, ne } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
-import { withAdmin } from '../../lib/middleware/with-admin.js';
+import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
@@ -24,6 +24,12 @@ function getZodMessage(err) {
 async function handler(req, res) {
   try {
     const { id } = req.query;
+    const isAdmin = req.user.role === 'admin';
+    const isSelf = req.user.userId === id;
+
+    if (!isAdmin && !isSelf) {
+      return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+    }
 
     const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     if (!existing) {
@@ -31,7 +37,24 @@ async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const body = updateUserSchema.parse(req.body);
+      const parsedBody = updateUserSchema.parse(req.body);
+      const forbiddenSelfUpdate = !isAdmin && (
+        parsedBody.institutionId !== undefined
+        || parsedBody.isActive !== undefined
+        || parsedBody.resetActivation !== undefined
+        || parsedBody.activationToken !== undefined
+      );
+
+      if (forbiddenSelfUpdate) {
+        return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+      }
+
+      const body = isAdmin
+        ? parsedBody
+        : {
+          email: parsedBody.email,
+          name: parsedBody.name,
+        };
 
       if (body.email) {
         const [dup] = await db
@@ -95,6 +118,10 @@ async function handler(req, res) {
       });
     }
 
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
+    }
+
     if (existing.role === 'admin') {
       const adminRows = await db
         .select()
@@ -127,4 +154,4 @@ async function handler(req, res) {
   }
 }
 
-export default withAdmin(withMethod(['PUT', 'DELETE'], handler));
+export default withAuth(withMethod(['PUT', 'DELETE'], handler));

@@ -51,7 +51,7 @@ export default function ShiftChanges() {
             {sortedCurrentMemberAssignments.map((assignment, idx) => {
               const key = assignmentKey(assignment);
               const selected = selectedShiftChangeSource === key;
-              const meta = SHIFT_UI_META[assignment.shiftType] || { label: assignment.shiftType, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
+              const meta = SHIFT_UI_META[assignment.shift] || { label: assignment.shift, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
               return (
                 <button
                   key={`shift-change-source-${key}-${idx}`}
@@ -64,7 +64,7 @@ export default function ShiftChanges() {
                     boxShadow: selected ? `0 0 0 2px ${meta.color}22` : 'none',
                   }}
                 >
-                  <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.date)}</div>
+                  <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.assignedDate)}</div>
                   <div className="mt-0.5 text-xs" style={{ color: CONCEPT_THEME.text }}>{meta.label} ({meta.sub})</div>
                 </button>
               );
@@ -81,10 +81,10 @@ export default function ShiftChanges() {
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.sky}08`, borderColor: `${CONCEPT_THEME.sky}33` }}>
               <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>Changing From</div>
               <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
-                {formatMemberShiftDate(selectedShiftChangeAssignmentObj.date)}
+                {formatMemberShiftDate(selectedShiftChangeAssignmentObj.assignedDate)}
               </div>
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-                {SHIFT_UI_META[selectedShiftChangeAssignmentObj.shiftType]?.label || selectedShiftChangeAssignmentObj.shiftType}
+                {SHIFT_UI_META[selectedShiftChangeAssignmentObj.shift]?.label || selectedShiftChangeAssignmentObj.shift}
               </div>
             </div>
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.emerald}08`, borderColor: `${CONCEPT_THEME.emerald}33` }}>
@@ -93,9 +93,9 @@ export default function ShiftChanges() {
                 {shiftChangeForm.requestedDate ? formatMemberShiftDate(shiftChangeForm.requestedDate) : 'Select Date'}
               </div>
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-                {shiftChangeForm.requestedShiftType
-                  ? (SHIFT_UI_META[shiftChangeForm.requestedShiftType]?.label || shiftChangeForm.requestedShiftType)
-                  : 'Select Shift Type'}
+                {shiftChangeForm.requestedShift
+                  ? (SHIFT_UI_META[shiftChangeForm.requestedShift]?.label || shiftChangeForm.requestedShift)
+                  : 'Select Shift'}
               </div>
             </div>
           </div>
@@ -115,15 +115,15 @@ export default function ShiftChanges() {
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             />
             <select
-              value={shiftChangeForm.requestedShiftType}
-              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShiftType: e.target.value }))}
+              value={shiftChangeForm.requestedShift}
+              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShift: e.target.value }))}
               className="rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             >
-              <option value="">Select Shift Type</option>
-              {(shiftChangeForm.requestedDate ? availableShiftRequestTypes : SHIFT_ORDER).map((shiftType) => (
-                <option key={`shift-change-type-${shiftType}`} value={shiftType}>
-                  {SHIFT_UI_META[shiftType]?.label || shiftType}
+              <option value="">Select Shift</option>
+              {(shiftChangeForm.requestedDate ? availableShiftRequestTypes : SHIFT_ORDER).map((shift) => (
+                <option key={`shift-change-type-${shift}`} value={shift}>
+                  {SHIFT_UI_META[shift]?.label || shift}
                 </option>
               ))}
             </select>
@@ -139,7 +139,7 @@ export default function ShiftChanges() {
                 type="button"
                 onClick={() => {
                   setSelectedShiftChangeSource('');
-                  setShiftChangeForm({ requestedDate: '', requestedShiftType: '', reason: '' });
+                  setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
                   setMemberShiftChangeError('');
                 }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold"
@@ -195,7 +195,7 @@ export default function ShiftChanges() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
-                        {formatMemberShiftDate(request.sourceDate)} | {SHIFT_UI_META[request.sourceShiftType]?.label || request.sourceShiftType || 'Unknown shift'}
+                        {formatMemberShiftDate(request.sourceDate)} | {SHIFT_UI_META[request.sourceShift]?.label || request.sourceShift || 'Unknown shift'}
                       </div>
                       {request.reason ? (
                         <div className="mt-0.5 truncate text-xs" style={{ color: CONCEPT_THEME.muted }}>{request.reason}</div>
@@ -216,7 +216,7 @@ export default function ShiftChanges() {
                           <span className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>Preferred:</span>{' '}
                           <span style={{ color: CONCEPT_THEME.text }}>
                             {request.requestedDate
-                              ? `${formatMemberShiftDate(request.requestedDate)} | ${SHIFT_UI_META[request.requestedShiftType]?.label || request.requestedShiftType || 'Any shift'}`
+                              ? `${formatMemberShiftDate(request.requestedDate)} | ${SHIFT_UI_META[request.requestedShift]?.label || request.requestedShift || 'Any shift'}`
                               : 'Any available slot'}
                           </span>
                         </div>
@@ -224,7 +224,7 @@ export default function ShiftChanges() {
                           <span className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>Admin Reassignment:</span>{' '}
                           <span style={{ color: request.reassignedDate ? CONCEPT_THEME.emerald : CONCEPT_THEME.text }}>
                             {request.reassignedDate
-                              ? `${formatMemberShiftDate(request.reassignedDate)} | ${SHIFT_UI_META[request.reassignedShiftType]?.label || request.reassignedShiftType}`
+                              ? `${formatMemberShiftDate(request.reassignedDate)} | ${SHIFT_UI_META[request.reassignedShift]?.label || request.reassignedShift}`
                               : '-'}
                           </span>
                         </div>

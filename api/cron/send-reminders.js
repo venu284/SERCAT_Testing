@@ -6,6 +6,7 @@ import { preferences } from '../../db/schema/preferences.js';
 import { users } from '../../db/schema/users.js';
 import { sendEmail } from '../../lib/email.js';
 import { deadlineReminderEmail } from '../../lib/email-templates.js';
+import { createNotification } from '../../lib/notifications.js';
 
 function daysBetween(dateA, dateB) {
   const a = new Date(dateA);
@@ -76,6 +77,12 @@ export default async function handler(req, res) {
         });
 
         await sendEmail({ to: share.piEmail, ...emailData });
+        await createNotification({
+          userId: share.piId,
+          type: 'deadline_reminder',
+          title: `Preference Deadline: ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`,
+          message: `Submit your beam time preferences for ${cycle.name} before ${cycle.preferenceDeadline}.`,
+        });
         totalSent += 1;
       }
     }

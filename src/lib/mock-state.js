@@ -5,7 +5,7 @@ import { INITIAL_CYCLE } from '../data/cycle';
 import { ALGORITHM_PROFILE, DEFAULT_CONFIG } from '../data/config';
 import currentRunSnapshot from '../data/current-run-snapshot.json';
 import { createSeedSnapshot } from '../data/seed-state';
-import { computeEntitlements, runSchedulingEngine } from '../engine/engine';
+import { computeEntitlements } from './entitlements.js';
 import {
   ADMIN_PORTAL_TABS,
   MEMBER_PORTAL_TABS,
@@ -43,6 +43,7 @@ import {
   sampleWholeShare,
 } from './normalizers';
 import { clearStoredSnapshot, loadStoredSnapshot, saveStoredSnapshot } from './storage';
+import { mapServerCommentsToMemberComments, mapServerSwapRequestsToShiftChangeRequests } from './server-bridge.js';
 import { ensureMemberPalette, simpleHash } from './theme';
 import { useServerSync } from '../hooks/useServerSync';
 
@@ -52,7 +53,7 @@ const DEFAULT_LOGIN_FORM = { username: '', password: '' };
 const DEFAULT_ACTIVATE_FORM = { password: '', confirmPassword: '', phone: '' };
 const DEFAULT_NEW_MEMBER_FORM = { id: '', name: '', shares: '1.00', piName: '', piEmail: '' };
 const DEFAULT_ENGINE_PROGRESS = { running: false, value: 0, message: 'Idle' };
-const DEFAULT_SHIFT_CHANGE_FORM = { requestedDate: '', requestedShiftType: '', reason: '' };
+const DEFAULT_SHIFT_CHANGE_FORM = { requestedDate: '', requestedShift: '', reason: '' };
 
 function buildInviteToken(memberId) {
   return `${memberId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -126,6 +127,40 @@ function getDemoPreferenceDeadline(cycle) {
   if (cycle?.startDate && nextDeadline < cycle.startDate) nextDeadline = cycle.startDate;
   if (cycle?.endDate && nextDeadline > cycle.endDate) nextDeadline = cycle.endDate;
   return nextDeadline;
+}
+
+function normalizeLegacyAssignmentReason(assignment) {
+  if (assignment?.assignmentReason) return assignment.assignmentReason;
+  // Legacy snapshot compatibility for older local browser data.
+  switch (assignment?.assignmentType) {
+    case 'FIRST_CHOICE':
+      return 'choice1';
+    case 'SECOND_CHOICE':
+      return 'choice2';
+    case 'PROXIMITY':
+      return 'fallback_proximity';
+    case 'BACKFILL_ASSIGNED':
+      return 'fallback_any';
+    case 'MANUAL_OVERRIDE':
+      return 'manual_override';
+    case 'AUTO_ASSIGNED':
+    default:
+      return 'auto_assigned';
+  }
+}
+
+function normalizeLoadedResultsShape(results) {
+  if (!results || !Array.isArray(results.assignments)) return null;
+  return {
+    ...results,
+    assignments: results.assignments.map((assignment) => ({
+      ...assignment,
+      assignedDate: assignment.assignedDate || assignment.date || '',
+      // Legacy snapshot compatibility for older local browser data.
+      shift: assignment.shift || assignment.shiftType || 'DS1',
+      assignmentReason: normalizeLegacyAssignmentReason(assignment),
+    })),
+  };
 }
 
 function deriveDemoBaselineSnapshot(snapshot) {
@@ -251,12 +286,24 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     setCycle,
     setPreferences,
     setQueue,
+    setResults,
+    setSchedulePublication,
     membersRef,
   });
   const memberDirectory = useMemo(
     () => Object.fromEntries(members.map((member) => [member.id, member])),
     [members],
   );
+
+  useEffect(() => {
+    if (externalSession === undefined || serverSync.commentsQuery?.data === undefined) return;
+    setMemberComments(mapServerCommentsToMemberComments(serverSync.commentsQuery.data, members));
+  }, [externalSession, serverSync.commentsQuery?.data, members]);
+
+  useEffect(() => {
+    if (externalSession === undefined || serverSync.swapRequestsQuery?.data === undefined) return;
+    setShiftChangeRequests(mapServerSwapRequestsToShiftChangeRequests(serverSync.swapRequestsQuery.data, members));
+  }, [externalSession, serverSync.swapRequestsQuery?.data, members]);
 
   useEffect(() => {
     if (!session) return;
@@ -369,9 +416,9 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     algorithm: {
       ...ALGORITHM_PROFILE,
       capturedAt: new Date().toISOString(),
-      sourceHash: simpleHash(runSchedulingEngine.toString()),
+      sourceHash: simpleHash('server-scheduling-api'),
       configSnapshot: { ...(overrides.config || config) },
-      source: runSchedulingEngine.toString(),
+      source: 'server-scheduling-api',
     },
     ...overrides,
   }), [
@@ -420,7 +467,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       && loadedResults.fairness
       && Array.isArray(loadedResults.fairness.memberSatisfaction),
     );
-    setResults(hasValidResultsShape ? loadedResults : null);
+    setResults(hasValidResultsShape ? normalizeLoadedResultsShape(loadedResults) : null);
 
     const view = snapshot?.currentView;
     setCurrentView(view === 'admin' || loadedMembers.some((member) => member.id === view) ? view : 'admin');
@@ -686,17 +733,30 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     setPreferences((prev) => ({ ...prev, [memberId]: prefs }));
     const member = members.find((m) => m.id === memberId);
     const cycleId = cycle._dbId;
-    if (externalSession !== undefined && member?._piUserId && cycleId && prefs.wholeShare) {
-      const apiPrefs = prefs.wholeShare
-        .filter((p) => p.firstChoiceDate || p.secondChoiceDate)
+    if (externalSession !== undefined && member?._piUserId && cycleId) {
+      const wholePrefs = Array.isArray(prefs.wholeShare) ? prefs.wholeShare : [];
+      const fractionalPrefs = Array.isArray(prefs.fractionalPreferences) ? prefs.fractionalPreferences : [];
+      const apiPrefs = wholePrefs
+        .filter((p) => p.choice1Date || p.choice2Date)
         .map((p) => ({
           shareIndex: p.shareIndex,
-          slotKey: p.slotKey,
-          choice1Date: p.firstChoiceDate || null,
-          choice2Date: p.secondChoiceDate || null,
+          shift: p.shift,
+          choice1Date: p.choice1Date || null,
+          choice2Date: p.choice2Date || null,
+        }));
+      const apiFractionalPrefs = fractionalPrefs
+        .filter((p) => p.choice1Date || p.choice2Date)
+        .map((p) => ({
+          blockIndex: p.blockIndex,
+          fractionalHours: p.fractionalHours,
+          choice1Date: p.choice1Date || null,
+          choice2Date: p.choice2Date || null,
         }));
 
-      void api.post(`/cycles/${cycleId}/preferences`, { preferences: apiPrefs }).catch((err) => {
+      void api.post(`/cycles/${cycleId}/preferences`, {
+        preferences: apiPrefs,
+        fractionalPreferences: apiFractionalPrefs,
+      }).catch((err) => {
         console.error('Failed to persist preferences:', err);
       });
     }
@@ -846,6 +906,14 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       return { ok: false, error: 'Message is required.' };
     }
 
+    if (externalSession !== undefined) {
+      void api.post('/comments', { subject, message })
+        .then(() => serverSync.commentsQuery?.refetch?.())
+        .catch((err) => console.error('Failed to submit comment:', err));
+
+      return { ok: true, comment: { subject, message } };
+    }
+
     const now = new Date().toISOString();
     const nextComment = {
       id: `CMT-${memberId}-${Date.now()}`,
@@ -869,7 +937,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     }));
 
     return { ok: true, comment: nextComment };
-  }, [members]);
+  }, [externalSession, members, serverSync]);
 
   const markMemberCommentRead = useCallback((memberId, commentId) => {
     const member = members.find((entry) => entry.id === memberId);
@@ -882,6 +950,14 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       return { ok: false, error: 'Comment not found.' };
     }
     if (existingComment.status !== 'Sent') {
+      return { ok: true, comment: existingComment };
+    }
+
+    if (externalSession !== undefined) {
+      void api.put(`/comments/${commentId}`, { status: 'read' })
+        .then(() => serverSync.commentsQuery?.refetch?.())
+        .catch((err) => console.error('Failed to mark comment read:', err));
+
       return { ok: true, comment: existingComment };
     }
 
@@ -903,7 +979,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     }));
 
     return { ok: true, comment: updatedComment };
-  }, [memberComments, members]);
+  }, [externalSession, memberComments, members, serverSync]);
 
   const replyToMemberComment = useCallback((memberId, commentId, replyText) => {
     const member = members.find((entry) => entry.id === memberId);
@@ -919,6 +995,14 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     const adminReply = String(replyText || '').trim();
     if (!adminReply) {
       return { ok: false, error: 'Reply message is required.' };
+    }
+
+    if (externalSession !== undefined) {
+      void api.put(`/comments/${commentId}`, { adminReply })
+        .then(() => serverSync.commentsQuery?.refetch?.())
+        .catch((err) => console.error('Failed to reply to comment:', err));
+
+      return { ok: true, comment: { adminReply } };
     }
 
     const now = new Date().toISOString();
@@ -941,7 +1025,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     }));
 
     return { ok: true, comment: updatedComment };
-  }, [memberComments, members]);
+  }, [externalSession, memberComments, members, serverSync]);
 
   const setRegistrationApprovalDraft = useCallback((requestId, patch) => {
     setRegistrationApprovalDrafts((prev) => ({
@@ -1361,10 +1445,10 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     setResults(null);
   }, [externalSession, serverSync]);
 
-  const toggleSlotBlocked = useCallback((date, shiftType) => {
+  const toggleSlotBlocked = useCallback((date, shift) => {
     setCycle((prev) => {
       const blockedSlots = new Set(prev.blockedSlots || []);
-      const key = `${date}:${shiftType}`;
+      const key = `${date}:${shift}`;
       if (blockedSlots.has(key)) blockedSlots.delete(key);
       else blockedSlots.add(key);
       return { ...prev, blockedSlots: [...blockedSlots].sort() };
@@ -1455,43 +1539,44 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     };
   }, [externalSession, memberAccessAccounts, members, newMemberForm, resetScheduleArtifacts, serverSync]);
 
-  const runEngine = useCallback(() => {
+  const runEngine = useCallback(async () => {
     if (!isAdminSession) return;
-    setEngineProgress({ running: true, value: 20, message: 'Validating submissions...' });
-    window.setTimeout(() => {
-      const wholePrefs = [];
-      const fractionalPrefs = [];
-      Object.entries(preferences).forEach(([memberId, pref]) => {
-        if (pref.submitted) {
-          pref.wholeShare.forEach((wholeShare) => wholePrefs.push({ memberId, ...wholeShare }));
-          pref.fractional.forEach((fractional) => fractionalPrefs.push({ memberId, ...fractional }));
-        }
-      });
 
-      setEngineProgress({ running: true, value: 65, message: 'Generating draft schedule...' });
-      const result = runSchedulingEngine({
-        cycle,
-        members,
-        wholeSharePreferences: wholePrefs,
-        fractionalPreferences: fractionalPrefs,
-        priorityQueue: queue,
-        config,
-        simpleHash,
-      });
-      const draftedAt = new Date().toISOString();
-      const nextPublication = { status: 'draft', draftedAt, publishedAt: '' };
-      setResults(result);
-      setSchedulePublication(nextPublication);
-      setAdminTab('engine');
-      setEngineProgress({ running: false, value: 100, message: 'Draft ready for review.' });
-      if (externalSession === undefined) {
-        saveStateToStorage(buildSnapshot({ results: result, adminTab: 'engine', schedulePublication: nextPublication }), 'engine-run');
+    if (externalSession !== undefined && cycle._dbId) {
+      setEngineProgress({ running: true, value: 20, message: 'Sending to server...' });
+      try {
+        setEngineProgress({ running: true, value: 50, message: 'Generating schedule...' });
+        await api.post(`/cycles/${cycle._dbId}/schedules/generate`);
+        setEngineProgress({ running: true, value: 75, message: 'Syncing persisted schedule...' });
+        await serverSync.refetchAll();
+        setAdminTab('engine');
+        setEngineProgress({ running: false, value: 100, message: 'Draft ready for review.' });
+      } catch (err) {
+        setEngineProgress({ running: false, value: 0, message: `Error: ${err.message}` });
       }
-    }, 240);
-  }, [isAdminSession, preferences, cycle, members, queue, config, externalSession, buildSnapshot, saveStateToStorage]);
+      return;
+    }
 
-  const publishSchedule = useCallback(() => {
+    setEngineProgress({
+      running: false,
+      value: 0,
+      message: 'Schedule generation now runs only through the server API. Sign in to an API-backed session to generate a draft.',
+    });
+  }, [isAdminSession, externalSession, serverSync]);
+
+  const publishSchedule = useCallback(async () => {
     if (!isAdminSession || !results) return;
+
+    if (externalSession !== undefined && results._scheduleId) {
+      try {
+        await api.post(`/schedules/${results._scheduleId}/publish`);
+        await serverSync.refetchAll();
+      } catch (err) {
+        console.error('Publish failed:', err);
+      }
+      return;
+    }
+
     const nextPublication = {
       status: 'published',
       draftedAt: schedulePublication.draftedAt || new Date().toISOString(),
@@ -1501,10 +1586,21 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     if (externalSession === undefined) {
       saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-publish');
     }
-  }, [isAdminSession, results, schedulePublication, adminTab, externalSession, buildSnapshot, saveStateToStorage]);
+  }, [isAdminSession, results, externalSession, schedulePublication, adminTab, buildSnapshot, saveStateToStorage, serverSync]);
 
-  const markScheduleDraft = useCallback(() => {
+  const markScheduleDraft = useCallback(async () => {
     if (!isAdminSession || !results) return;
+
+    if (externalSession !== undefined && results._scheduleId) {
+      try {
+        await api.post(`/schedules/${results._scheduleId}/unpublish`);
+        await serverSync.refetchAll();
+      } catch (err) {
+        console.error('Unpublish failed:', err);
+      }
+      return;
+    }
+
     const nextPublication = {
       status: 'draft',
       draftedAt: schedulePublication.draftedAt || new Date().toISOString(),
@@ -1514,7 +1610,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     if (externalSession === undefined) {
       saveStateToStorage(buildSnapshot({ schedulePublication: nextPublication, adminTab }), 'schedule-unpublish');
     }
-  }, [isAdminSession, results, schedulePublication, adminTab, externalSession, buildSnapshot, saveStateToStorage]);
+  }, [isAdminSession, results, externalSession, schedulePublication, adminTab, buildSnapshot, saveStateToStorage, serverSync]);
 
   const submittedCount = Object.values(preferences).filter((pref) => pref.submitted).length;
   const activeMembers = members.filter((member) => member.status === 'ACTIVE');
@@ -1554,13 +1650,13 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   const currentMemberAssignments = results?.assignments?.filter((assignment) => assignment.memberId === currentView) || [];
   const sortedCurrentMemberAssignments = useMemo(
     () => [...currentMemberAssignments].sort((a, b) => {
-      const dateDelta = String(a.date || '').localeCompare(String(b.date || ''));
+      const dateDelta = String(a.assignedDate || '').localeCompare(String(b.assignedDate || ''));
       if (dateDelta !== 0) return dateDelta;
-      return SHIFT_ORDER.indexOf(a.shiftType) - SHIFT_ORDER.indexOf(b.shiftType);
+      return SHIFT_ORDER.indexOf(a.shift) - SHIFT_ORDER.indexOf(b.shift);
     }),
     [currentMemberAssignments],
   );
-  const assignmentKey = useCallback((assignment) => `${assignment.date}:${assignment.shiftType}`, []);
+  const assignmentKey = useCallback((assignment) => `${assignment.assignedDate}:${assignment.shift}`, []);
   const hasAvailabilityCalendar = Boolean(cycle.startDate && cycle.endDate && cycle.startDate <= cycle.endDate);
   const cycleDays = useMemo(() => generateDateRange(cycle.startDate, cycle.endDate), [cycle.startDate, cycle.endDate]);
   const availableShiftRequestDates = useMemo(() => {
@@ -1568,7 +1664,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     const blockedSlotSet = new Set(cycle.blockedSlots || []);
     return cycleDays.filter((date) => {
       if (blockedDateSet.has(date)) return false;
-      return SHIFT_ORDER.some((shiftType) => !blockedSlotSet.has(`${date}:${shiftType}`));
+      return SHIFT_ORDER.some((shift) => !blockedSlotSet.has(`${date}:${shift}`));
     });
   }, [cycleDays, cycle.blockedDates, cycle.blockedSlots]);
   const selectedShiftChangeDate = selectedShiftChangeSource ? selectedShiftChangeSource.split(':')[0] : '';
@@ -1579,7 +1675,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   const availableShiftRequestTypes = useMemo(() => {
     if (!shiftChangeForm.requestedDate) return SHIFT_ORDER;
     const blockedSlotSet = new Set(cycle.blockedSlots || []);
-    return SHIFT_ORDER.filter((shiftType) => !blockedSlotSet.has(`${shiftChangeForm.requestedDate}:${shiftType}`));
+    return SHIFT_ORDER.filter((shift) => !blockedSlotSet.has(`${shiftChangeForm.requestedDate}:${shift}`));
   }, [shiftChangeForm.requestedDate, cycle.blockedSlots]);
   const selectedShiftChangeAssignmentObj = useMemo(
     () => sortedCurrentMemberAssignments.find((assignment) => assignmentKey(assignment) === selectedShiftChangeSource) || null,
@@ -1593,7 +1689,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   );
   const memberShiftCounts = useMemo(
     () => sortedCurrentMemberAssignments.reduce((acc, assignment) => {
-      const key = assignment.shiftType || 'UNSPECIFIED';
+      const key = assignment.shift || 'UNSPECIFIED';
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {}),
@@ -1611,11 +1707,11 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   const daysUntilPreferenceDeadline = daysBetweenSigned(todayDate, preferenceDeadline);
   const isPreferenceSubmitted = Boolean(activeMemberPreferences?.submitted);
   const scheduleUpcomingAssignments = useMemo(
-    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.date || '') >= todayDate),
+    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.assignedDate || '') >= todayDate),
     [sortedCurrentMemberAssignments, todayDate],
   );
   const schedulePastAssignments = useMemo(
-    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.date || '') < todayDate),
+    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.assignedDate || '') < todayDate),
     [sortedCurrentMemberAssignments, todayDate],
   );
   const nextUpcomingAssignment = scheduleUpcomingAssignments[0] || null;
@@ -1627,8 +1723,8 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       day: 'numeric',
     });
   }, []);
-  const formatMemberShiftTiming = useCallback((shiftType) => (
-    SHIFT_TIME_LABELS[shiftType] || shiftType || 'Unassigned'
+  const formatMemberShiftTiming = useCallback((shift) => (
+    SHIFT_TIME_LABELS[shift] || shift || 'Unassigned'
   ), []);
   const scheduleRelativeDayLabel = useCallback((dateStr) => {
     const delta = daysBetweenSigned(todayDate, dateStr);
@@ -1650,8 +1746,8 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   const memberAssignmentMapByDate = useMemo(() => {
     const map = {};
     sortedCurrentMemberAssignments.forEach((assignment) => {
-      if (!map[assignment.date]) map[assignment.date] = [];
-      map[assignment.date].push(assignment);
+      if (!map[assignment.assignedDate]) map[assignment.assignedDate] = [];
+      map[assignment.assignedDate].push(assignment);
     });
     return map;
   }, [sortedCurrentMemberAssignments]);
@@ -1725,15 +1821,15 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   useEffect(() => {
     if (!selectedShiftChangeSource) {
       setShiftChangeForm((prev) => {
-        if (!prev.requestedDate && !prev.requestedShiftType && !prev.reason) return prev;
-        return { requestedDate: '', requestedShiftType: '', reason: '' };
+        if (!prev.requestedDate && !prev.requestedShift && !prev.reason) return prev;
+        return { requestedDate: '', requestedShift: '', reason: '' };
       });
       return;
     }
     setShiftChangeForm((prev) => {
       if (!prev.requestedDate) return prev;
       if (!availableShiftRequestDatesForSelection.includes(prev.requestedDate)) {
-        return { ...prev, requestedDate: '', requestedShiftType: '' };
+        return { ...prev, requestedDate: '', requestedShift: '' };
       }
       return prev;
     });
@@ -1742,15 +1838,15 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
   useEffect(() => {
     setShiftChangeForm((prev) => {
       if (!prev.requestedDate) {
-        if (!prev.requestedShiftType) return prev;
-        if (!SHIFT_ORDER.includes(prev.requestedShiftType)) {
-          return { ...prev, requestedShiftType: '' };
+        if (!prev.requestedShift) return prev;
+        if (!SHIFT_ORDER.includes(prev.requestedShift)) {
+          return { ...prev, requestedShift: '' };
         }
         return prev;
       }
-      if (!prev.requestedShiftType) return prev;
-      if (!availableShiftRequestTypes.includes(prev.requestedShiftType)) {
-        return { ...prev, requestedShiftType: '' };
+      if (!prev.requestedShift) return prev;
+      if (!availableShiftRequestTypes.includes(prev.requestedShift)) {
+        return { ...prev, requestedShift: '' };
       }
       return prev;
     });
@@ -1758,7 +1854,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
 
   useEffect(() => {
     if (memberShiftChangeError) setMemberShiftChangeError('');
-  }, [selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShiftType]);
+  }, [selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShift]);
 
   const submitShiftChangeRequest = useCallback((event) => {
     event.preventDefault();
@@ -1771,24 +1867,61 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       setMemberShiftChangeError('Preferred date is not available.');
       return;
     }
-    if (shiftChangeForm.requestedDate && shiftChangeForm.requestedShiftType && !availableShiftRequestTypes.includes(shiftChangeForm.requestedShiftType)) {
+    if (shiftChangeForm.requestedDate && shiftChangeForm.requestedShift && !availableShiftRequestTypes.includes(shiftChangeForm.requestedShift)) {
       setMemberShiftChangeError('Preferred shift is blocked on selected date.');
+      return;
+    }
+
+    if (externalSession !== undefined) {
+      if (!results?._scheduleId) {
+        setMemberShiftChangeError('Schedule is not available. Try refreshing.');
+        return;
+      }
+
+      const activePiId = members.find((member) => member.id === activeMember.id)?._piUserId;
+      const assignment = results.assignments?.find((entry) => (
+        entry.assignedDate === selectedShiftChangeAssignmentObj.assignedDate
+        && entry.shift === selectedShiftChangeAssignmentObj.shift
+        && (entry.piId === activePiId || entry.memberId === activeMember.id)
+      ));
+
+      if (!assignment) {
+        setMemberShiftChangeError('Could not find the assignment. Try refreshing.');
+        return;
+      }
+
+      const preferredDates = shiftChangeForm.requestedDate ? [shiftChangeForm.requestedDate] : [];
+
+      void api.post('/swap-requests', {
+        scheduleId: results._scheduleId,
+        targetAssignmentId: assignment.id || assignment._id,
+        preferredDates,
+      }).then(() => {
+        serverSync.swapRequestsQuery?.refetch?.();
+        setShiftChangeSubmittedFlash(true);
+        window.setTimeout(() => setShiftChangeSubmittedFlash(false), 2800);
+        setMemberShiftChangeError('');
+        setSelectedShiftChangeSource('');
+        setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
+      }).catch((err) => {
+        setMemberShiftChangeError(err.message || 'Failed to submit swap request.');
+      });
       return;
     }
 
     const request = {
       id: `SCR-${Date.now()}`,
       memberId: activeMember.id,
-      sourceDate: selectedShiftChangeAssignmentObj.date,
-      sourceShiftType: selectedShiftChangeAssignmentObj.shiftType,
+      sourceDate: selectedShiftChangeAssignmentObj.assignedDate,
+      sourceShift: selectedShiftChangeAssignmentObj.shift,
       requestedDate: shiftChangeForm.requestedDate || '',
-      requestedShiftType: shiftChangeForm.requestedShiftType || '',
+      requestedShift: shiftChangeForm.requestedShift || '',
       reason: '',
       status: 'Pending',
       createdAt: new Date().toISOString(),
       adminNote: '',
       reassignedDate: '',
-      reassignedShiftType: '',
+      reassignedShift: '',
       resolvedAt: '',
     };
     setShiftChangeRequests((prev) => [normalizeShiftChangeRequest(request), ...prev]);
@@ -1797,13 +1930,17 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     setMemberShiftChangeError('');
     setExpandedMemberRequestId(request.id);
     setSelectedShiftChangeSource('');
-    setShiftChangeForm({ requestedDate: '', requestedShiftType: '', reason: '' });
+    setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
   }, [
     activeMember,
     selectedShiftChangeAssignmentObj,
     shiftChangeForm,
     availableShiftRequestDatesForSelection,
     availableShiftRequestTypes,
+    externalSession,
+    members,
+    results,
+    serverSync,
   ]);
 
   const downloadMemberSchedulePdf = useCallback(() => {
@@ -1815,9 +1952,9 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     }
 
     const sortedAssignments = [...currentMemberAssignments].sort((a, b) => {
-      const dateDelta = (a.date || '').localeCompare(b.date || '');
+      const dateDelta = (a.assignedDate || '').localeCompare(b.assignedDate || '');
       if (dateDelta !== 0) return dateDelta;
-      return SHIFT_ORDER.indexOf(a.shiftType) - SHIFT_ORDER.indexOf(b.shiftType);
+      return SHIFT_ORDER.indexOf(a.shift) - SHIFT_ORDER.indexOf(b.shift);
     });
 
     const popup = window.open('', '_blank');
@@ -1829,9 +1966,9 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       ? sortedAssignments.map((assignment, idx) => `
           <tr>
             <td>${idx + 1}</td>
-            <td>${escapeHtml(formatCalendarDate(assignment.date))}</td>
-            <td>${escapeHtml(assignment.shiftType)}</td>
-            <td>${escapeHtml(SHIFT_TIME_LABELS[assignment.shiftType] || SHIFT_LABELS[assignment.shiftType] || assignment.shiftType)}</td>
+            <td>${escapeHtml(formatCalendarDate(assignment.assignedDate))}</td>
+            <td>${escapeHtml(assignment.shift)}</td>
+            <td>${escapeHtml(SHIFT_TIME_LABELS[assignment.shift] || SHIFT_LABELS[assignment.shift] || assignment.shift)}</td>
           </tr>
         `).join('')
       : '<tr><td colspan="4">No shifts assigned for this cycle.</td></tr>';
@@ -1896,6 +2033,53 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     if (!request) return;
     const draft = adminShiftDrafts[requestId] || {};
 
+    if (externalSession !== undefined) {
+      if (!request._swapId) {
+        setAdminShiftActionErrors((prev) => ({
+          ...prev,
+          [requestId]: 'Swap request is missing server metadata. Refresh and try again.',
+        }));
+        return;
+      }
+
+      if (status === 'Rejected') {
+        void api.put(`/swap-requests/${request._swapId}`, {
+          status: 'denied',
+          adminNotes: String(draft.adminNote || '').trim(),
+        }).then(() => {
+          setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' }));
+          serverSync.swapRequestsQuery?.refetch?.();
+          serverSync.refetchAll();
+        }).catch((err) => {
+          setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: err.message }));
+        });
+        return;
+      }
+
+      const targetDate = String(draft.reassignedDate || request.requestedDate || '').trim();
+      const targetShift = String(draft.reassignedShift || request.requestedShift || '').trim();
+      const adminNote = String(draft.adminNote || '').trim();
+
+      if (!targetDate || !targetShift) {
+        setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Select reassigned date and shift before approval.' }));
+        return;
+      }
+
+      void api.put(`/swap-requests/${request._swapId}`, {
+        status: 'approved',
+        adminNotes: adminNote,
+        reassignedDate: targetDate,
+        reassignedShift: targetShift,
+      }).then(() => {
+        setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' }));
+        serverSync.swapRequestsQuery?.refetch?.();
+        serverSync.refetchAll();
+      }).catch((err) => {
+        setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: err.message }));
+      });
+      return;
+    }
+
     if (status === 'Rejected') {
       setShiftChangeRequests((prev) => prev.map((entry) => {
         if (entry.id !== requestId) return entry;
@@ -1904,7 +2088,7 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
           status: 'Rejected',
           adminNote: String(draft.adminNote || entry.adminNote || '').trim(),
           reassignedDate: '',
-          reassignedShiftType: '',
+          reassignedShift: '',
           resolvedAt: new Date().toISOString(),
         };
       }));
@@ -1918,20 +2102,20 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     }
 
     const sourceDate = String(request.sourceDate || '').trim();
-    const sourceShiftType = String(request.sourceShiftType || '').trim();
+    const sourceShift = String(request.sourceShift || '').trim();
     const targetDate = String(draft.reassignedDate || request.reassignedDate || request.requestedDate || '').trim();
-    const targetShiftType = String(draft.reassignedShiftType || request.reassignedShiftType || request.requestedShiftType || '').trim();
+    const targetShift = String(draft.reassignedShift || request.reassignedShift || request.requestedShift || '').trim();
     const adminNote = String(draft.adminNote || request.adminNote || '').trim();
 
-    if (!sourceDate || !sourceShiftType) {
+    if (!sourceDate || !sourceShift) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Cannot approve: source shift is missing in this request.' }));
       return;
     }
-    if (!targetDate || !targetShiftType) {
+    if (!targetDate || !targetShift) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Select reassigned date and shift before approval.' }));
       return;
     }
-    if (!SHIFT_ORDER.includes(targetShiftType)) {
+    if (!SHIFT_ORDER.includes(targetShift)) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Selected reassigned shift is invalid.' }));
       return;
     }
@@ -1942,15 +2126,15 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
 
     const blockedDateSet = new Set(cycle.blockedDates || []);
     const blockedSlotSet = new Set(cycle.blockedSlots || []);
-    if (blockedDateSet.has(targetDate) || blockedSlotSet.has(`${targetDate}:${targetShiftType}`)) {
+    if (blockedDateSet.has(targetDate) || blockedSlotSet.has(`${targetDate}:${targetShift}`)) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Selected reassignment slot is blocked.' }));
       return;
     }
 
     const sourceIndex = results.assignments.findIndex((assignment) =>
       assignment.memberId === request.memberId
-      && assignment.date === sourceDate
-      && assignment.shiftType === sourceShiftType);
+      && assignment.assignedDate === sourceDate
+      && assignment.shift === sourceShift);
     if (sourceIndex < 0) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Cannot approve: source assignment no longer exists.' }));
       return;
@@ -1958,8 +2142,8 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
 
     const conflictingIndex = results.assignments.findIndex((assignment, idx) =>
       idx !== sourceIndex
-      && assignment.date === targetDate
-      && assignment.shiftType === targetShiftType);
+      && assignment.assignedDate === targetDate
+      && assignment.shift === targetShift);
     if (conflictingIndex >= 0) {
       setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: 'Selected reassignment slot is already assigned. Pick an open slot.' }));
       return;
@@ -1969,19 +2153,20 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
       if (!prev?.assignments || !Array.isArray(prev.assignments)) return prev;
       const prevSourceIndex = prev.assignments.findIndex((assignment) =>
         assignment.memberId === request.memberId
-        && assignment.date === sourceDate
-        && assignment.shiftType === sourceShiftType);
+        && assignment.assignedDate === sourceDate
+        && assignment.shift === sourceShift);
       if (prevSourceIndex < 0) return prev;
       const prevConflict = prev.assignments.findIndex((assignment, idx) =>
         idx !== prevSourceIndex
-        && assignment.date === targetDate
-        && assignment.shiftType === targetShiftType);
+        && assignment.assignedDate === targetDate
+        && assignment.shift === targetShift);
       if (prevConflict >= 0) return prev;
       const nextAssignments = [...prev.assignments];
       nextAssignments[prevSourceIndex] = {
         ...nextAssignments[prevSourceIndex],
-        date: targetDate,
-        shiftType: targetShiftType,
+        assignedDate: targetDate,
+        shift: targetShift,
+        assignmentReason: 'manual_override',
       };
       return { ...prev, assignments: nextAssignments };
     });
@@ -1993,39 +2178,38 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
         status: 'Approved',
         adminNote,
         reassignedDate: targetDate,
-        reassignedShiftType: targetShiftType,
+        reassignedShift: targetShift,
         resolvedAt: new Date().toISOString(),
       };
     }));
     setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' }));
-  }, [adminShiftDrafts, shiftChangeRequests, results, cycle]);
+  }, [adminShiftDrafts, shiftChangeRequests, results, cycle, externalSession, serverSync]);
 
   const originalChoiceMarks = useMemo(() => {
     const marks = {};
     Object.entries(preferences).forEach(([memberId, pref]) => {
       if (!pref?.submitted) return;
       (pref.wholeShare || []).forEach((wholeShare) => {
-        const shiftType = wholeShare.shiftType || (wholeShare.slotKey === 'NS' ? 'NS' : wholeShare.slotKey === 'DAY2' ? 'DS2' : 'DS1');
-        if (wholeShare.firstChoiceDate) {
-          const key = `${wholeShare.firstChoiceDate}:${shiftType}`;
+        if (wholeShare.choice1Date) {
+          const key = `${wholeShare.choice1Date}:${wholeShare.shift}`;
           if (!marks[key]) marks[key] = [];
           marks[key].push(`${memberId} 1st`);
         }
-        if (wholeShare.secondChoiceDate) {
-          const key = `${wholeShare.secondChoiceDate}:${shiftType}`;
+        if (wholeShare.choice2Date) {
+          const key = `${wholeShare.choice2Date}:${wholeShare.shift}`;
           if (!marks[key]) marks[key] = [];
           marks[key].push(`${memberId} 2nd`);
         }
       });
-      (pref.fractional || []).forEach((fractional, idx) => {
-        const shiftType = fractional.shiftType || 'DS1';
-        if (fractional.firstChoiceDate) {
-          const key = `${fractional.firstChoiceDate}:${shiftType}`;
+      (pref.fractionalPreferences || []).forEach((fractional, idx) => {
+        const shift = idx % 2 === 0 ? 'DS1' : 'DS2';
+        if (fractional.choice1Date) {
+          const key = `${fractional.choice1Date}:${shift}`;
           if (!marks[key]) marks[key] = [];
           marks[key].push(`${memberId} F${idx + 1} 1st`);
         }
-        if (fractional.secondChoiceDate) {
-          const key = `${fractional.secondChoiceDate}:${shiftType}`;
+        if (fractional.choice2Date) {
+          const key = `${fractional.choice2Date}:${shift}`;
           if (!marks[key]) marks[key] = [];
           marks[key].push(`${memberId} F${idx + 1} 2nd`);
         }
@@ -2038,20 +2222,20 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
     const sample = {
       MIT: {
         wholeShare: [
-          { shareIndex: 1, slotKey: 'DAY1', shiftType: 'NS', firstChoiceDate: '2026-03-03', secondChoiceDate: '2026-03-10' },
-          { shareIndex: 1, slotKey: 'DAY2', shiftType: 'DS1', firstChoiceDate: '', secondChoiceDate: '' },
-          { shareIndex: 1, slotKey: 'NS', shiftType: 'NS', firstChoiceDate: '2026-03-17', secondChoiceDate: '2026-03-24' },
+          { shareIndex: 1, shift: 'DS1', choice1Date: '2026-03-03', choice2Date: '2026-03-10' },
+          { shareIndex: 1, shift: 'DS2', choice1Date: '', choice2Date: '' },
+          { shareIndex: 1, shift: 'NS', choice1Date: '2026-03-17', choice2Date: '2026-03-24' },
           ...sampleWholeShare(2, '2026-03-24', '2026-03-31'),
           ...sampleWholeShare(3, '2026-04-14', '2026-04-21'),
         ],
-        fractional: [],
+        fractionalPreferences: [],
         submitted: true,
       },
       Duke: {
         wholeShare: [
           ...sampleWholeShare(1, '2026-03-03', '2026-03-05'),
         ],
-        fractional: [],
+        fractionalPreferences: [],
         submitted: true,
       },
       UGA: {
@@ -2059,8 +2243,8 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
           ...sampleWholeShare(1, '2026-03-03', '2026-03-07'),
           ...sampleWholeShare(2, '2026-03-24', '2026-04-01'),
         ],
-        fractional: [
-          { shiftType: 'DS1', firstChoiceDate: '2026-04-07', secondChoiceDate: '2026-04-08' },
+        fractionalPreferences: [
+          { blockIndex: 1, fractionalHours: 4.8, choice1Date: '2026-04-07', choice2Date: '2026-04-08' },
         ],
         submitted: true,
       },
@@ -2068,16 +2252,16 @@ export function MockStateProvider({ children, externalSession, onExternalSignOut
         wholeShare: [
           ...sampleWholeShare(1, '2026-03-10', '2026-03-17'),
         ],
-        fractional: [
-          { shiftType: 'DS2', firstChoiceDate: '2026-04-07', secondChoiceDate: '2026-04-09' },
+        fractionalPreferences: [
+          { blockIndex: 1, fractionalHours: 6, choice1Date: '2026-04-07', choice2Date: '2026-04-09' },
         ],
         submitted: true,
       },
       MUSC: {
         wholeShare: [],
-        fractional: [
-          { shiftType: 'DS1', firstChoiceDate: '2026-03-20', secondChoiceDate: '2026-03-21' },
-          { shiftType: 'DS1', firstChoiceDate: '2026-03-27', secondChoiceDate: '2026-03-28' },
+        fractionalPreferences: [
+          { blockIndex: 1, fractionalHours: 6, choice1Date: '2026-03-20', choice2Date: '2026-03-21' },
+          { blockIndex: 2, fractionalHours: 6, choice1Date: '2026-03-27', choice2Date: '2026-03-28' },
         ],
         submitted: true,
       },

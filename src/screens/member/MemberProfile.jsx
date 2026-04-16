@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import { useAuth } from '../../contexts/AuthContext';
+import { useMasterShares } from '../../hooks/useApiData';
+import { api } from '../../lib/api';
 
 const EMPTY_FORM = { piName: '', piEmail: '', piPhone: '', piRole: '' };
 
@@ -9,11 +11,70 @@ function formatStatus(status) {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
+function StatusCard({ title, detail }) {
+  return (
+    <div
+      className="rounded-2xl px-6 py-5 concept-font-body concept-anim-fade"
+      style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
+    >
+      <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
+      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+    </div>
+  );
+}
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
 export default function MemberProfile() {
-  const { activeMember, saveMemberProfile, isAdminSession } = useMockApp();
+  const { user, loading: authLoading } = useAuth();
+  const sharesQuery = useMasterShares();
+  const [profileIdentity, setProfileIdentity] = useState({ name: '', email: '' });
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+  const isAdminSession = user?.role === 'admin';
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileIdentity({
+      name: user.name || '',
+      email: user.email || '',
+    });
+  }, [user]);
+
+  const activeMember = useMemo(() => {
+    if (!user) return null;
+
+    const shares = extractRows(sharesQuery.data);
+    const myShare = shares.find((share) => share.piId === user.id);
+
+    if (!myShare && !isAdminSession) {
+      return null;
+    }
+
+    return {
+      id: myShare?.institutionAbbreviation || user.institutionAbbreviation || 'PI',
+      name: myShare?.institutionName || user.institutionName || profileIdentity.name || 'Member',
+      shares: Number(myShare?.wholeShares || 0) + Number(myShare?.fractionalShares || 0),
+      status: user.isActive === false ? 'DEACTIVATED' : 'ACTIVE',
+      piName: profileIdentity.name || '',
+      piEmail: profileIdentity.email || '',
+      piPhone: '',
+      piRole: user.role === 'admin' ? 'Administrator' : 'Principal Investigator',
+      _userId: user.id,
+    };
+  }, [isAdminSession, profileIdentity.email, profileIdentity.name, sharesQuery.data, user]);
 
   useEffect(() => {
     if (!activeMember) return;
@@ -27,18 +88,67 @@ export default function MemberProfile() {
     setSuccess('');
   }, [activeMember]);
 
-  if (!activeMember) return null;
+  if (authLoading || sharesQuery.isLoading) {
+    return (
+      <StatusCard
+        title="Loading member profile..."
+        detail="Fetching your institution record and PI contact details."
+      />
+    );
+  }
 
-  const handleSave = (event) => {
+  if (sharesQuery.error) {
+    return (
+      <StatusCard
+        title="Unable to load member profile"
+        detail={sharesQuery.error?.message || 'Please try again in a moment.'}
+      />
+    );
+  }
+
+  if (!activeMember) {
+    return (
+      <StatusCard
+        title="Member profile unavailable"
+        detail="Your member record is not available yet."
+      />
+    );
+  }
+
+  const handleSave = async (event) => {
     event.preventDefault();
-    const result = saveMemberProfile(activeMember.id, form);
-    if (!result?.ok) {
-      setError(result?.error || 'Unable to save profile changes.');
+    setSaving(true);
+    try {
+      const response = await api.put(`/users/${activeMember._userId}`, {
+        name: form.piName,
+        email: form.piEmail,
+      });
+      const updated = response?.data || {};
+      const nextName = updated.name || form.piName;
+      const nextEmail = updated.email || form.piEmail;
+
+      setProfileIdentity({
+        name: nextName,
+        email: nextEmail,
+      });
+      setForm({
+        piName: nextName,
+        piEmail: nextEmail,
+        piPhone: activeMember.piPhone || '',
+        piRole: activeMember.piRole || '',
+      });
+      setError('');
+      setSuccess(
+        form.piPhone !== (activeMember.piPhone || '') || form.piRole !== (activeMember.piRole || '')
+          ? 'Profile updated successfully. Phone and role changes are not available yet.'
+          : 'Profile updated successfully.',
+      );
+    } catch (err) {
+      setError(err.message || 'Unable to save profile changes.');
       setSuccess('');
-      return;
+    } finally {
+      setSaving(false);
     }
-    setError('');
-    setSuccess('Profile updated successfully.');
   };
 
   const handleCancel = () => {
@@ -124,14 +234,16 @@ export default function MemberProfile() {
             type="submit"
             className="rounded-xl px-4 py-2.5 text-sm font-bold"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+            disabled={saving}
           >
-            Save Changes
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
           <button
             type="button"
             onClick={handleCancel}
             className="rounded-xl px-4 py-2.5 text-sm font-semibold"
             style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+            disabled={saving}
           >
             Cancel
           </button>

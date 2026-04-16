@@ -9,6 +9,7 @@ import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { sendEmail } from '../../lib/email.js';
 import { manualReminderEmail } from '../../lib/email-templates.js';
+import { createNotification } from '../../lib/notifications.js';
 
 const reminderSchema = z.object({
   cycleId: z.string().uuid(),
@@ -51,6 +52,12 @@ async function handler(req, res) {
         customMessage: body.message,
       });
       await sendEmail({ to: pi.email, ...emailData });
+      await createNotification({
+        userId: pi.id,
+        type: 'deadline_reminder',
+        title: 'Reminder from Admin',
+        message: body.message || 'Please submit your beam time preferences for the current cycle.',
+      });
       sent += 1;
     }
 

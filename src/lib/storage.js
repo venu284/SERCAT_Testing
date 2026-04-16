@@ -1,4 +1,6 @@
-export const STORAGE_KEY = 'sercat-ui-state-v2-current-run';
+// Bump the storage namespace after the server-scheduling migration so stale
+// browser snapshots do not crash or mis-shape the new runtime contract.
+export const STORAGE_KEY = 'sercat-ui-state-v3-server-scheduling';
 
 export function loadStoredSnapshot() {
   if (typeof window === 'undefined') return null;

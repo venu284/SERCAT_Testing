@@ -1,5 +1,6 @@
 import React from 'react';
 import CalendarResults from '../../components/CalendarResults';
+import { ASSIGNMENT_REASON_LABELS } from '../../lib/constants';
 import { COLORS, CONCEPT_THEME } from '../../lib/theme';
 import { useMockApp } from '../../lib/mock-state';
 
@@ -102,11 +103,11 @@ export default function EngineAndSchedule() {
               </thead>
               <tbody>
                 {results.assignments.map((assignment, idx) => (
-                  <tr key={`${assignment.memberId}-${assignment.date}-${assignment.shiftType}-${idx}`} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <tr key={`${assignment.memberId}-${assignment.assignedDate}-${assignment.shift}-${idx}`} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
                     <td className="px-2 py-1.5" style={{ color: COLORS[assignment.memberId] }}>{assignment.memberId}</td>
-                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.date}</td>
-                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.shiftType}</td>
-                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.assignmentType}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.assignedDate}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.shift}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{ASSIGNMENT_REASON_LABELS[assignment.assignmentReason] || assignment.assignmentReason}</td>
                     <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{assignment.shareIndex || '-'}</td>
                   </tr>
                 ))}

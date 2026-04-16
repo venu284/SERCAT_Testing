@@ -3,6 +3,7 @@ import { db } from '../../../../db/index.js';
 import { cycles } from '../../../../db/schema/cycles.js';
 import { cycleShares } from '../../../../db/schema/cycle-shares.js';
 import { preferences } from '../../../../db/schema/preferences.js';
+import { fractionalPreferences } from '../../../../db/schema/fractional-preferences.js';
 import { users } from '../../../../db/schema/users.js';
 import { institutions } from '../../../../db/schema/institutions.js';
 import { withAdmin } from '../../../../lib/middleware/with-admin.js';
@@ -33,13 +34,22 @@ async function handler(req, res) {
       .where(eq(cycleShares.cycleId, cycleId))
       .orderBy(institutions.name);
 
-    const submitted = await db
+    const submittedWhole = await db
       .select({ piId: preferences.piId })
       .from(preferences)
       .where(and(eq(preferences.cycleId, cycleId), isNotNull(preferences.submittedAt)))
       .groupBy(preferences.piId);
 
-    const submittedPiIds = new Set(submitted.map((s) => s.piId));
+    const submittedFractional = await db
+      .select({ piId: fractionalPreferences.piId })
+      .from(fractionalPreferences)
+      .where(and(eq(fractionalPreferences.cycleId, cycleId), isNotNull(fractionalPreferences.submittedAt)))
+      .groupBy(fractionalPreferences.piId);
+
+    const submittedPiIds = new Set([
+      ...submittedWhole.map((s) => s.piId),
+      ...submittedFractional.map((s) => s.piId),
+    ]);
 
     const status = shares.map((s) => ({
       ...s,
