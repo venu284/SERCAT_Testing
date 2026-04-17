@@ -12,6 +12,9 @@ const setDatesSchema = z.object({
     z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       isAvailable: z.boolean().default(true),
+      ds1Available: z.boolean().default(true),
+      ds2Available: z.boolean().default(true),
+      nsAvailable: z.boolean().default(true),
     }),
   ).min(1, 'At least one date is required'),
 });
@@ -57,6 +60,9 @@ async function handler(req, res) {
       cycleId: id,
       date: d.date,
       isAvailable: d.isAvailable,
+      ds1Available: d.ds1Available ?? true,
+      ds2Available: d.ds2Available ?? true,
+      nsAvailable: d.nsAvailable ?? true,
     }));
 
     const inserted = await db.insert(availableDates).values(rows).returning();

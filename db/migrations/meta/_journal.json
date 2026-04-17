@@ -43,6 +43,13 @@
       "when": 1776200681930,
       "tag": "0005_tranquil_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776359252310,
+      "tag": "0006_fuzzy_old_lace",
+      "breakpoints": true
     }
   ]
 }

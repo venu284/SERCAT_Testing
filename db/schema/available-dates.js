@@ -6,4 +6,7 @@ export const availableDates = pgTable('available_dates', {
   cycleId: uuid('cycle_id').notNull().references(() => cycles.id),
   date: date('date').notNull(),
   isAvailable: boolean('is_available').notNull().default(true),
+  ds1Available: boolean('ds1_available').notNull().default(true),
+  ds2Available: boolean('ds2_available').notNull().default(true),
+  nsAvailable: boolean('ns_available').notNull().default(true),
 });

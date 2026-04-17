@@ -197,6 +197,17 @@ export function usePublishSchedule() {
   });
 }
 
+export function useUnpublishSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (scheduleId) => api.post(`/schedules/${scheduleId}/unpublish`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedule'] });
+      qc.invalidateQueries({ queryKey: ['cycles'] });
+    },
+  });
+}
+
 export function useAdjustAssignment() {
   const qc = useQueryClient();
   return useMutation({
