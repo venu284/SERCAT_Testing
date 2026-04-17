@@ -1,6 +1,26 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { COLORS, CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import {
+  useDeactivateUser,
+  useMasterShares,
+  useResendInvite,
+  useUpdateShare,
+  useUpdateUser,
+  useUploadShares,
+  useUsers,
+} from '../../hooks/useApiData';
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
 
 function StatusBadge({ status }) {
   const badgeByStatus = {
@@ -176,7 +196,7 @@ function ModalFrame({ title, children, onClose, actions }) {
 
 function PiDetailsModal({ modalState, onClose, onChange, onSubmit }) {
   if (!modalState) return null;
-  const memberLabel = modalState.member?.name || modalState.member?.id || 'member';
+  const memberLabel = modalState.member?.institutionName || modalState.member?.abbreviation || 'member';
   const isChange = modalState.type === 'changePi';
 
   return (
@@ -245,7 +265,7 @@ function PiDetailsModal({ modalState, onClose, onChange, onSubmit }) {
 
 function ConfirmActionModal({ modalState, onClose, onSubmit }) {
   if (!modalState) return null;
-  const memberLabel = modalState.member?.name || modalState.member?.id || 'member';
+  const memberLabel = modalState.member?.institutionName || modalState.member?.abbreviation || 'member';
   const isDeactivate = modalState.type === 'deactivate';
   const title = isDeactivate ? `Deactivate ${memberLabel}?` : `Cancel invite for ${memberLabel}?`;
   const description = isDeactivate
@@ -287,39 +307,74 @@ function ConfirmActionModal({ modalState, onClose, onSubmit }) {
   );
 }
 
+function buildMembers(usersPayload, sharesPayload) {
+  const users = extractRows(usersPayload);
+  const shares = extractRows(sharesPayload);
+  const piUsers = users.filter((user) => user.role === 'pi');
+
+  return piUsers.map((user) => {
+    const share = shares.find((row) => row.piId === user.id);
+    const totalShares = share
+      ? Number(share.wholeShares || 0) + Number(share.fractionalShares || 0)
+      : 0;
+
+    let status = 'DEACTIVATED';
+    if (user.isActive && user.isActivated) status = 'ACTIVE';
+    else if (user.isActive && !user.isActivated) status = 'INVITED';
+
+    return {
+      userId: user.id,
+      shareId: share?.id || null,
+      abbreviation: user.institutionAbbreviation || share?.institutionAbbreviation || '',
+      institutionName: user.institutionName || share?.institutionName || '',
+      institutionId: user.institutionId || share?.institutionId || null,
+      piName: user.name || share?.piName || '',
+      piEmail: user.email || share?.piEmail || '',
+      totalShares,
+      wholeShares: share ? Number(share.wholeShares || 0) : 0,
+      fractionalShares: share ? Number(share.fractionalShares || 0) : 0,
+      status,
+      isActive: Boolean(user.isActive),
+      isActivated: Boolean(user.isActivated),
+      createdAt: user.createdAt,
+      activatedAt: user.isActivated ? user.lastLoginAt : null,
+    };
+  });
+}
+
 export default function MembersAndShares() {
-  const {
-    pendingRegistrationCount,
-    pendingRegistrationRequests,
-    registrationApprovalDrafts,
-    registrationActionErrors,
-    setRegistrationApprovalDraft,
-    approveRegistrationRequest,
-    rejectRegistrationRequest,
-    memberDirectory,
-    resolvedRegistrationRequests,
-    memberStatusFilter,
-    setMemberStatusFilter,
-    filteredMembersForAdmin,
-    updateMember,
-    newMemberForm,
-    setNewMemberForm,
-    addMember,
-    testAccounts,
-    memberLoginAccounts,
-    piAccessAccounts,
-    resendMemberInvite,
-    cancelMemberInvite,
-    deactivateMember,
-    changeMemberPi,
-    reinviteMember,
-  } = useMockApp();
+  const usersQuery = useUsers({ all: true });
+  const sharesQuery = useMasterShares();
+  const updateUser = useUpdateUser();
+  const deactivateUser = useDeactivateUser();
+  const resendInvite = useResendInvite();
+  const updateShare = useUpdateShare();
+  const uploadShares = useUploadShares();
 
-  const [notice, setNotice] = React.useState(null);
-  const [memberFormError, setMemberFormError] = React.useState('');
-  const [modalState, setModalState] = React.useState(null);
+  const [notice, setNotice] = useState(null);
+  const [memberFormError, setMemberFormError] = useState('');
+  const [modalState, setModalState] = useState(null);
+  const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  const [newMemberForm, setNewMemberForm] = useState({
+    abbreviation: '',
+    name: '',
+    shares: '',
+    piName: '',
+    piEmail: '',
+  });
 
-  const showLegacyRequests = pendingRegistrationCount > 0 || resolvedRegistrationRequests.length > 0;
+  const members = useMemo(
+    () => buildMembers(usersQuery.data, sharesQuery.data),
+    [usersQuery.data, sharesQuery.data],
+  );
+
+  const filteredMembers = useMemo(() => {
+    if (memberStatusFilter === 'all') return members;
+    if (memberStatusFilter === 'active') return members.filter((member) => member.status === 'ACTIVE');
+    if (memberStatusFilter === 'invited') return members.filter((member) => member.status === 'INVITED');
+    if (memberStatusFilter === 'deactivated') return members.filter((member) => member.status === 'DEACTIVATED');
+    return members;
+  }, [memberStatusFilter, members]);
 
   const setNewMemberField = (field, value) => {
     setNewMemberForm((prev) => ({ ...prev, [field]: value }));
@@ -366,235 +421,224 @@ export default function MembersAndShares() {
     ));
   };
 
-  const handleResendInvite = (member) => {
-    setNotice(null);
-    const result = resendMemberInvite(member.id);
-    if (!result?.ok) {
-      showNotice('error', 'Unable to refresh invite', result?.error || 'Unable to refresh invite.');
-      return;
+  const handleShareChange = async (member, newValue) => {
+    if (!member.shareId) return;
+    const parsed = parseFloat(newValue);
+    if (Number.isNaN(parsed) || parsed < 0) return;
+
+    const wholeShares = Math.floor(parsed);
+    const fractionalShares = parsed - wholeShares;
+
+    try {
+      await updateShare.mutateAsync({ id: member.shareId, wholeShares, fractionalShares });
+    } catch (err) {
+      showNotice('error', 'Update failed', err.message || 'Could not update shares.');
     }
-    showNotice(
-      'success',
-      'Invitation refreshed',
-      `Invitation refreshed for ${result.piName || member.piName || member.id}.`,
-      { inviteToken: result.inviteToken, email: result.piEmail },
-    );
   };
 
-  const handleModalSubmit = () => {
-    if (!modalState?.member) return;
-
-    const memberLabel = modalState.member.name || modalState.member.id;
-    let result;
-    let nextNotice = null;
-
-    if (modalState.type === 'changePi') {
-      result = changeMemberPi(modalState.member.id, {
-        piName: modalState.piName,
-        piEmail: modalState.piEmail,
-      });
-      if (result?.ok) {
-        nextNotice = {
-          tone: 'success',
-          title: 'PI change saved',
-          message: `PI change saved for ${memberLabel}.`,
-          inviteToken: result.inviteToken,
-          email: result.piEmail,
-        };
-      }
-    } else if (modalState.type === 'reinvite') {
-      result = reinviteMember(modalState.member.id, {
-        piName: modalState.piName,
-        piEmail: modalState.piEmail,
-      });
-      if (result?.ok) {
-        nextNotice = {
-          tone: 'success',
-          title: 'Invitation created',
-          message: `Invitation created for ${result.piName || memberLabel}.`,
-          inviteToken: result.inviteToken,
-          email: result.piEmail,
-        };
-      }
-    } else if (modalState.type === 'cancelInvite') {
-      result = cancelMemberInvite(modalState.member.id);
-      if (result?.ok) {
-        nextNotice = {
-          tone: 'success',
-          title: 'Invitation cancelled',
-          message: `Pending invite cancelled for ${memberLabel}.`,
-        };
-      }
-    } else if (modalState.type === 'deactivate') {
-      result = deactivateMember(modalState.member.id);
-      if (result?.ok) {
-        nextNotice = {
-          tone: 'success',
-          title: 'Member deactivated',
-          message: `${memberLabel} has been deactivated.`,
-        };
-      }
+  const handleResendInvite = async (member) => {
+    setNotice(null);
+    try {
+      const res = await resendInvite.mutateAsync(member.userId);
+      const data = res?.data || {};
+      showNotice(
+        'success',
+        'Invitation refreshed',
+        `Invitation refreshed for ${member.piName || member.abbreviation}.`,
+        { inviteToken: data.activationToken, email: data.email },
+      );
+    } catch (err) {
+      showNotice('error', 'Unable to refresh invite', err.message || 'Unable to refresh invite.');
     }
+  };
 
-    if (!result?.ok) {
+  const handleDeactivate = async () => {
+    if (!modalState?.member) return;
+    try {
+      await deactivateUser.mutateAsync(modalState.member.userId);
+      closeModal();
+      showNotice(
+        'success',
+        'Member deactivated',
+        `${modalState.member.piName || modalState.member.abbreviation} has been deactivated.`,
+      );
+    } catch (err) {
       setModalState((prev) => (
-        prev
-          ? {
-            ...prev,
-            error: result?.error || 'Unable to complete this action.',
-          }
-          : prev
+        prev ? { ...prev, error: err.message || 'Unable to deactivate.' } : prev
+      ));
+    }
+  };
+
+  const handleCancelInvite = async () => {
+    if (!modalState?.member) return;
+    try {
+      await deactivateUser.mutateAsync(modalState.member.userId);
+      closeModal();
+      showNotice(
+        'success',
+        'Invitation cancelled',
+        `Pending invite cancelled for ${modalState.member.piName || modalState.member.abbreviation}.`,
+      );
+    } catch (err) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: err.message || 'Unable to cancel invite.' } : prev
+      ));
+    }
+  };
+
+  const handleChangePi = async () => {
+    if (!modalState?.member) return;
+    const piName = modalState.piName?.trim();
+    const piEmail = modalState.piEmail?.trim();
+
+    if (!piName || !piEmail) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: 'PI name and email are required.' } : prev
       ));
       return;
     }
 
-    closeModal();
-    setNotice(nextNotice);
+    try {
+      const res = await updateUser.mutateAsync({
+        id: modalState.member.userId,
+        name: piName,
+        email: piEmail,
+        resetActivation: true,
+      });
+      const data = res?.data || {};
+      closeModal();
+      showNotice(
+        'success',
+        'PI change saved',
+        `PI change saved for ${modalState.member.abbreviation}.`,
+        { inviteToken: data.activationToken, email: piEmail },
+      );
+    } catch (err) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: err.message || 'Unable to save PI change.' } : prev
+      ));
+    }
   };
 
-  const handleAddMember = () => {
-    setNotice(null);
-    const result = addMember();
-    if (!result?.ok) {
-      setMemberFormError(result?.error || 'Unable to create invite.');
+  const handleReinvite = async () => {
+    if (!modalState?.member) return;
+    const piName = modalState.piName?.trim();
+    const piEmail = modalState.piEmail?.trim();
+
+    if (!piName || !piEmail) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: 'PI name and email are required.' } : prev
+      ));
       return;
     }
 
-    setMemberFormError('');
-    showNotice(
-      'success',
-      'Invitation created',
-      `Invitation created for ${result.piName}.`,
-      { inviteToken: result.inviteToken, email: result.piEmail },
-    );
+    try {
+      const res = await updateUser.mutateAsync({
+        id: modalState.member.userId,
+        name: piName,
+        email: piEmail,
+        isActive: true,
+        resetActivation: true,
+      });
+      const data = res?.data || {};
+      closeModal();
+      showNotice(
+        'success',
+        'Invitation created',
+        `Invitation created for ${piName}.`,
+        { inviteToken: data.activationToken, email: piEmail },
+      );
+    } catch (err) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: err.message || 'Unable to create invite.' } : prev
+      ));
+    }
   };
+
+  const handleModalSubmit = () => {
+    if (!modalState) return;
+    if (modalState.type === 'changePi') return handleChangePi();
+    if (modalState.type === 'reinvite') return handleReinvite();
+    if (modalState.type === 'deactivate') return handleDeactivate();
+    if (modalState.type === 'cancelInvite') return handleCancelInvite();
+    return null;
+  };
+
+  const handleAddMember = async () => {
+    setNotice(null);
+    setMemberFormError('');
+
+    const { abbreviation, name, shares, piName, piEmail } = newMemberForm;
+    if (!abbreviation?.trim() || !name?.trim() || !piName?.trim() || !piEmail?.trim()) {
+      setMemberFormError('All fields are required.');
+      return;
+    }
+
+    const parsedShares = parseFloat(shares);
+    if (Number.isNaN(parsedShares) || parsedShares <= 0) {
+      setMemberFormError('Shares must be a positive number.');
+      return;
+    }
+
+    const wholeShares = Math.floor(parsedShares);
+    const fractionalShares = parsedShares - wholeShares;
+
+    try {
+      const res = await uploadShares.mutateAsync({
+        rows: [{
+          institutionName: name.trim(),
+          abbreviation: abbreviation.trim(),
+          piName: piName.trim(),
+          piEmail: piEmail.trim(),
+          wholeShares,
+          fractionalShares,
+        }],
+      });
+
+      const invite = res?.data?.inviteTokens?.[0] || null;
+      setNewMemberForm({
+        abbreviation: '',
+        name: '',
+        shares: '',
+        piName: '',
+        piEmail: '',
+      });
+
+      showNotice(
+        'success',
+        'Invitation created',
+        `Invitation created for ${piName.trim()}.`,
+        {
+          inviteToken: invite?.token || null,
+          email: invite?.email || piEmail.trim(),
+        },
+      );
+    } catch (err) {
+      setMemberFormError(err.message || 'Unable to create invite.');
+    }
+  };
+
+  if (usersQuery.isLoading || sharesQuery.isLoading) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading members and shares...
+      </div>
+    );
+  }
+
+  if (usersQuery.isError || sharesQuery.isError) {
+    return (
+      <div
+        className="rounded-2xl border px-4 py-4 text-sm"
+        style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}
+      >
+        Failed to load data. Please try refreshing the page.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 concept-font-body">
-      {showLegacyRequests ? (
-        <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Legacy Registration Requests</h3>
-              <p className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
-                Historical self-registration requests remain available here for reference and cleanup.
-              </p>
-            </div>
-            <span
-              className="inline-flex rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
-              style={{
-                background: pendingRegistrationCount > 0 ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
-                color: pendingRegistrationCount > 0 ? CONCEPT_THEME.accentOnAccent : CONCEPT_THEME.muted,
-              }}
-            >
-              Pending: {pendingRegistrationCount}
-            </span>
-          </div>
-
-          {pendingRegistrationCount > 0 ? (
-            <div className="space-y-3">
-              {pendingRegistrationRequests.map((request) => {
-                const draft = registrationApprovalDrafts[request.id] || {};
-                const actionError = registrationActionErrors[request.id];
-                const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
-                return (
-                  <div key={request.id} className="rounded-2xl border p-4" style={{ background: CONCEPT_THEME.amberLight, borderColor: `${CONCEPT_THEME.amber}25` }}>
-                    <div className="grid gap-2 text-xs sm:grid-cols-2">
-                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Institution:</span> {institutionDisplayName} ({request.institutionMemberId})</div>
-                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Email:</span> {request.institutionalEmail}</div>
-                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Requested Shares:</span> {request.requestedShares}</div>
-                      <div><span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>Submitted:</span> {new Date(request.createdAt).toLocaleString()}</div>
-                    </div>
-
-                    <div className="mt-3 grid gap-2 lg:grid-cols-[180px_1fr]">
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={draft.approvedShares ?? request.requestedShares}
-                        onChange={(event) => setRegistrationApprovalDraft(request.id, { approvedShares: event.target.value })}
-                        className="rounded-xl border px-3 py-2 text-sm outline-none"
-                        style={{ background: 'white', borderColor: CONCEPT_THEME.border }}
-                        placeholder="Approved shares"
-                      />
-                      <input
-                        type="text"
-                        value={draft.adminNote || ''}
-                        onChange={(event) => setRegistrationApprovalDraft(request.id, { adminNote: event.target.value })}
-                        className="rounded-xl border px-3 py-2 text-sm outline-none"
-                        style={{ background: 'white', borderColor: CONCEPT_THEME.border }}
-                        placeholder="Admin note (optional)"
-                      />
-                    </div>
-
-                    {actionError ? (
-                      <div className="mt-2 rounded-xl border px-3 py-2 text-xs" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
-                        {actionError}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => approveRegistrationRequest(request.id)}
-                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                        style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => rejectRegistrationRequest(request.id)}
-                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
-                        style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-2xl border px-4 py-4 text-sm" style={{ background: CONCEPT_THEME.cream, borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
-              No pending legacy registration requests.
-            </div>
-          )}
-
-          {resolvedRegistrationRequests.length > 0 ? (
-            <div className="mt-5 border-t pt-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-              <h4 className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Recently Resolved</h4>
-              <div className="mt-3 space-y-2">
-                {resolvedRegistrationRequests.slice(0, 6).map((request) => {
-                  const institutionDisplayName = request.institutionLabel || memberDirectory[request.institutionMemberId]?.name || request.institutionMemberId;
-                  return (
-                    <div key={request.id} className="rounded-2xl border px-4 py-3 text-xs" style={{ background: CONCEPT_THEME.cream, borderColor: CONCEPT_THEME.borderLight }}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold" style={{ color: CONCEPT_THEME.navy }}>{institutionDisplayName} ({request.institutionMemberId})</span>
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.14em]"
-                          style={{
-                            background: request.status === 'Approved' ? CONCEPT_THEME.emeraldLight : CONCEPT_THEME.errorLight,
-                            color: request.status === 'Approved' ? CONCEPT_THEME.emerald : CONCEPT_THEME.error,
-                          }}
-                        >
-                          {request.status}
-                        </span>
-                        <span style={{ color: CONCEPT_THEME.muted }}>{request.institutionalEmail}</span>
-                      </div>
-                      <div className="mt-1" style={{ color: CONCEPT_THEME.muted }}>
-                        Shares: {request.requestedShares} | Resolved: {request.resolvedAt ? new Date(request.resolvedAt).toLocaleString() : 'N/A'}
-                        {request.adminNote ? ` | Note: ${request.adminNote}` : ''}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
       {notice ? <NoticeBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
 
       <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
@@ -641,7 +685,7 @@ export default function MembersAndShares() {
               </tr>
             </thead>
             <tbody>
-              {filteredMembersForAdmin.length === 0 ? (
+              {filteredMembers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-2 py-6 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
                     No members match the selected filter.
@@ -649,14 +693,14 @@ export default function MembersAndShares() {
                 </tr>
               ) : null}
 
-              {filteredMembersForAdmin.map((member) => (
-                <tr key={member.id} className="border-b align-top" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                  <td className="px-2 py-3 font-bold" style={{ color: COLORS[member.id] || CONCEPT_THEME.navy }}>{member.id}</td>
+              {filteredMembers.map((member) => (
+                <tr key={member.userId} className="border-b align-top" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                  <td className="px-2 py-3 font-bold" style={{ color: COLORS[member.abbreviation] || CONCEPT_THEME.navy }}>{member.abbreviation || '-'}</td>
                   <td className="px-2 py-3">
-                    <div className="font-semibold" style={{ color: CONCEPT_THEME.text }}>{member.name}</div>
-                    {member.invitedAt ? (
+                    <div className="font-semibold" style={{ color: CONCEPT_THEME.text }}>{member.institutionName || '-'}</div>
+                    {member.createdAt ? (
                       <div className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
-                        Invited {new Date(member.invitedAt).toLocaleDateString()}
+                        Invited {new Date(member.createdAt).toLocaleDateString()}
                       </div>
                     ) : null}
                   </td>
@@ -667,8 +711,8 @@ export default function MembersAndShares() {
                       type="number"
                       min="0"
                       step="0.01"
-                      value={member.shares}
-                      onChange={(event) => updateMember(member.id, { shares: event.target.value })}
+                      value={member.totalShares}
+                      onChange={(event) => handleShareChange(member, event.target.value)}
                       className="w-24 rounded-xl border px-2.5 py-2 text-right text-sm outline-none"
                       style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
                     />
@@ -708,9 +752,9 @@ export default function MembersAndShares() {
 
         <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-[140px_1.2fr_120px_1fr_1fr_auto]">
           <input
-            placeholder="Member ID"
-            value={newMemberForm.id}
-            onChange={(event) => setNewMemberField('id', event.target.value)}
+            placeholder="Abbreviation"
+            value={newMemberForm.abbreviation}
+            onChange={(event) => setNewMemberField('abbreviation', event.target.value)}
             className="rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}
           />
@@ -761,48 +805,6 @@ export default function MembersAndShares() {
             {memberFormError}
           </div>
         ) : null}
-      </div>
-
-      <div className="rounded-2xl border bg-white p-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="concept-font-display mb-4 text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Testing Accounts</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
-                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Role</th>
-                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Member</th>
-                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Username</th>
-                <th className="px-2 py-2 text-left font-semibold uppercase tracking-[0.16em]">Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.navy }}>Admin</td>
-                <td className="px-2 py-3">System</td>
-                <td className="px-2 py-3 font-mono">{testAccounts.admin.username}</td>
-                <td className="px-2 py-3 font-mono">{testAccounts.admin.password}</td>
-              </tr>
-              {memberLoginAccounts.map(({ member, account }) => (
-                <tr key={member.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                  <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.emerald }}>Legacy</td>
-                  <td className="px-2 py-3" style={{ color: COLORS[member.id] || CONCEPT_THEME.navy }}>{member.id} - {member.name}</td>
-                  <td className="px-2 py-3 font-mono">{account.username}</td>
-                  <td className="px-2 py-3 font-mono">{account.password}</td>
-                </tr>
-              ))}
-              {piAccessAccounts.map((account) => (
-                <tr key={account.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                  <td className="px-2 py-3 font-semibold" style={{ color: CONCEPT_THEME.sky }}>PI Access</td>
-                  <td className="px-2 py-3" style={{ color: COLORS[account.memberId] || CONCEPT_THEME.navy }}>
-                    {account.memberId} - {memberDirectory[account.memberId]?.name || account.memberId}
-                  </td>
-                  <td className="px-2 py-3 font-mono">{account.username}</td>
-                  <td className="px-2 py-3 font-mono">{account.password}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       {modalState?.type === 'changePi' || modalState?.type === 'reinvite' ? (

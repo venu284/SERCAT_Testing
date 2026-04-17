@@ -1,30 +1,252 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import {
+  useAvailableDates,
+  useCreateSwapRequest,
+  useSchedule,
+  useSwapRequests,
+} from '../../hooks/useApiData';
+import { formatCalendarDate, fromDateStr } from '../../lib/dates';
 import { SHIFT_ORDER, SHIFT_UI_META } from '../../lib/constants';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 export default function ShiftChanges() {
-  const {
-    cycle,
-    sortedCurrentMemberAssignments,
-    assignmentKey,
-    selectedShiftChangeSource,
-    setSelectedShiftChangeSource,
-    formatMemberShiftDate,
-    shiftChangeForm,
-    setShiftChangeForm,
-    submitShiftChangeRequest,
-    selectedShiftChangeAssignmentObj,
+  const { user } = useAuth();
+  const { activeCycle, activeCycleId } = useActiveCycle();
+  const scheduleQuery = useSchedule(activeCycleId);
+  const swapRequestsQuery = useSwapRequests();
+  const datesQuery = useAvailableDates(activeCycleId);
+  const createSwapRequest = useCreateSwapRequest();
+
+  const [selectedShiftChangeSource, setSelectedShiftChangeSource] = useState('');
+  const [shiftChangeForm, setShiftChangeForm] = useState({ requestedDate: '', requestedShift: '', reason: '' });
+  const [memberShiftChangeError, setMemberShiftChangeError] = useState('');
+  const [shiftChangeSubmittedFlash, setShiftChangeSubmittedFlash] = useState(false);
+  const [expandedMemberRequestId, setExpandedMemberRequestId] = useState('');
+
+  const cycle = useMemo(() => {
+    if (!activeCycle) return { startDate: '', endDate: '' };
+    return {
+      startDate: activeCycle.startDate || '',
+      endDate: activeCycle.endDate || '',
+    };
+  }, [activeCycle]);
+
+  const scheduleData = scheduleQuery.data || null;
+  const allAssignments = useMemo(
+    () => (Array.isArray(scheduleData?.assignments) ? scheduleData.assignments : []),
+    [scheduleData],
+  );
+
+  const sortedCurrentMemberAssignments = useMemo(
+    () => [...allAssignments].sort((a, b) => {
+      const dateDelta = String(a.assignedDate || '').localeCompare(String(b.assignedDate || ''));
+      if (dateDelta !== 0) return dateDelta;
+      return SHIFT_ORDER.indexOf(a.shift) - SHIFT_ORDER.indexOf(b.shift);
+    }),
+    [allAssignments],
+  );
+
+  const assignmentKey = useCallback(
+    (assignment) => `${assignment.assignedDate}:${assignment.shift}`,
+    [],
+  );
+
+  const availableDateRows = useMemo(() => extractRows(datesQuery.data), [datesQuery.data]);
+  const availableDateMap = useMemo(() => {
+    const map = new Map();
+    availableDateRows.forEach((row) => {
+      if (!row?.date) return;
+      map.set(row.date, row);
+    });
+    return map;
+  }, [availableDateRows]);
+
+  const selectedShiftChangeDate = selectedShiftChangeSource ? selectedShiftChangeSource.split(':')[0] : '';
+
+  const availableShiftRequestDatesForSelection = useMemo(() => (
+    availableDateRows
+      .filter((row) => row.isAvailable)
+      .filter((row) => row.date !== selectedShiftChangeDate)
+      .filter((row) => (
+        (row.ds1Available ?? true)
+        || (row.ds2Available ?? true)
+        || (row.nsAvailable ?? true)
+      ))
+      .map((row) => row.date)
+      .sort()
+  ), [availableDateRows, selectedShiftChangeDate]);
+
+  const availableShiftRequestTypes = useMemo(() => {
+    if (!shiftChangeForm.requestedDate) return SHIFT_ORDER;
+    const row = availableDateMap.get(shiftChangeForm.requestedDate);
+    if (!row || row.isAvailable === false) return [];
+    return SHIFT_ORDER.filter((shift) => {
+      if (shift === 'DS1') return row.ds1Available !== false;
+      if (shift === 'DS2') return row.ds2Available !== false;
+      if (shift === 'NS') return row.nsAvailable !== false;
+      return false;
+    });
+  }, [availableDateMap, shiftChangeForm.requestedDate]);
+
+  const selectedShiftChangeAssignmentObj = useMemo(
+    () => sortedCurrentMemberAssignments.find(
+      (assignment) => assignmentKey(assignment) === selectedShiftChangeSource,
+    ) || null,
+    [sortedCurrentMemberAssignments, assignmentKey, selectedShiftChangeSource],
+  );
+
+  const memberShiftRequests = useMemo(() => {
+    const swaps = extractRows(swapRequestsQuery.data);
+    return swaps
+      .map((swap) => {
+        const targetAssignment = swap.targetAssignment || {};
+        const approved = swap.status === 'approved';
+        return {
+          id: swap.id,
+          sourceDate: targetAssignment.assignedDate || '',
+          sourceShift: targetAssignment.shift || '',
+          requestedDate: (swap.preferredDates || [])[0] || '',
+          requestedShift: '',
+          reason: '',
+          status: approved ? 'Approved' : swap.status === 'denied' ? 'Rejected' : 'Pending',
+          createdAt: swap.createdAt,
+          adminNote: swap.adminNotes || '',
+          reassignedDate: approved ? (targetAssignment.assignedDate || '') : '',
+          reassignedShift: approved ? (targetAssignment.shift || '') : '',
+        };
+      })
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }, [swapRequestsQuery.data]);
+
+  const memberShiftChangeSummary = useMemo(() => ({
+    pending: memberShiftRequests.filter((request) => request.status === 'Pending').length,
+    approved: memberShiftRequests.filter((request) => request.status === 'Approved').length,
+    rejected: memberShiftRequests.filter((request) => request.status === 'Rejected').length,
+  }), [memberShiftRequests]);
+
+  const formatMemberShiftDate = useCallback((dateStr) => {
+    if (!dateStr) return 'N/A';
+    return fromDateStr(dateStr).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedShiftChangeSource && !selectedShiftChangeAssignmentObj) {
+      setSelectedShiftChangeSource('');
+    }
+  }, [selectedShiftChangeAssignmentObj, selectedShiftChangeSource]);
+
+  useEffect(() => {
+    if (!selectedShiftChangeSource) {
+      setShiftChangeForm((prev) => {
+        if (!prev.requestedDate && !prev.requestedShift && !prev.reason) return prev;
+        return { requestedDate: '', requestedShift: '', reason: '' };
+      });
+      return;
+    }
+
+    setShiftChangeForm((prev) => {
+      if (!prev.requestedDate) return prev;
+      if (!availableShiftRequestDatesForSelection.includes(prev.requestedDate)) {
+        return { ...prev, requestedDate: '', requestedShift: '' };
+      }
+      return prev;
+    });
+  }, [availableShiftRequestDatesForSelection, selectedShiftChangeSource]);
+
+  useEffect(() => {
+    setShiftChangeForm((prev) => {
+      if (!prev.requestedDate) {
+        if (!prev.requestedShift) return prev;
+        if (!SHIFT_ORDER.includes(prev.requestedShift)) {
+          return { ...prev, requestedShift: '' };
+        }
+        return prev;
+      }
+
+      if (!prev.requestedShift) return prev;
+      if (!availableShiftRequestTypes.includes(prev.requestedShift)) {
+        return { ...prev, requestedShift: '' };
+      }
+      return prev;
+    });
+  }, [availableShiftRequestTypes]);
+
+  useEffect(() => {
+    if (memberShiftChangeError) setMemberShiftChangeError('');
+  }, [memberShiftChangeError, selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShift]);
+
+  const submitShiftChangeRequest = useCallback((event) => {
+    event.preventDefault();
+
+    if (!selectedShiftChangeAssignmentObj) {
+      setMemberShiftChangeError('Select an assigned shift to request a change.');
+      return;
+    }
+
+    if (!scheduleData?.scheduleId) {
+      setMemberShiftChangeError('Schedule is not available. Try refreshing.');
+      return;
+    }
+
+    if (shiftChangeForm.requestedDate && !availableShiftRequestDatesForSelection.includes(shiftChangeForm.requestedDate)) {
+      setMemberShiftChangeError('Preferred date is not available.');
+      return;
+    }
+
+    if (shiftChangeForm.requestedDate && shiftChangeForm.requestedShift && !availableShiftRequestTypes.includes(shiftChangeForm.requestedShift)) {
+      setMemberShiftChangeError('Preferred shift is blocked on selected date.');
+      return;
+    }
+
+    createSwapRequest.mutate(
+      {
+        scheduleId: scheduleData.scheduleId,
+        targetAssignmentId: selectedShiftChangeAssignmentObj.id,
+        preferredDates: shiftChangeForm.requestedDate ? [shiftChangeForm.requestedDate] : [],
+      },
+      {
+        onSuccess: () => {
+          setShiftChangeSubmittedFlash(true);
+          window.setTimeout(() => setShiftChangeSubmittedFlash(false), 2800);
+          setMemberShiftChangeError('');
+          setExpandedMemberRequestId('');
+          setSelectedShiftChangeSource('');
+          setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
+        },
+        onError: (err) => {
+          setMemberShiftChangeError(err.message || 'Failed to submit swap request.');
+        },
+      },
+    );
+  }, [
     availableShiftRequestDatesForSelection,
     availableShiftRequestTypes,
-    memberShiftChangeError,
-    setMemberShiftChangeError,
-    shiftChangeSubmittedFlash,
-    memberShiftRequests,
-    memberShiftChangeSummary,
-    expandedMemberRequestId,
-    setExpandedMemberRequestId,
-  } = useMockApp();
+    createSwapRequest,
+    scheduleData,
+    selectedShiftChangeAssignmentObj,
+    shiftChangeForm.requestedDate,
+    shiftChangeForm.requestedShift,
+  ]);
+
+  if (scheduleQuery.isLoading || swapRequestsQuery.isLoading || datesQuery.isLoading) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading shift data...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 concept-font-body">

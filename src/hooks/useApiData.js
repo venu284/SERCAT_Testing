@@ -8,6 +8,14 @@ export function useInstitutions() {
   });
 }
 
+export function useCreateInstitution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/institutions', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['institutions'] }),
+  });
+}
+
 export function useUsers(params = {}) {
   return useQuery({
     queryKey: ['users', params],
@@ -74,6 +82,36 @@ export function useCreateUser() {
   });
 }
 
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.put(`/users/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['master-shares'] });
+    },
+  });
+}
+
+export function useDeactivateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/users/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['master-shares'] });
+    },
+  });
+}
+
+export function useResendInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post(`/users/${id}/resend-invite`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
 export function useCycles() {
   return useQuery({
     queryKey: ['cycles'],
@@ -129,6 +167,14 @@ export function useUploadShares() {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['institutions'] });
     },
+  });
+}
+
+export function useUpdateShare() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.put(`/shares/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['master-shares'] }),
   });
 }
 

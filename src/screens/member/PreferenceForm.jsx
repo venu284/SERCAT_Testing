@@ -1,11 +1,138 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConceptProgressRing from '../../components/ConceptProgressRing';
+import { useAuth } from '../../contexts/AuthContext';
 import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants';
 import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates';
 import { computeEntitlements } from '../../lib/entitlements.js';
-import { useMockApp } from '../../lib/mock-state';
 import { normalizeMemberPreferences } from '../../lib/normalizers';
 import { CONCEPT_THEME } from '../../lib/theme';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import {
+  useAvailableDates,
+  useMasterShares,
+  usePreferences,
+  useSubmitPreferences,
+} from '../../hooks/useApiData';
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function buildMember(user, share) {
+  if (!share) {
+    return null;
+  }
+
+  const wholeShares = Number(share?.wholeShares) || 0;
+  const fractionalShares = Number(share?.fractionalShares) || 0;
+
+  return {
+    id: share?.institutionAbbreviation || user?.institutionAbbreviation || 'PI',
+    name: share?.institutionName || user?.institutionName || user?.name || 'Member',
+    shares: Number((wholeShares + fractionalShares).toFixed(2)),
+    status: 'ACTIVE',
+    _piUserId: share?.piId || user?.id || null,
+    _institutionUuid: share?.institutionId || user?.institutionId || null,
+  };
+}
+
+function buildCycle(activeCycle, dateRows) {
+  if (!activeCycle) {
+    return {
+      id: '',
+      startDate: '',
+      endDate: '',
+      preferenceDeadline: '',
+      blockedDates: [],
+      blockedSlots: [],
+    };
+  }
+
+  const blockedDates = [];
+  const blockedSlots = [];
+
+  dateRows.forEach((entry) => {
+    if (!entry?.date) return;
+    if (entry.isAvailable === false) {
+      blockedDates.push(entry.date);
+    } else {
+      if (entry.ds1Available === false) blockedSlots.push(`${entry.date}:DS1`);
+      if (entry.ds2Available === false) blockedSlots.push(`${entry.date}:DS2`);
+      if (entry.nsAvailable === false) blockedSlots.push(`${entry.date}:NS`);
+    }
+  });
+
+  const preferenceDeadline = activeCycle.preferenceDeadline
+    ? (activeCycle.preferenceDeadline.includes('T')
+      ? activeCycle.preferenceDeadline.split('T')[0]
+      : activeCycle.preferenceDeadline)
+    : (activeCycle.startDate ? addDays(activeCycle.startDate, -7) : '');
+
+  return {
+    id: activeCycle.name || activeCycle.id,
+    startDate: activeCycle.startDate || '',
+    endDate: activeCycle.endDate || '',
+    preferenceDeadline,
+    blockedDates: blockedDates.sort(),
+    blockedSlots: blockedSlots.sort(),
+  };
+}
+
+function mapServerPreferences(payload, piId) {
+  const data = payload?.data || payload || {};
+  const serverWhole = Array.isArray(data.preferences) ? data.preferences : [];
+  const serverFractional = Array.isArray(data.fractionalPreferences) ? data.fractionalPreferences : [];
+
+  return {
+    wholeShare: serverWhole
+      .filter((entry) => !piId || !entry?.piId || entry.piId === piId)
+      .map((entry) => ({
+        shareIndex: entry.shareIndex,
+        shift: entry.shift,
+        choice1Date: entry.choice1Date || '',
+        choice2Date: entry.choice2Date || '',
+      })),
+    fractionalPreferences: serverFractional
+      .filter((entry) => !piId || !entry?.piId || entry.piId === piId)
+      .map((entry) => ({
+        blockIndex: entry.blockIndex,
+        fractionalHours: Number(entry.fractionalHours) || 0,
+        choice1Date: entry.choice1Date || '',
+        choice2Date: entry.choice2Date || '',
+      })),
+    submitted: Boolean(data.submittedAt),
+    notes: '',
+  };
+}
+
+function buildSubmitPayload(prefs) {
+  return {
+    preferences: (prefs?.wholeShare || [])
+      .filter((entry) => entry.choice1Date || entry.choice2Date)
+      .map((entry) => ({
+        shareIndex: entry.shareIndex,
+        shift: entry.shift,
+        choice1Date: entry.choice1Date || null,
+        choice2Date: entry.choice2Date || null,
+      })),
+    fractionalPreferences: (prefs?.fractionalPreferences || [])
+      .filter((entry) => entry.choice1Date || entry.choice2Date)
+      .map((entry) => ({
+        blockIndex: entry.blockIndex,
+        fractionalHours: entry.fractionalHours,
+        choice1Date: entry.choice1Date || null,
+        choice2Date: entry.choice2Date || null,
+      })),
+  };
+}
 
 function buildPreferenceWizardSteps(entitlement, myPrefs) {
   const wholeSlots = [];
@@ -52,51 +179,174 @@ const STEP_HOLD_MS = 180;
 const STEP_SLIDE_MS = 340;
 const STEP_ENTER_DELAY_MS = 36;
 const STEP_TOAST_MS = 1350;
+const SAVE_DEBOUNCE_MS = 800;
 
 export default function PreferenceFormScreen() {
-  const { activeMember: member, cycle, preferences, updatePreference } = useMockApp();
+  const auth = useAuth();
+  const cycleQuery = useActiveCycle();
+  const sharesQuery = useMasterShares();
+  const datesQuery = useAvailableDates(cycleQuery.activeCycleId);
+  const prefsQuery = usePreferences(cycleQuery.activeCycleId);
+  const submitPrefs = useSubmitPreferences();
 
-  if (!member) return null;
-
-  const entitlement = computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
-  const myPrefs = preferences[member.id] || normalizeMemberPreferences(member, {});
-  const wizardSteps = useMemo(() => buildPreferenceWizardSteps(entitlement, myPrefs), [
-    entitlement.wholeShares,
-    entitlement.fractionalHours,
-    myPrefs.wholeShare,
-    myPrefs.fractionalPreferences,
-  ]);
-  const [currentStep, setCurrentStep] = useState(() => {
-    const firstIncomplete = wizardSteps.findIndex((step) => !step.choice1Date || !step.choice2Date);
-    return firstIncomplete >= 0 ? firstIncomplete : Math.max(0, wizardSteps.length - 1);
-  });
+  const [localPrefs, setLocalPrefs] = useState(null);
+  const [currentStep, setCurrentStep] = useState(0);
   const [pickingChoice, setPickingChoice] = useState(1);
   const [justPicked, setJustPicked] = useState('');
   const [stepToast, setStepToast] = useState('');
   const [stepMotion, setStepMotion] = useState('idle');
+
   const timeoutIdsRef = useRef([]);
+  const pendingPrefsRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
+
+  const shareRows = useMemo(() => extractRows(sharesQuery.data), [sharesQuery.data]);
+  const dateRows = useMemo(() => extractRows(datesQuery.data), [datesQuery.data]);
+
+  const member = useMemo(() => {
+    const activeShare = shareRows.find((row) => row?.piId === auth.user?.id)
+      || shareRows.find((row) => row?.institutionId === auth.user?.institutionId)
+      || null;
+
+    return buildMember(auth.user, activeShare);
+  }, [auth.user, shareRows]);
+
+  const cycle = useMemo(
+    () => buildCycle(cycleQuery.activeCycle, dateRows),
+    [cycleQuery.activeCycle, dateRows],
+  );
+
+  const serverPrefs = useMemo(
+    () => mapServerPreferences(prefsQuery.data, auth.user?.id),
+    [prefsQuery.data, auth.user?.id],
+  );
+
+  const normalizedServerPrefs = useMemo(
+    () => (member ? normalizeMemberPreferences(member, serverPrefs) : { wholeShare: [], fractionalPreferences: [] }),
+    [member, serverPrefs],
+  );
+
+  const effectivePrefs = useMemo(
+    () => (member
+      ? normalizeMemberPreferences(member, localPrefs || normalizedServerPrefs)
+      : { wholeShare: [], fractionalPreferences: [] }),
+    [localPrefs, member, normalizedServerPrefs],
+  );
+
+  const entitlement = useMemo(() => {
+    if (!member) {
+      return { wholeShares: 0, fractionalHours: 0 };
+    }
+
+    return computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
+  }, [member]);
+
+  const wizardSteps = useMemo(() => buildPreferenceWizardSteps(entitlement, effectivePrefs), [
+    entitlement.wholeShares,
+    entitlement.fractionalHours,
+    effectivePrefs.wholeShare,
+    effectivePrefs.fractionalPreferences,
+  ]);
+
   const totalChoices = wizardSteps.length * 2;
   const madeChoices = wizardSteps.reduce(
     (count, step) => count + (step.choice1Date ? 1 : 0) + (step.choice2Date ? 1 : 0),
     0,
   );
   const activeStep = wizardSteps[currentStep] || null;
-  const calendarMonths = useMemo(() => buildWizardCalendarMonths(cycle.startDate, cycle.endDate), [cycle.startDate, cycle.endDate]);
+  const calendarMonths = useMemo(
+    () => buildWizardCalendarMonths(cycle.startDate, cycle.endDate),
+    [cycle.endDate, cycle.startDate],
+  );
   const blockedDateSet = useMemo(() => new Set(cycle.blockedDates || []), [cycle.blockedDates]);
   const blockedSlotSet = useMemo(() => new Set(cycle.blockedSlots || []), [cycle.blockedSlots]);
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const preferenceDeadline = cycle.preferenceDeadline || addDays(cycle.startDate, -7);
-  const commitPreferences = (nextPrefs) => {
-    updatePreference(member.id, normalizeMemberPreferences(member, nextPrefs));
-  };
+  const preferenceDeadline = cycle.preferenceDeadline || (cycle.startDate ? addDays(cycle.startDate, -7) : '');
+  const allComplete = wizardSteps.every((step) => step.choice1Date && step.choice2Date);
+
+  const isLoading = Boolean(
+    auth.loading
+      || sharesQuery.isLoading
+      || cycleQuery.isLoading
+      || prefsQuery.isLoading
+      || datesQuery.isLoading,
+  );
+  const loadError = auth.error
+    || sharesQuery.error
+    || cycleQuery.error
+    || prefsQuery.error
+    || datesQuery.error
+    || null;
+
   const queueTimeout = (callback, delay) => {
     const timeoutId = window.setTimeout(callback, delay);
     timeoutIdsRef.current.push(timeoutId);
     return timeoutId;
   };
+
   const resolvePickingChoice = (step) => (step?.choice1Date && !step?.choice2Date ? 2 : 1);
-  const allComplete = wizardSteps.every((step) => step.choice1Date && step.choice2Date);
+
+  const flushPendingSave = useCallback(() => {
+    if (!pendingPrefsRef.current || !cycleQuery.activeCycleId) return;
+    submitPrefs.mutate({
+      cycleId: cycleQuery.activeCycleId,
+      ...buildSubmitPayload(pendingPrefsRef.current),
+    });
+    pendingPrefsRef.current = null;
+  }, [cycleQuery.activeCycleId, submitPrefs]);
+
+  const commitPreferences = useCallback((nextPrefs) => {
+    if (!member || !cycleQuery.activeCycleId) return;
+    const normalized = normalizeMemberPreferences(member, nextPrefs);
+    setLocalPrefs(normalized);
+    pendingPrefsRef.current = normalized;
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      saveTimeoutRef.current = null;
+      flushPendingSave();
+    }, SAVE_DEBOUNCE_MS);
+  }, [cycleQuery.activeCycleId, flushPendingSave, member]);
+
+  useEffect(() => {
+    setLocalPrefs(null);
+    pendingPrefsRef.current = null;
+  }, [prefsQuery.data]);
+
+  useEffect(() => {
+    if (wizardSteps.length === 0) {
+      setCurrentStep(0);
+      return;
+    }
+
+    const firstIncomplete = wizardSteps.findIndex((step) => !step.choice1Date || !step.choice2Date);
+    const targetStep = firstIncomplete >= 0 ? firstIncomplete : Math.max(0, wizardSteps.length - 1);
+
+    setCurrentStep((prev) => {
+      if (prev >= wizardSteps.length) return targetStep;
+      if (localPrefs == null && prev === 0) return targetStep;
+      return prev;
+    });
+  }, [localPrefs, wizardSteps]);
+
+  useEffect(() => {
+    setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
+  }, [currentStep, wizardSteps]);
+
+  useEffect(() => () => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      flushPendingSave();
+    }
+
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    timeoutIdsRef.current = [];
+  }, [flushPendingSave]);
 
   const getMotionStyle = () => {
     if (stepMotion === 'hold-forward' || stepMotion === 'hold-back') {
@@ -130,20 +380,6 @@ export default function PreferenceFormScreen() {
     }, STEP_HOLD_MS + STEP_SLIDE_MS);
   };
 
-  useEffect(() => {
-    if (currentStep <= wizardSteps.length - 1) return;
-    setCurrentStep(Math.max(0, wizardSteps.length - 1));
-  }, [wizardSteps.length, currentStep]);
-
-  useEffect(() => {
-    setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
-  }, [currentStep, wizardSteps]);
-
-  useEffect(() => () => {
-    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    timeoutIdsRef.current = [];
-  }, []);
-
   const upsertWholePref = (sourcePrefs, shareIndex, shift, patch) => {
     const updated = { ...sourcePrefs, wholeShare: [...(sourcePrefs.wholeShare || [])] };
     const idx = updated.wholeShare.findIndex((entry) => entry.shareIndex === shareIndex && entry.shift === shift);
@@ -159,8 +395,8 @@ export default function PreferenceFormScreen() {
     return updated;
   };
 
-  const updateFractionalPref = (blockIndex, patch) => {
-    const updated = { ...myPrefs, fractionalPreferences: [...(myPrefs.fractionalPreferences || [])] };
+  const updateFractionalPref = (sourcePrefs, blockIndex, patch) => {
+    const updated = { ...sourcePrefs, fractionalPreferences: [...(sourcePrefs.fractionalPreferences || [])] };
     const idx = updated.fractionalPreferences.findIndex((entry) => entry.blockIndex === blockIndex);
     const existing = {
       ...(idx >= 0 ? updated.fractionalPreferences[idx] : { blockIndex, fractionalHours: 0, choice1Date: '', choice2Date: '' }),
@@ -175,11 +411,11 @@ export default function PreferenceFormScreen() {
     if (!step) return;
     const key = choice === 1 ? 'choice1Date' : 'choice2Date';
     if (step.kind === 'whole') {
-      const updated = upsertWholePref(myPrefs, step.shareIndex, step.shift, { [key]: date });
+      const updated = upsertWholePref(effectivePrefs, step.shareIndex, step.shift, { [key]: date });
       commitPreferences(updated);
       return;
     }
-    const updated = updateFractionalPref(step.blockIndex, {
+    const updated = updateFractionalPref(effectivePrefs, step.blockIndex, {
       fractionalHours: step.fractionalHours,
       [key]: date,
     });
@@ -199,9 +435,7 @@ export default function PreferenceFormScreen() {
     if (!activeStep || stepMotion !== 'idle') return;
     if (isDateBlockedForStep(date, activeStep)) return;
     const choice = pickingChoice;
-    const stepLabel = activeStep.kind === 'whole'
-      ? `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`
-      : `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`;
+    const stepLabel = `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`;
     setStepDate(activeStep, choice, date);
     setJustPicked(stepLabel);
     queueTimeout(() => setJustPicked(''), 1200);
@@ -235,6 +469,41 @@ export default function PreferenceFormScreen() {
 
   const formatWizardDate = (dateStr) => (dateStr ? formatCalendarDate(dateStr) : 'Not selected');
 
+  if (isLoading) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading preferences...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div
+        className="rounded-2xl border px-4 py-4 text-sm"
+        style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}
+      >
+        Unable to load preferences. {loadError?.message || 'Please try again.'}
+      </div>
+    );
+  }
+
+  if (!cycleQuery.activeCycleId || !cycleQuery.activeCycle) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        No active cycle. Check back when a new cycle is created.
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        No active share found for your account.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 concept-font-body concept-anim-fade">
       <div className="rounded-2xl border bg-white px-5 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
@@ -250,6 +519,14 @@ export default function PreferenceFormScreen() {
           <div className="flex items-center gap-3">
             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
+            {submitPrefs.isPending ? (
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Saving...</div>
+            ) : null}
+            {submitPrefs.isError ? (
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.error }}>
+                Save failed — {submitPrefs.error?.message || 'try again'}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -370,8 +647,8 @@ export default function PreferenceFormScreen() {
                     {monthNames[month]} {year}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
-                    {dayHeaders.map((day) => (
-                      <div key={`${key}-${day}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
+                    {dayHeaders.map((day, dayIndex) => (
+                      <div key={`${key}-${day}-${dayIndex}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
                         {day}
                       </div>
                     ))}
@@ -409,7 +686,7 @@ export default function PreferenceFormScreen() {
                           }}
                         >
                           {day}
-                          {blocked ? <span className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
+                          {blocked ? <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
                         </button>
                       );
                     })}

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { useQuery, useMutation, useQueryClient, apiGet } = vi.hoisted(() => ({
+const { useQuery, useMutation, useQueryClient, invalidateQueries, apiGet, apiPost } = vi.hoisted(() => ({
   useQuery: vi.fn((config) => config),
-  useMutation: vi.fn(),
+  useMutation: vi.fn((config) => config),
   useQueryClient: vi.fn(),
+  invalidateQueries: vi.fn(),
   apiGet: vi.fn(),
+  apiPost: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -16,15 +18,20 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('../lib/api', () => ({
   api: {
     get: (...args) => apiGet(...args),
+    post: (...args) => apiPost(...args),
   },
 }));
 
-import { useUsers } from './useApiData';
+import { useCreateInstitution, useUsers } from './useApiData';
 
 describe('useUsers', () => {
   beforeEach(() => {
     useQuery.mockClear();
+    useMutation.mockClear();
     apiGet.mockReset();
+    apiPost.mockReset();
+    invalidateQueries.mockReset();
+    useQueryClient.mockReturnValue({ invalidateQueries });
     apiGet.mockResolvedValue({ data: { data: [] } });
   });
 
@@ -71,5 +78,27 @@ describe('useUsers', () => {
       data: [{ id: 'user-1' }, { id: 'user-2' }, { id: 'user-3' }],
       pagination: { page: 2, limit: 100, total: 3, totalPages: 2 },
     });
+  });
+});
+
+describe('useCreateInstitution', () => {
+  beforeEach(() => {
+    useMutation.mockClear();
+    apiPost.mockReset();
+    invalidateQueries.mockReset();
+    useQueryClient.mockReturnValue({ invalidateQueries });
+  });
+
+  it('posts to /institutions and invalidates institution queries on success', async () => {
+    const mutation = useCreateInstitution();
+
+    await mutation.mutationFn({ name: 'University of Georgia', abbreviation: 'UGA' });
+    mutation.onSuccess();
+
+    expect(apiPost).toHaveBeenCalledWith('/institutions', {
+      name: 'University of Georgia',
+      abbreviation: 'UGA',
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['institutions'] });
   });
 });
