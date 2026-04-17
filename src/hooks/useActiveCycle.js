@@ -14,8 +14,8 @@ function extractCycles(payload) {
   return [];
 }
 
-export function useActiveCycle() {
-  const cyclesQuery = useCycles();
+export function useActiveCycle(options = {}) {
+  const cyclesQuery = useCycles(options);
 
   const cycles = useMemo(() => extractCycles(cyclesQuery.data), [cyclesQuery.data]);
 

@@ -15,12 +15,6 @@ vi.mock('../../hooks/useApiData', () => ({
   useUpdateComment: () => useUpdateComment(),
 }));
 
-vi.mock('../../lib/mock-state', () => ({
-  useMockApp: () => {
-    throw new Error('useMockApp should not be called by AdminComments.');
-  },
-}));
-
 beforeEach(() => {
   commentsState = {
     data: [

@@ -2,17 +2,12 @@ import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const useMockApp = vi.fn();
 const useAuth = vi.fn();
 const useActiveCycle = vi.fn();
 const useMasterShares = vi.fn();
 const usePreferences = vi.fn();
 const useAvailableDates = vi.fn();
 const useSubmitPreferences = vi.fn();
-
-vi.mock('../../lib/mock-state', () => ({
-  useMockApp: () => useMockApp(),
-}));
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => useAuth(),
@@ -30,27 +25,6 @@ vi.mock('../../hooks/useApiData', () => ({
 }));
 
 import PreferenceForm from './PreferenceForm';
-
-function buildMockState() {
-  return {
-    activeMember: {
-      id: 'SERCAT',
-      name: 'SERCAT',
-      shares: 1.5,
-      status: 'ACTIVE',
-    },
-    cycle: {
-      id: 'Spring 2026',
-      startDate: '2026-04-20',
-      endDate: '2026-04-22',
-      preferenceDeadline: '2026-04-13',
-      blockedDates: [],
-      blockedSlots: [],
-    },
-    preferences: {},
-    updatePreference: vi.fn(),
-  };
-}
 
 function buildAuth(overrides = {}) {
   return {
@@ -144,7 +118,6 @@ function buildSubmitMutation(overrides = {}) {
 
 describe('PreferenceForm', () => {
   beforeEach(() => {
-    useMockApp.mockReset();
     useAuth.mockReset();
     useActiveCycle.mockReset();
     useMasterShares.mockReset();
@@ -152,7 +125,6 @@ describe('PreferenceForm', () => {
     useAvailableDates.mockReset();
     useSubmitPreferences.mockReset();
 
-    useMockApp.mockReturnValue(buildMockState());
     useAuth.mockReturnValue(buildAuth());
     useActiveCycle.mockReturnValue(buildActiveCycle());
     useMasterShares.mockReturnValue(buildSharesQuery());
@@ -172,7 +144,6 @@ describe('PreferenceForm', () => {
 
     expect(screen.getByText('Loading preferences...')).toBeInTheDocument();
     expect(useAuth).toHaveBeenCalled();
-    expect(useMockApp).not.toHaveBeenCalled();
   });
 
   it('shows a clear empty state when there is no active cycle', () => {
@@ -181,7 +152,6 @@ describe('PreferenceForm', () => {
     render(<PreferenceForm />);
 
     expect(screen.getByText('No active cycle. Check back when a new cycle is created.')).toBeInTheDocument();
-    expect(useMockApp).not.toHaveBeenCalled();
   });
 
   it('shows a clear empty state when no share matches the signed-in PI', () => {
@@ -190,7 +160,6 @@ describe('PreferenceForm', () => {
     render(<PreferenceForm />);
 
     expect(screen.getByText('No active share found for your account.')).toBeInTheDocument();
-    expect(useMockApp).not.toHaveBeenCalled();
   });
 
   it('blocks per-shift unavailable dates and debounces whole-share preference saves with optimistic UI updates', async () => {

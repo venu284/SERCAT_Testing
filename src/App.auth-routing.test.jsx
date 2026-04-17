@@ -7,8 +7,6 @@ import { beforeEach, expect, test, vi } from 'vitest';
 const mockLogin = vi.fn();
 const mockActivate = vi.fn();
 const mockLogout = vi.fn();
-const mockLoadFromDatabase = vi.fn();
-const mockSaveCurrentToDatabase = vi.fn();
 
 vi.mock('./contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -20,30 +18,28 @@ vi.mock('./contexts/AuthContext', () => ({
   }),
 }));
 
-vi.mock('./lib/mock-state', () => ({
-  MockStateProvider: ({ children }) => children,
-  useMockApp: () => ({
-    session: null,
-    isAdminSession: false,
+vi.mock('./hooks/useAppShell', () => ({
+  useAppShell: () => ({
+    user: null,
+    authLoading: false,
+    logout: vi.fn(),
+    isAuthenticated: false,
+    isAdmin: false,
     currentView: 'admin',
     setCurrentView: vi.fn(),
     memberTab: 'dashboard',
     setMemberTab: vi.fn(),
     adminTab: 'dashboard',
     setAdminTab: vi.fn(),
-    handleSignOut: vi.fn(),
-    cycle: { id: '2031-2' },
+    cycle: { id: '2031-2', startDate: '', endDate: '', preferenceDeadline: '', _dbId: null, _status: '' },
+    activeCycleId: null,
     members: [],
     activeMember: null,
-    memberTabBadges: {},
+    hasGeneratedSchedule: false,
     pendingRegistrationCount: 0,
-    dbStatus: 'ok',
-    dbBusy: false,
-    serverDataReady: false,
-    serverDataLoading: false,
-    loadFromDatabase: mockLoadFromDatabase,
-    saveCurrentToDatabase: mockSaveCurrentToDatabase,
-    results: null,
+    memberTabBadges: {},
+    dataReady: false,
+    dataLoading: false,
   }),
 }));
 
@@ -53,8 +49,6 @@ beforeEach(() => {
   mockLogin.mockReset();
   mockActivate.mockReset();
   mockLogout.mockReset();
-  mockLoadFromDatabase.mockReset();
-  mockSaveCurrentToDatabase.mockReset();
   mockLogin.mockResolvedValue({ id: 'user-1' });
 });
 

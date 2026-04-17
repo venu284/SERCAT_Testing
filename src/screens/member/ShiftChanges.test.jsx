@@ -2,17 +2,12 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const useMockApp = vi.fn();
 const useAuth = vi.fn();
 const useActiveCycle = vi.fn();
 const useSchedule = vi.fn();
 const useSwapRequests = vi.fn();
 const useAvailableDates = vi.fn();
 const useCreateSwapRequest = vi.fn();
-
-vi.mock('../../lib/mock-state', () => ({
-  useMockApp: () => useMockApp(),
-}));
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => useAuth(),
@@ -37,35 +32,12 @@ function buildMutation() {
 
 describe('ShiftChanges', () => {
   beforeEach(() => {
-    useMockApp.mockReset();
     useAuth.mockReset();
     useActiveCycle.mockReset();
     useSchedule.mockReset();
     useSwapRequests.mockReset();
     useAvailableDates.mockReset();
     useCreateSwapRequest.mockReset();
-
-    useMockApp.mockReturnValue({
-      cycle: { startDate: '2026-04-20', endDate: '2026-04-22' },
-      sortedCurrentMemberAssignments: [],
-      assignmentKey: vi.fn(),
-      selectedShiftChangeSource: '',
-      setSelectedShiftChangeSource: vi.fn(),
-      formatMemberShiftDate: vi.fn((value) => value),
-      shiftChangeForm: { requestedDate: '', requestedShift: '', reason: '' },
-      setShiftChangeForm: vi.fn(),
-      submitShiftChangeRequest: vi.fn(),
-      selectedShiftChangeAssignmentObj: null,
-      availableShiftRequestDatesForSelection: [],
-      availableShiftRequestTypes: [],
-      memberShiftChangeError: '',
-      setMemberShiftChangeError: vi.fn(),
-      shiftChangeSubmittedFlash: false,
-      memberShiftRequests: [],
-      memberShiftChangeSummary: { pending: 0, approved: 0, rejected: 0 },
-      expandedMemberRequestId: '',
-      setExpandedMemberRequestId: vi.fn(),
-    });
 
     useAuth.mockReturnValue({
       user: { id: 'pi-1', institutionId: 'inst-1', institutionAbbreviation: 'UGA' },
@@ -103,7 +75,7 @@ describe('ShiftChanges', () => {
     useCreateSwapRequest.mockReturnValue(buildMutation());
   });
 
-  it('uses real hooks instead of useMockApp and submits swap requests through the mutation', () => {
+  it('uses real hooks and submits swap requests through the mutation', () => {
     const createMutation = buildMutation();
     useCreateSwapRequest.mockReturnValue(createMutation);
 
@@ -114,7 +86,6 @@ describe('ShiftChanges', () => {
     expect(useSchedule).toHaveBeenCalledWith('cycle-1');
     expect(useSwapRequests).toHaveBeenCalled();
     expect(useAvailableDates).toHaveBeenCalledWith('cycle-1');
-    expect(useMockApp).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /Mon, Apr 20/i }));
     fireEvent.change(screen.getByDisplayValue(''), { target: { value: '2026-04-22' } });

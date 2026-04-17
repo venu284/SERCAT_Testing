@@ -88,7 +88,7 @@ describe('MemberDashboard', () => {
     useMemberDashboardContext.mockReset();
   });
 
-  it('renders the production-backed member dashboard values without useMockApp', () => {
+  it('renders the production-backed member dashboard values', () => {
     useActiveCycle.mockReturnValue(buildActiveCycle());
     useMemberDashboardContext.mockReturnValue(buildDashboardContext());
 

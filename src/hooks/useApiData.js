@@ -16,7 +16,7 @@ export function useCreateInstitution() {
   });
 }
 
-export function useUsers(params = {}) {
+export function useUsers(params = {}, options = {}) {
   return useQuery({
     queryKey: ['users', params],
     queryFn: async () => {
@@ -71,6 +71,7 @@ export function useUsers(params = {}) {
 
       return api.get(url).then((r) => r.data);
     },
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -112,10 +113,11 @@ export function useResendInvite() {
   });
 }
 
-export function useCycles() {
+export function useCycles(options = {}) {
   return useQuery({
     queryKey: ['cycles'],
     queryFn: () => api.get('/cycles').then((r) => r.data),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -135,11 +137,11 @@ export function useUpdateCycle() {
   });
 }
 
-export function useAvailableDates(cycleId) {
+export function useAvailableDates(cycleId, options = {}) {
   return useQuery({
     queryKey: ['available-dates', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/dates`).then((r) => r.data),
-    enabled: Boolean(cycleId),
+    enabled: Boolean(cycleId) && (options.enabled ?? true),
   });
 }
 
@@ -151,10 +153,11 @@ export function useSetAvailableDates() {
   });
 }
 
-export function useMasterShares() {
+export function useMasterShares(options = {}) {
   return useQuery({
     queryKey: ['master-shares'],
     queryFn: () => api.get('/shares').then((r) => r.data),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -194,11 +197,11 @@ export function useSnapshotShares() {
   });
 }
 
-export function usePreferences(cycleId) {
+export function usePreferences(cycleId, options = {}) {
   return useQuery({
     queryKey: ['preferences', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/preferences`).then((r) => r.data),
-    enabled: Boolean(cycleId),
+    enabled: Boolean(cycleId) && (options.enabled ?? true),
   });
 }
 
@@ -211,19 +214,19 @@ export function useSubmitPreferences() {
   });
 }
 
-export function usePreferenceStatus(cycleId) {
+export function usePreferenceStatus(cycleId, options = {}) {
   return useQuery({
     queryKey: ['preference-status', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/preferences/status`).then((r) => r.data),
-    enabled: Boolean(cycleId),
+    enabled: Boolean(cycleId) && (options.enabled ?? true),
   });
 }
 
-export function useSchedule(cycleId) {
+export function useSchedule(cycleId, options = {}) {
   return useQuery({
     queryKey: ['schedule', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/schedules`).then((r) => r.data),
-    enabled: Boolean(cycleId),
+    enabled: Boolean(cycleId) && (options.enabled ?? true),
   });
 }
 
@@ -271,10 +274,11 @@ export function useNotifications() {
   });
 }
 
-export function useComments() {
+export function useComments(options = {}) {
   return useQuery({
     queryKey: ['comments'],
     queryFn: () => api.get('/comments').then((r) => r.data),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -310,10 +314,11 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
-export function useSwapRequests() {
+export function useSwapRequests(options = {}) {
   return useQuery({
     queryKey: ['swap-requests'],
     queryFn: () => api.get('/swap-requests').then((r) => r.data),
+    enabled: options.enabled ?? true,
   });
 }
 
