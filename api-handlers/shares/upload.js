@@ -7,7 +7,7 @@ import { masterShares } from '../../db/schema/master-shares.js';
 import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
-import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
 import { sendEmail } from '../../lib/email.js';
 import { accountInviteEmail } from '../../lib/email-templates.js';
 
@@ -86,7 +86,7 @@ async function handler(req, res) {
           institutionId: inst.id,
           isActive: true,
           isActivated: false,
-          activationToken,
+          activationTokenHash: hashToken(activationToken),
           activationTokenExpiresAt: tokenExpiresAt(72),
         }).returning();
         summary.usersCreated++;

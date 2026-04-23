@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
-import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
 import { sendEmail } from '../../lib/email.js';
 import { passwordResetEmail } from '../../lib/email-templates.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
@@ -26,8 +26,8 @@ async function handler(req, res) {
       const expiresAt = tokenExpiresAt(1);
 
       await db.update(users).set({
-        activationToken: resetToken,
-        activationTokenExpiresAt: expiresAt,
+        resetTokenHash: hashToken(resetToken),
+        resetTokenExpiresAt: expiresAt,
         updatedAt: new Date(),
       }).where(eq(users.id, user.id));
 

@@ -6,7 +6,7 @@ import { institutions } from '../../db/schema/institutions.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
-import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
 
 const updateUserSchema = z.object({
   email: z.string().email().trim().toLowerCase().optional(),
@@ -88,7 +88,7 @@ async function handler(req, res) {
       let activationToken = null;
       if (body.resetActivation) {
         activationToken = body.activationToken || generateToken();
-        updateData.activationToken = activationToken;
+        updateData.activationTokenHash = hashToken(activationToken);
         updateData.activationTokenExpiresAt = tokenExpiresAt(72);
         updateData.isActivated = false;
         updateData.passwordHash = null;

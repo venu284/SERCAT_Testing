@@ -6,7 +6,7 @@ import { institutions } from '../../db/schema/institutions.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
-import { generateToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
 import { sendEmail } from '../../lib/email.js';
 import { accountInviteEmail } from '../../lib/email-templates.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
@@ -107,7 +107,7 @@ async function handler(req, res) {
       institutionId: body.institutionId || null,
       isActive: true,
       isActivated: false,
-      activationToken,
+      activationTokenHash: hashToken(activationToken),
       activationTokenExpiresAt,
     }).returning();
 

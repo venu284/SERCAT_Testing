@@ -19,6 +19,7 @@ function getZodMessage(err) {
 async function handler(req, res) {
   try {
     const body = loginSchema.parse(req.body);
+    const loginAt = Math.floor(Date.now() / 1000);
 
     const rateCheck = checkRateLimit(body.email);
     if (!rateCheck.allowed) {
@@ -81,6 +82,7 @@ async function handler(req, res) {
       role: user.role,
       email: user.email,
       institutionId: user.institutionId,
+      loginAt,
     });
 
     setSessionCookie(res, token);

@@ -50,6 +50,13 @@
       "when": 1776359252310,
       "tag": "0006_fuzzy_old_lace",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776978569987,
+      "tag": "0007_skinny_morgan_stark",
+      "breakpoints": true
     }
   ]
 }

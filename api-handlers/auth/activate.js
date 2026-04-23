@@ -3,12 +3,13 @@ import { eq, and, gt } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
-import { hashPassword } from '../../lib/auth-utils.js';
+import { hashPassword, hashToken } from '../../lib/auth-utils.js';
+import { strongPasswordSchema } from '../../lib/validation.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 
 const activateSchema = z.object({
   token: z.string().min(1, 'Activation token is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: strongPasswordSchema,
   confirmPassword: z.string(),
   phone: z.string().optional().default(''),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -23,13 +24,14 @@ function getZodMessage(err) {
 async function handler(req, res) {
   try {
     const body = activateSchema.parse(req.body);
+    const activationTokenHash = hashToken(body.token);
 
     const [user] = await db
       .select()
       .from(users)
       .where(
         and(
-          eq(users.activationToken, body.token),
+          eq(users.activationTokenHash, activationTokenHash),
           eq(users.isActivated, false),
           gt(users.activationTokenExpiresAt, new Date()),
         ),
@@ -48,7 +50,7 @@ async function handler(req, res) {
     await db.update(users).set({
       passwordHash,
       isActivated: true,
-      activationToken: null,
+      activationTokenHash: null,
       activationTokenExpiresAt: null,
       updatedAt: new Date(),
     }).where(eq(users.id, user.id));

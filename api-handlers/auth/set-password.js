@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { eq, and, gt } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
-import { hashPassword } from '../../lib/auth-utils.js';
+import { hashPassword, hashToken } from '../../lib/auth-utils.js';
+import { strongPasswordSchema } from '../../lib/validation.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 
 const setPasswordSchema = z.object({
   token: z.string().min(1, 'Reset token is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: strongPasswordSchema,
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
@@ -21,14 +22,15 @@ function getZodMessage(err) {
 async function handler(req, res) {
   try {
     const body = setPasswordSchema.parse(req.body);
+    const resetTokenHash = hashToken(body.token);
 
     const [user] = await db
       .select()
       .from(users)
       .where(
         and(
-          eq(users.activationToken, body.token),
-          gt(users.activationTokenExpiresAt, new Date()),
+          eq(users.resetTokenHash, resetTokenHash),
+          gt(users.resetTokenExpiresAt, new Date()),
         ),
       )
       .limit(1);
@@ -44,8 +46,8 @@ async function handler(req, res) {
 
     await db.update(users).set({
       passwordHash,
-      activationToken: null,
-      activationTokenExpiresAt: null,
+      resetTokenHash: null,
+      resetTokenExpiresAt: null,
       updatedAt: new Date(),
     }).where(eq(users.id, user.id));
 
