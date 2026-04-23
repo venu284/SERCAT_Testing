@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import ShiftSlotCalendar from './ShiftSlotCalendar';
+import { ASSIGNMENT_REASON_LABELS } from '../lib/constants';
 import { COLORS, MEMBER_BG } from '../lib/theme';
 
 export default function CalendarResults({
@@ -16,9 +17,9 @@ export default function CalendarResults({
     if (!showOriginalChoices) return {};
     if (filterMember === 'all') return originalChoiceMarks;
     const filtered = {};
-    Object.entries(originalChoiceMarks).forEach(([slotKey, marks]) => {
+    Object.entries(originalChoiceMarks).forEach(([slotId, marks]) => {
       const keep = marks.filter((mark) => mark.startsWith(`${filterMember} `));
-      if (keep.length > 0) filtered[slotKey] = keep;
+      if (keep.length > 0) filtered[slotId] = keep;
     });
     return filtered;
   }, [showOriginalChoices, filterMember, originalChoiceMarks]);
@@ -62,11 +63,11 @@ export default function CalendarResults({
         <h4 className="font-semibold text-gray-700 text-sm mb-2">Calendar Summary</h4>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="px-2 py-1 rounded bg-gray-100 text-gray-700">Assigned Slots: {results.assignments.filter((a) => filterMember === 'all' || a.memberId === filterMember).length}</span>
-          <span className="px-2 py-1 rounded bg-green-100 text-green-700">First Choice: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentType === 'FIRST_CHOICE').length}</span>
-          <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-700">Second Choice: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentType === 'SECOND_CHOICE').length}</span>
-          <span className="px-2 py-1 rounded bg-orange-100 text-orange-700">Proximity: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentType === 'PROXIMITY').length}</span>
-          <span className="px-2 py-1 rounded bg-slate-100 text-slate-700">Backfill: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentType === 'BACKFILL_ASSIGNED').length}</span>
-          <span className="px-2 py-1 rounded bg-red-100 text-red-700">Auto: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentType === 'AUTO_ASSIGNED').length}</span>
+          <span className="px-2 py-1 rounded bg-green-100 text-green-700">{ASSIGNMENT_REASON_LABELS.choice1}: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && ['choice1', 'choice1_no_conflict'].includes(a.assignmentReason)).length}</span>
+          <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-700">{ASSIGNMENT_REASON_LABELS.choice2}: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentReason === 'choice2').length}</span>
+          <span className="px-2 py-1 rounded bg-orange-100 text-orange-700">{ASSIGNMENT_REASON_LABELS.fallback_proximity}: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentReason === 'fallback_proximity').length}</span>
+          <span className="px-2 py-1 rounded bg-slate-100 text-slate-700">{ASSIGNMENT_REASON_LABELS.fallback_any}: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentReason === 'fallback_any').length}</span>
+          <span className="px-2 py-1 rounded bg-red-100 text-red-700">{ASSIGNMENT_REASON_LABELS.auto_assigned}: {results.assignments.filter((a) => (filterMember === 'all' || a.memberId === filterMember) && a.assignmentReason === 'auto_assigned').length}</span>
         </div>
       </div>
     </div>

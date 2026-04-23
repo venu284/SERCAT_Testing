@@ -1,8 +1,21 @@
 {
   "rewrites": [
+    { "source": "/api/cron/:path*", "destination": "/api/cron/:path*" },
+    { "source": "/api/:path*", "destination": "/api/[...path]" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 13 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/[...path].js": {
+      "maxDuration": 30
+    },
+    "api/cron/send-reminders.js": {
+      "maxDuration": 30
+    }
+  }
 }

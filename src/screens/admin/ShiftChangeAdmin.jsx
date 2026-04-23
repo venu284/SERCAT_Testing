@@ -1,17 +1,103 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useResolveSwapRequest, useSwapRequests } from '../../hooks/useApiData';
 import { SHIFT_ORDER, SHIFT_UI_META } from '../../lib/constants';
 import { CONCEPT_THEME, COLORS } from '../../lib/theme';
 import { formatCalendarDate } from '../../lib/dates';
-import { useMockApp } from '../../lib/mock-state';
 
 export default function ShiftChangeAdmin() {
-  const {
-    sortedShiftRequests,
-    adminShiftDrafts,
-    adminShiftActionErrors,
-    updateShiftDraft,
-    resolveShiftChange,
-  } = useMockApp();
+  const swapRequestsQuery = useSwapRequests();
+  const resolveSwapMutation = useResolveSwapRequest();
+  const [adminShiftDrafts, setAdminShiftDrafts] = useState({});
+  const [adminShiftActionErrors, setAdminShiftActionErrors] = useState({});
+
+  const sortedShiftRequests = useMemo(() => {
+    const swaps = Array.isArray(swapRequestsQuery.data?.data) ? swapRequestsQuery.data.data : [];
+    return swaps
+      .map((swap) => {
+        const targetAssignment = swap.targetAssignment || {};
+        const approved = swap.status === 'approved';
+        return {
+          id: swap.id,
+          _swapId: swap.id,
+          memberId: swap.institutionAbbreviation || swap.requesterName || 'Unknown',
+          sourceDate: targetAssignment.assignedDate || '',
+          sourceShift: targetAssignment.shift || '',
+          requestedDate: (swap.preferredDates || [])[0] || '',
+          requestedShift: '',
+          reason: '',
+          status: approved ? 'Approved' : swap.status === 'denied' ? 'Rejected' : 'Pending',
+          createdAt: swap.createdAt,
+          adminNote: swap.adminNotes || '',
+          reassignedDate: approved ? (targetAssignment.assignedDate || '') : '',
+          reassignedShift: approved ? (targetAssignment.shift || '') : '',
+        };
+      })
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }, [swapRequestsQuery.data]);
+
+  const updateShiftDraft = useCallback((requestId, patch) => {
+    setAdminShiftDrafts((prev) => ({
+      ...prev,
+      [requestId]: { ...(prev[requestId] || {}), ...patch },
+    }));
+    setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' }));
+  }, []);
+
+  const resolveShiftChange = useCallback((requestId, status) => {
+    const request = sortedShiftRequests.find((entry) => entry.id === requestId);
+    if (!request) return;
+
+    const draft = adminShiftDrafts[requestId] || {};
+
+    if (status === 'Rejected') {
+      resolveSwapMutation.mutate(
+        {
+          id: request._swapId,
+          status: 'denied',
+          adminNotes: String(draft.adminNote || '').trim(),
+        },
+        {
+          onSuccess: () => setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' })),
+          onError: (err) => setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: err.message })),
+        },
+      );
+      return;
+    }
+
+    const targetDate = String(draft.reassignedDate || request.requestedDate || '').trim();
+    const targetShift = String(draft.reassignedShift || request.requestedShift || '').trim();
+    const adminNote = String(draft.adminNote || '').trim();
+
+    if (!targetDate || !targetShift) {
+      setAdminShiftActionErrors((prev) => ({
+        ...prev,
+        [requestId]: 'Select reassigned date and shift before approval.',
+      }));
+      return;
+    }
+
+    resolveSwapMutation.mutate(
+      {
+        id: request._swapId,
+        status: 'approved',
+        adminNotes: adminNote,
+        reassignedDate: targetDate,
+        reassignedShift: targetShift,
+      },
+      {
+        onSuccess: () => setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: '' })),
+        onError: (err) => setAdminShiftActionErrors((prev) => ({ ...prev, [requestId]: err.message })),
+      },
+    );
+  }, [adminShiftDrafts, resolveSwapMutation, sortedShiftRequests]);
+
+  if (swapRequestsQuery.isLoading) {
+    return (
+      <div className="bg-white rounded-lg border p-4 shadow-sm text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading shift change requests...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -34,11 +120,11 @@ export default function ShiftChangeAdmin() {
             ? { bg: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }
             : { bg: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent };
         const sourceDate = request.sourceDate || '';
-        const sourceShiftType = request.sourceShiftType || '';
+        const sourceShift = request.sourceShift || '';
         const effectiveRequestedDate = request.requestedDate || '';
-        const effectiveRequestedShift = request.requestedShiftType || '';
+        const effectiveRequestedShift = request.requestedShift || '';
         const effectiveReassignedDate = draft.reassignedDate || request.reassignedDate || effectiveRequestedDate || '';
-        const effectiveReassignedShift = draft.reassignedShiftType || request.reassignedShiftType || effectiveRequestedShift || '';
+        const effectiveReassignedShift = draft.reassignedShift || request.reassignedShift || effectiveRequestedShift || '';
         return (
           <div key={request.id} className="bg-white rounded-lg border p-4 shadow-sm space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -59,7 +145,7 @@ export default function ShiftChangeAdmin() {
               <div className="rounded-lg px-3 py-2" style={{ background: CONCEPT_THEME.sand }}>
                 <div className="font-semibold mb-0.5" style={{ color: CONCEPT_THEME.muted }}>Source Assignment</div>
                 <div style={{ color: CONCEPT_THEME.text }}>
-                  {sourceDate ? `${formatCalendarDate(sourceDate)} | ${SHIFT_UI_META[sourceShiftType]?.label || sourceShiftType}` : 'Missing source assignment in request'}
+                  {sourceDate ? `${formatCalendarDate(sourceDate)} | ${SHIFT_UI_META[sourceShift]?.label || sourceShift}` : 'Missing source assignment in request'}
                 </div>
               </div>
               <div className="rounded-lg px-3 py-2" style={{ background: CONCEPT_THEME.sand }}>
@@ -86,13 +172,13 @@ export default function ShiftChangeAdmin() {
               />
               <select
                 value={effectiveReassignedShift}
-                onChange={(e) => updateShiftDraft(request.id, { reassignedShiftType: e.target.value })}
+                onChange={(e) => updateShiftDraft(request.id, { reassignedShift: e.target.value })}
                 className="rounded border px-2 py-1.5 text-sm"
               >
                 <option value="">Select Shift</option>
-                {SHIFT_ORDER.map((shiftType) => (
-                  <option key={`${request.id}-shift-${shiftType}`} value={shiftType}>
-                    {SHIFT_UI_META[shiftType]?.label || shiftType}
+                {SHIFT_ORDER.map((shift) => (
+                  <option key={`${request.id}-shift-${shift}`} value={shift}>
+                    {SHIFT_UI_META[shift]?.label || shift}
                   </option>
                 ))}
               </select>

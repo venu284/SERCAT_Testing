@@ -1,44 +1,163 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ConceptProgressRing from '../../components/ConceptProgressRing';
-import { SHIFT_PLAIN_LABELS, SHIFT_UI_META, WHOLE_SLOT_LABELS } from '../../lib/constants';
+import { useAuth } from '../../contexts/AuthContext';
+import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants';
 import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates';
-import { CONCEPT_THEME } from '../../lib/theme';
-import { computeEntitlements } from '../../engine/engine';
+import { computeEntitlements } from '../../lib/entitlements.js';
 import { normalizeMemberPreferences } from '../../lib/normalizers';
-import { getActiveWholeSlotKeysForShare } from '../../lib/whole-share';
-import { useMockApp } from '../../lib/mock-state';
+import { CONCEPT_THEME } from '../../lib/theme';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import {
+  useAvailableDates,
+  useMasterShares,
+  usePreferences,
+  useSubmitPreferences,
+} from '../../hooks/useApiData';
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function buildMember(user, share) {
+  if (!share) {
+    return null;
+  }
+
+  const wholeShares = Number(share?.wholeShares) || 0;
+  const fractionalShares = Number(share?.fractionalShares) || 0;
+
+  return {
+    id: share?.institutionAbbreviation || user?.institutionAbbreviation || 'PI',
+    name: share?.institutionName || user?.institutionName || user?.name || 'Member',
+    shares: Number((wholeShares + fractionalShares).toFixed(2)),
+    status: 'ACTIVE',
+    _piUserId: share?.piId || user?.id || null,
+    _institutionUuid: share?.institutionId || user?.institutionId || null,
+  };
+}
+
+function buildCycle(activeCycle, dateRows) {
+  if (!activeCycle) {
+    return {
+      id: '',
+      startDate: '',
+      endDate: '',
+      preferenceDeadline: '',
+      blockedDates: [],
+      blockedSlots: [],
+    };
+  }
+
+  const blockedDates = [];
+  const blockedSlots = [];
+
+  dateRows.forEach((entry) => {
+    if (!entry?.date) return;
+    if (entry.isAvailable === false) {
+      blockedDates.push(entry.date);
+    } else {
+      if (entry.ds1Available === false) blockedSlots.push(`${entry.date}:DS1`);
+      if (entry.ds2Available === false) blockedSlots.push(`${entry.date}:DS2`);
+      if (entry.nsAvailable === false) blockedSlots.push(`${entry.date}:NS`);
+    }
+  });
+
+  const preferenceDeadline = activeCycle.preferenceDeadline
+    ? (activeCycle.preferenceDeadline.includes('T')
+      ? activeCycle.preferenceDeadline.split('T')[0]
+      : activeCycle.preferenceDeadline)
+    : (activeCycle.startDate ? addDays(activeCycle.startDate, -7) : '');
+
+  return {
+    id: activeCycle.name || activeCycle.id,
+    startDate: activeCycle.startDate || '',
+    endDate: activeCycle.endDate || '',
+    preferenceDeadline,
+    blockedDates: blockedDates.sort(),
+    blockedSlots: blockedSlots.sort(),
+  };
+}
+
+function mapServerPreferences(payload, piId) {
+  const data = payload?.data || payload || {};
+  const serverWhole = Array.isArray(data.preferences) ? data.preferences : [];
+  const serverFractional = Array.isArray(data.fractionalPreferences) ? data.fractionalPreferences : [];
+
+  return {
+    wholeShare: serverWhole
+      .filter((entry) => !piId || !entry?.piId || entry.piId === piId)
+      .map((entry) => ({
+        shareIndex: entry.shareIndex,
+        shift: entry.shift,
+        choice1Date: entry.choice1Date || '',
+        choice2Date: entry.choice2Date || '',
+      })),
+    fractionalPreferences: serverFractional
+      .filter((entry) => !piId || !entry?.piId || entry.piId === piId)
+      .map((entry) => ({
+        blockIndex: entry.blockIndex,
+        fractionalHours: Number(entry.fractionalHours) || 0,
+        choice1Date: entry.choice1Date || '',
+        choice2Date: entry.choice2Date || '',
+      })),
+    submitted: Boolean(data.submittedAt),
+    notes: '',
+  };
+}
+
+function buildSubmitPayload(prefs) {
+  return {
+    preferences: (prefs?.wholeShare || [])
+      .filter((entry) => entry.choice1Date || entry.choice2Date)
+      .map((entry) => ({
+        shareIndex: entry.shareIndex,
+        shift: entry.shift,
+        choice1Date: entry.choice1Date || null,
+        choice2Date: entry.choice2Date || null,
+      })),
+    fractionalPreferences: (prefs?.fractionalPreferences || [])
+      .filter((entry) => entry.choice1Date || entry.choice2Date)
+      .map((entry) => ({
+        blockIndex: entry.blockIndex,
+        fractionalHours: entry.fractionalHours,
+        choice1Date: entry.choice1Date || null,
+        choice2Date: entry.choice2Date || null,
+      })),
+  };
+}
 
 function buildPreferenceWizardSteps(entitlement, myPrefs) {
   const wholeSlots = [];
   for (let shareIndex = 1; shareIndex <= entitlement.wholeShares; shareIndex += 1) {
-    getActiveWholeSlotKeysForShare(myPrefs.wholeShare, shareIndex).forEach((slotKey) => {
-      const pref = myPrefs.wholeShare.find((entry) => entry.shareIndex === shareIndex && entry.slotKey === slotKey) || {};
-      const shiftType = slotKey === 'NS' ? 'NS' : (typeof pref.shiftType === 'string' ? pref.shiftType : '');
+    SHIFT_ORDER.forEach((shift) => {
+      const pref = myPrefs.wholeShare.find((entry) => entry.shareIndex === shareIndex && entry.shift === shift) || {};
       wholeSlots.push({
         kind: 'whole',
         shareIndex,
-        slotKey,
-        shiftType, 
-        firstChoiceDate: pref.firstChoiceDate || '',
-        secondChoiceDate: pref.secondChoiceDate || '',
-        label: `Share ${shareIndex} - ${WHOLE_SLOT_LABELS[slotKey] || slotKey}`,
+        shift,
+        choice1Date: pref.choice1Date || '',
+        choice2Date: pref.choice2Date || '',
+        label: `Share ${shareIndex} - ${SHIFT_PLAIN_LABELS[shift] || shift}`,
       });
     });
   }
 
-  const fractionalBlocks = Math.ceil(entitlement.fractionalHours / 6);
-  const fractionalSlots = Array.from({ length: fractionalBlocks }, (_, idx) => {
-    const pref = myPrefs.fractional[idx] || {};
-    const shiftType = typeof pref.shiftType === 'string' ? pref.shiftType : '';
-    return {
-      kind: 'fractional',
-      fracIndex: idx,
-      shiftType,
-      firstChoiceDate: pref.firstChoiceDate || '',
-      secondChoiceDate: pref.secondChoiceDate || '',
-      label: `Fractional Block ${idx + 1} - ${SHIFT_PLAIN_LABELS[shiftType] || 'Choose Session'}`,
-    };
-  });
+  const fractionalSlots = (myPrefs.fractionalPreferences || []).map((pref, index) => ({
+    kind: 'fractional',
+    blockIndex: pref.blockIndex || index + 1,
+    fractionalHours: pref.fractionalHours || 0,
+    choice1Date: pref.choice1Date || '',
+    choice2Date: pref.choice2Date || '',
+    label: `Fractional Block ${pref.blockIndex || index + 1} - ${Number(pref.fractionalHours || 0).toFixed(2).replace(/\.00$/, '')}h`,
+  }));
 
   return [...wholeSlots, ...fractionalSlots];
 }
@@ -60,56 +179,175 @@ const STEP_HOLD_MS = 180;
 const STEP_SLIDE_MS = 340;
 const STEP_ENTER_DELAY_MS = 36;
 const STEP_TOAST_MS = 1350;
+const SAVE_DEBOUNCE_MS = 800;
 
 export default function PreferenceFormScreen() {
-  const { activeMember: member, cycle, preferences, updatePreference } = useMockApp();
+  const auth = useAuth();
+  const cycleQuery = useActiveCycle();
+  const sharesQuery = useMasterShares();
+  const datesQuery = useAvailableDates(cycleQuery.activeCycleId);
+  const prefsQuery = usePreferences(cycleQuery.activeCycleId);
+  const submitPrefs = useSubmitPreferences();
 
-  if (!member) return null;
-
-  const entitlement = computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
-  const myPrefs = preferences[member.id] || normalizeMemberPreferences(member, {});
-  const wizardSteps = useMemo(() => buildPreferenceWizardSteps(entitlement, myPrefs), [
-    entitlement.wholeShares,
-    entitlement.fractionalHours,
-    myPrefs.wholeShare,
-    myPrefs.fractional,
-  ]);
+  const [localPrefs, setLocalPrefs] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [pickingChoice, setPickingChoice] = useState(1);
   const [justPicked, setJustPicked] = useState('');
   const [stepToast, setStepToast] = useState('');
   const [stepMotion, setStepMotion] = useState('idle');
+
   const timeoutIdsRef = useRef([]);
+  const pendingPrefsRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
+
+  const shareRows = useMemo(() => extractRows(sharesQuery.data), [sharesQuery.data]);
+  const dateRows = useMemo(() => extractRows(datesQuery.data), [datesQuery.data]);
+
+  const member = useMemo(() => {
+    const activeShare = shareRows.find((row) => row?.piId === auth.user?.id)
+      || shareRows.find((row) => row?.institutionId === auth.user?.institutionId)
+      || null;
+
+    return buildMember(auth.user, activeShare);
+  }, [auth.user, shareRows]);
+
+  const cycle = useMemo(
+    () => buildCycle(cycleQuery.activeCycle, dateRows),
+    [cycleQuery.activeCycle, dateRows],
+  );
+
+  const serverPrefs = useMemo(
+    () => mapServerPreferences(prefsQuery.data, auth.user?.id),
+    [prefsQuery.data, auth.user?.id],
+  );
+
+  const normalizedServerPrefs = useMemo(
+    () => (member ? normalizeMemberPreferences(member, serverPrefs) : { wholeShare: [], fractionalPreferences: [] }),
+    [member, serverPrefs],
+  );
+
+  const effectivePrefs = useMemo(
+    () => (member
+      ? normalizeMemberPreferences(member, localPrefs || normalizedServerPrefs)
+      : { wholeShare: [], fractionalPreferences: [] }),
+    [localPrefs, member, normalizedServerPrefs],
+  );
+
+  const entitlement = useMemo(() => {
+    if (!member) {
+      return { wholeShares: 0, fractionalHours: 0 };
+    }
+
+    return computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
+  }, [member]);
+
+  const wizardSteps = useMemo(() => buildPreferenceWizardSteps(entitlement, effectivePrefs), [
+    entitlement.wholeShares,
+    entitlement.fractionalHours,
+    effectivePrefs.wholeShare,
+    effectivePrefs.fractionalPreferences,
+  ]);
+
   const totalChoices = wizardSteps.length * 2;
   const madeChoices = wizardSteps.reduce(
-    (count, step) => count + (step.firstChoiceDate ? 1 : 0) + (step.secondChoiceDate ? 1 : 0),
+    (count, step) => count + (step.choice1Date ? 1 : 0) + (step.choice2Date ? 1 : 0),
     0,
   );
   const activeStep = wizardSteps[currentStep] || null;
-  const calendarMonths = useMemo(() => buildWizardCalendarMonths(cycle.startDate, cycle.endDate), [cycle.startDate, cycle.endDate]);
+  const calendarMonths = useMemo(
+    () => buildWizardCalendarMonths(cycle.startDate, cycle.endDate),
+    [cycle.endDate, cycle.startDate],
+  );
   const blockedDateSet = useMemo(() => new Set(cycle.blockedDates || []), [cycle.blockedDates]);
   const blockedSlotSet = useMemo(() => new Set(cycle.blockedSlots || []), [cycle.blockedSlots]);
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const preferenceDeadline = cycle.preferenceDeadline || addDays(cycle.startDate, -7);
-  const defaultWholeShift = (slotKey) => (slotKey === 'NS' ? 'NS' : '');
-  const commitPreferences = (nextPrefs) => {
-    updatePreference(member.id, normalizeMemberPreferences(member, nextPrefs));
-  };
+  const preferenceDeadline = cycle.preferenceDeadline || (cycle.startDate ? addDays(cycle.startDate, -7) : '');
+  const allComplete = wizardSteps.every((step) => step.choice1Date && step.choice2Date);
+
+  const isLoading = Boolean(
+    auth.loading
+      || sharesQuery.isLoading
+      || cycleQuery.isLoading
+      || prefsQuery.isLoading
+      || datesQuery.isLoading,
+  );
+  const loadError = auth.error
+    || sharesQuery.error
+    || cycleQuery.error
+    || prefsQuery.error
+    || datesQuery.error
+    || null;
+
   const queueTimeout = (callback, delay) => {
     const timeoutId = window.setTimeout(callback, delay);
     timeoutIdsRef.current.push(timeoutId);
     return timeoutId;
   };
-  const resolvePickingChoice = (step) => (step?.firstChoiceDate && !step?.secondChoiceDate ? 2 : 1);
-  const hasShiftSelected = (step) => Boolean(step && (step.slotKey === 'NS' || step.shiftType));
-  const selectedShiftRequired = hasShiftSelected(activeStep);
-  const allComplete = wizardSteps.every((step) => hasShiftSelected(step) && step.firstChoiceDate && step.secondChoiceDate);
-  const getShiftSelectorLabel = (shiftType) => {
-    const meta = SHIFT_UI_META[shiftType];
-    if (!meta) return shiftType;
-    return `${meta.label} Shift (${meta.sub.replace(/\s+/g, '')})`;
-  };
+
+  const resolvePickingChoice = (step) => (step?.choice1Date && !step?.choice2Date ? 2 : 1);
+
+  const flushPendingSave = useCallback(() => {
+    if (!pendingPrefsRef.current || !cycleQuery.activeCycleId) return;
+    submitPrefs.mutate({
+      cycleId: cycleQuery.activeCycleId,
+      ...buildSubmitPayload(pendingPrefsRef.current),
+    });
+    pendingPrefsRef.current = null;
+  }, [cycleQuery.activeCycleId, submitPrefs]);
+
+  const commitPreferences = useCallback((nextPrefs) => {
+    if (!member || !cycleQuery.activeCycleId) return;
+    const normalized = normalizeMemberPreferences(member, nextPrefs);
+    setLocalPrefs(normalized);
+    pendingPrefsRef.current = normalized;
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      saveTimeoutRef.current = null;
+      flushPendingSave();
+    }, SAVE_DEBOUNCE_MS);
+  }, [cycleQuery.activeCycleId, flushPendingSave, member]);
+
+  useEffect(() => {
+    setLocalPrefs(null);
+    pendingPrefsRef.current = null;
+  }, [prefsQuery.data]);
+
+  useEffect(() => {
+    if (wizardSteps.length === 0) {
+      setCurrentStep(0);
+      return;
+    }
+
+    const firstIncomplete = wizardSteps.findIndex((step) => !step.choice1Date || !step.choice2Date);
+    const targetStep = firstIncomplete >= 0 ? firstIncomplete : Math.max(0, wizardSteps.length - 1);
+
+    setCurrentStep((prev) => {
+      if (prev >= wizardSteps.length) return targetStep;
+      if (localPrefs == null && prev === 0) return targetStep;
+      return prev;
+    });
+  }, [localPrefs, wizardSteps]);
+
+  useEffect(() => {
+    setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
+  }, [currentStep, wizardSteps]);
+
+  useEffect(() => () => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      flushPendingSave();
+    }
+
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    timeoutIdsRef.current = [];
+  }, [flushPendingSave]);
+
   const getMotionStyle = () => {
     if (stepMotion === 'hold-forward' || stepMotion === 'hold-back') {
       return { opacity: 1, transform: 'translateX(0) scale(1.01)' };
@@ -122,6 +360,7 @@ export default function PreferenceFormScreen() {
     }
     return { opacity: 1, transform: 'translateX(0)' };
   };
+
   const animateToStep = (targetIndex, direction = 'forward', flashLabel = '') => {
     const nextStep = wizardSteps[targetIndex];
     if (!nextStep || targetIndex === currentStep || stepMotion !== 'idle') return;
@@ -141,158 +380,126 @@ export default function PreferenceFormScreen() {
     }, STEP_HOLD_MS + STEP_SLIDE_MS);
   };
 
-  useEffect(() => {
-    if (currentStep <= wizardSteps.length - 1) return;
-    setCurrentStep(Math.max(0, wizardSteps.length - 1));
-  }, [wizardSteps.length, currentStep]);
-
-  useEffect(() => {
-    setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
-  }, [currentStep, wizardSteps]);
-
-  useEffect(() => () => {
-    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    timeoutIdsRef.current = [];
-  }, []);
-
-  const upsertWholePref = (sourcePrefs, shareIndex, slotKey, patch) => {
-    const updated = { ...sourcePrefs, wholeShare: [...sourcePrefs.wholeShare] };
-    const idx = updated.wholeShare.findIndex((entry) => entry.shareIndex === shareIndex && entry.slotKey === slotKey);
+  const upsertWholePref = (sourcePrefs, shareIndex, shift, patch) => {
+    const updated = { ...sourcePrefs, wholeShare: [...(sourcePrefs.wholeShare || [])] };
+    const idx = updated.wholeShare.findIndex((entry) => entry.shareIndex === shareIndex && entry.shift === shift);
     const existing = idx >= 0 ? { ...updated.wholeShare[idx] } : {
       shareIndex,
-      slotKey,
-      shiftType: defaultWholeShift(slotKey),
-      firstChoiceDate: '',
-      secondChoiceDate: '',
+      shift,
+      choice1Date: '',
+      choice2Date: '',
     };
     Object.assign(existing, patch);
-    if (existing.slotKey === 'NS') existing.shiftType = 'NS';
-    if (!existing.shiftType) existing.shiftType = defaultWholeShift(slotKey);
     if (idx >= 0) updated.wholeShare[idx] = existing;
     else updated.wholeShare.push(existing);
     return updated;
   };
 
-  const updateFractionalPref = (fracIndex, patch) => {
-    const updated = { ...myPrefs, fractional: [...myPrefs.fractional] };
+  const updateFractionalPref = (sourcePrefs, blockIndex, patch) => {
+    const updated = { ...sourcePrefs, fractionalPreferences: [...(sourcePrefs.fractionalPreferences || [])] };
+    const idx = updated.fractionalPreferences.findIndex((entry) => entry.blockIndex === blockIndex);
     const existing = {
-      ...(updated.fractional[fracIndex] || { shiftType: '', firstChoiceDate: '', secondChoiceDate: '' }),
+      ...(idx >= 0 ? updated.fractionalPreferences[idx] : { blockIndex, fractionalHours: 0, choice1Date: '', choice2Date: '' }),
       ...patch,
     };
-    updated.fractional[fracIndex] = existing;
+    if (idx >= 0) updated.fractionalPreferences[idx] = existing;
+    else updated.fractionalPreferences.push(existing);
     return updated;
-  };
-
-  const setStepShiftType = (step, shiftType) => {
-    if (!step || shiftType === step.shiftType) return;
-    if (step.kind === 'whole') {
-      if (step.slotKey === 'NS') return;
-      let updated = upsertWholePref(myPrefs, step.shareIndex, step.slotKey, { shiftType, firstChoiceDate: '', secondChoiceDate: '' });
-      if (step.slotKey === 'DAY1' && (shiftType === 'NS' || step.shiftType === 'NS')) {
-        updated = upsertWholePref(updated, step.shareIndex, 'DAY2', { shiftType: '', firstChoiceDate: '', secondChoiceDate: '' });
-      }
-      commitPreferences(updated);
-      return;
-    }
-    const updated = updateFractionalPref(step.fracIndex, { shiftType, firstChoiceDate: '', secondChoiceDate: '' });
-    commitPreferences(updated);
   };
 
   const setStepDate = (step, choice, date) => {
     if (!step) return;
-    const key = choice === 1 ? 'firstChoiceDate' : 'secondChoiceDate';
+    const key = choice === 1 ? 'choice1Date' : 'choice2Date';
     if (step.kind === 'whole') {
-      const updated = upsertWholePref(myPrefs, step.shareIndex, step.slotKey, { [key]: date });
+      const updated = upsertWholePref(effectivePrefs, step.shareIndex, step.shift, { [key]: date });
       commitPreferences(updated);
       return;
     }
-    const updated = updateFractionalPref(step.fracIndex, { [key]: date });
+    const updated = updateFractionalPref(effectivePrefs, step.blockIndex, {
+      fractionalHours: step.fractionalHours,
+      [key]: date,
+    });
     commitPreferences(updated);
+  };
+
+  const isDateBlockedForStep = (date, step) => {
+    if (!step) return true;
+    if (blockedDateSet.has(date)) return true;
+    if (step.kind === 'whole') {
+      return blockedSlotSet.has(`${date}:${step.shift}`);
+    }
+    return SHIFT_ORDER.every((shift) => blockedSlotSet.has(`${date}:${shift}`));
   };
 
   const handleDatePick = (date) => {
     if (!activeStep || stepMotion !== 'idle') return;
-    if (!hasShiftSelected(activeStep)) return;
-    const otherDate = pickingChoice === 1 ? activeStep.secondChoiceDate : activeStep.firstChoiceDate;
-    if (otherDate === date) return;
-    const slotBlocked = blockedDateSet.has(date) || blockedSlotSet.has(`${date}:${activeStep.shiftType}`);
-    if (slotBlocked) return;
+    if (isDateBlockedForStep(date, activeStep)) return;
+    const choice = pickingChoice;
+    const stepLabel = `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`;
+    setStepDate(activeStep, choice, date);
+    setJustPicked(stepLabel);
+    queueTimeout(() => setJustPicked(''), 1200);
 
-    setStepDate(activeStep, pickingChoice, date);
-    setJustPicked(date);
-    queueTimeout(() => setJustPicked(''), 520);
-
-    if (pickingChoice === 1) {
-      queueTimeout(() => setPickingChoice(2), 220);
+    if (choice === 1) {
+      setPickingChoice(2);
       return;
     }
-    if (currentStep < wizardSteps.length - 1 && (activeStep.firstChoiceDate || pickingChoice === 2)) {
-      queueTimeout(() => animateToStep(Math.min(currentStep + 1, wizardSteps.length - 1), 'forward', 'Step Complete'), 300);
+
+    const nextIndex = currentStep + 1;
+    if (nextIndex < wizardSteps.length) {
+      animateToStep(nextIndex, 'forward', `${activeStep.label} complete`);
+    } else {
+      setStepToast('Step complete');
+      queueTimeout(() => setStepToast(''), STEP_TOAST_MS);
     }
   };
 
-  const handleSubmit = () => {
-    if (!allComplete) return;
-    commitPreferences({ ...myPrefs, submitted: true });
-  };
-
-  const goToStep = (idx) => {
-    const step = wizardSteps[idx];
-    if (!step) {
-      setPickingChoice(1);
-      return;
-    }
-    if (idx === currentStep) {
-      setPickingChoice(resolvePickingChoice(step));
-      return;
-    }
+  const jumpToStep = (idx) => {
+    if (idx === currentStep || stepMotion !== 'idle') return;
     animateToStep(idx, idx > currentStep ? 'forward' : 'back');
   };
 
-  const formatWizardDate = (dateStr) => {
-    if (!dateStr) return 'Pick date';
-    return fromDateStr(dateStr).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const goPrev = () => {
+    if (currentStep > 0) animateToStep(currentStep - 1, 'back');
   };
 
-  if (!activeStep) {
+  const goNext = () => {
+    if (currentStep < wizardSteps.length - 1) animateToStep(currentStep + 1, 'forward');
+  };
+
+  const formatWizardDate = (dateStr) => (dateStr ? formatCalendarDate(dateStr) : 'Not selected');
+
+  if (isLoading) {
     return (
-      <div className="rounded-xl border p-4 bg-amber-50 border-amber-200 text-amber-800 concept-font-body text-sm">
-        No preference slots are available for this member yet.
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading preferences...
       </div>
     );
   }
 
-  if (myPrefs.submitted) {
+  if (loadError) {
     return (
-      <div className="space-y-4 concept-font-body">
-        <div className="rounded-2xl border p-6 text-center concept-anim-scale" style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}40` }}>
-          <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Preferences Submitted</h3>
-          <p className="text-sm mt-2" style={{ color: CONCEPT_THEME.text }}>
-            Your {wizardSteps.length} slot preferences are saved for cycle {cycle.id}.
-          </p>
-          <p className="text-sm mt-2" style={{ color: CONCEPT_THEME.text }}>
-            You can edit the preferences until the deadline({formatCalendarDate(preferenceDeadline)}).
-          </p>
-          <button
-            type="button"
-            onClick={() => commitPreferences({ ...myPrefs, submitted: false })}
-            className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold"
-            style={{ background: CONCEPT_THEME.navy, color: 'white' }}
-          >
-            Edit Choices
-          </button>
-        </div>
-        <div className="rounded-xl border p-4 bg-white" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <h4 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>Submission Summary</h4>
-          <div className="space-y-2 text-xs">
-            {wizardSteps.map((step, idx) => (
-              <div key={`${step.kind}-${step.shareIndex || step.fracIndex}-${step.slotKey || 'frac'}`} className="rounded-lg p-2.5" style={{ background: CONCEPT_THEME.sand }}>
-                <div className="font-semibold text-gray-700">Step {idx + 1}: {step.label}</div>
-                <div className="text-gray-600 mt-0.5">1st: {formatWizardDate(step.firstChoiceDate)} | 2nd: {formatWizardDate(step.secondChoiceDate)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div
+        className="rounded-2xl border px-4 py-4 text-sm"
+        style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}
+      >
+        Unable to load preferences. {loadError?.message || 'Please try again.'}
+      </div>
+    );
+  }
+
+  if (!cycleQuery.activeCycleId || !cycleQuery.activeCycle) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        No active cycle. Check back when a new cycle is created.
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        No active share found for your account.
       </div>
     );
   }
@@ -302,205 +509,131 @@ export default function PreferenceFormScreen() {
       <div className="rounded-2xl border bg-white px-5 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="concept-font-display text-xl font-bold leading-snug" style={{ color: CONCEPT_THEME.navy }}>
-              Preference Selection Sheet
-            </h3>
+            <h3 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Preference Selection Sheet</h3>
+            <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.text }}>
+              <span className="font-semibold">Cycle {cycle.id}</span>
+              {' '}|{' '}
+              <span className="font-semibold">Deadline {formatCalendarDate(preferenceDeadline)}</span>
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
-          </div>
-        </div>
-        <div className="mt-3 flex justify-center">
-          <div
-            className="rounded-full px-4 py-2 text-base font-bold text-center"
-            style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent, border: `1px solid ${CONCEPT_THEME.amber}33` }}
-          >
-            Cycle {cycle.id} - deadline {formatCalendarDate(preferenceDeadline)}
+            {submitPrefs.isPending ? (
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Saving...</div>
+            ) : null}
+            {submitPrefs.isError ? (
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.error }}>
+                Save failed — {submitPrefs.error?.message || 'try again'}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white px-4 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <div className="flex w-full items-stretch gap-1 sm:gap-1.5">
-          {wizardSteps.map((step, idx) => {
-            const done = hasShiftSelected(step) && step.firstChoiceDate && step.secondChoiceDate;
-            const half = hasShiftSelected(step) && step.firstChoiceDate && !step.secondChoiceDate;
-            const active = idx === currentStep;
+      <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="flex gap-1.5 flex-nowrap overflow-hidden">
+          {wizardSteps.map((step, index) => {
+            const isActive = index === currentStep;
+            const doneCount = Number(Boolean(step.choice1Date)) + Number(Boolean(step.choice2Date));
+            const isComplete = doneCount === 2;
+            const isPartial = doneCount === 1;
             return (
               <button
-                key={`${step.kind}-${step.shareIndex || step.fracIndex}-${step.slotKey || 'frac'}`}
+                key={`${step.kind}-${step.shareIndex || step.blockIndex}-${step.shift || 'fractional'}`}
                 type="button"
-                onClick={() => goToStep(idx)}
-                className="min-w-0 flex-1 rounded-xl px-1 py-2 text-center transition-all sm:px-1.5 sm:py-2.5"
-                title={step.label}
+                onClick={() => jumpToStep(index)}
+                className="min-w-0 flex-1 rounded-xl border px-1.5 py-2 text-center transition-all"
                 style={{
-                  background: active ? `${CONCEPT_THEME.navy}08` : CONCEPT_THEME.warmWhite,
-                  color: CONCEPT_THEME.text,
-                  border: `1px solid ${active ? CONCEPT_THEME.navy : done ? `${CONCEPT_THEME.emerald}33` : CONCEPT_THEME.borderLight}`,
+                  background: isActive
+                    ? CONCEPT_THEME.navy
+                    : isComplete
+                      ? CONCEPT_THEME.emeraldLight
+                      : isPartial
+                        ? CONCEPT_THEME.amberLight
+                        : CONCEPT_THEME.warmWhite,
+                  borderColor: isActive
+                    ? CONCEPT_THEME.navy
+                    : isComplete
+                      ? `${CONCEPT_THEME.emerald}66`
+                      : isPartial
+                        ? `${CONCEPT_THEME.accentOnAccent}55`
+                        : CONCEPT_THEME.border,
+                  color: isActive
+                    ? 'white'
+                    : isComplete
+                      ? CONCEPT_THEME.emerald
+                      : isPartial
+                        ? CONCEPT_THEME.accentOnAccent
+                        : CONCEPT_THEME.text,
                 }}
               >
-                <div className="flex flex-col items-center gap-1 sm:gap-1.5">
-                  <div
-                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-all sm:h-8 sm:w-8"
-                    style={{
-                      background: active ? CONCEPT_THEME.navy : done ? CONCEPT_THEME.emeraldLight : half ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
-                      color: active ? 'white' : done ? CONCEPT_THEME.emerald : half ? CONCEPT_THEME.accentOnAccent : CONCEPT_THEME.muted,
-                      borderColor: active ? CONCEPT_THEME.navy : done ? `${CONCEPT_THEME.emerald}55` : half ? `${CONCEPT_THEME.amber}55` : CONCEPT_THEME.border,
-                      transform: active && stepToast ? 'scale(1.08)' : 'scale(1)',
-                    }}
-                  >
-                    {done ? '✓' : idx + 1}
-                  </div>
-                  <div className="min-w-0 w-full">
-                    <div className="truncate text-[11px] font-bold uppercase tracking-[0.08em] leading-tight sm:text-xs" style={{ color: active ? CONCEPT_THEME.navy : CONCEPT_THEME.muted }}>
-                      Step {idx + 1}
-                    </div>
-                  </div>
+                <div className="mx-auto mb-1 flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-bold" style={{
+                  borderColor: 'currentColor',
+                  background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
+                }}>
+                  {isComplete ? '✓' : index + 1}
                 </div>
+                <div className="truncate text-[11px] font-semibold uppercase tracking-wide">Step {index + 1}</div>
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border bg-white concept-anim-scale" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        {stepToast ? (
-          <div
-            className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
-            style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald, border: `1px solid ${CONCEPT_THEME.emerald}33` }}
-          >
-            {stepToast}
-          </div>
-        ) : null}
+      {activeStep ? (
         <div
-          style={{
-            ...getMotionStyle(),
-            transition: 'transform 220ms ease, opacity 220ms ease',
-            pointerEvents: stepMotion === 'idle' ? 'auto' : 'none',
-          }}
+          className="rounded-2xl border bg-white px-5 py-4 shadow-sm transition-all"
+          style={{ borderColor: CONCEPT_THEME.borderLight, ...getMotionStyle() }}
         >
-        <div className="px-5 py-4 border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <div className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
-                {activeStep.label}
+              <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>
+                {activeStep.kind === 'whole' ? `Share ${activeStep.shareIndex}` : `Fractional Block ${activeStep.blockIndex}`}
               </div>
+              <h4 className="mt-1 concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
+                {activeStep.label}
+              </h4>
             </div>
-          </div>
-
-          <div className="mt-3 flex gap-2 flex-wrap justify-start">
-            {activeStep.slotKey !== 'NS' ? (
-              (activeStep.slotKey === 'DAY1' ? ['DS1', 'DS2', 'NS'] : ['DS1', 'DS2']).map((shiftType) => (
-                <button
-                  key={shiftType}
-                  type="button"
-                  onClick={() => setStepShiftType(activeStep, shiftType)}
-                  className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors"
-                  style={{
-                    background: activeStep.shiftType === shiftType
-                      ? (shiftType === 'DS1'
-                        ? CONCEPT_THEME.morningBg
-                        : shiftType === 'DS2'
-                          ? CONCEPT_THEME.afternoonBg
-                          : CONCEPT_THEME.nightBg)
-                      : CONCEPT_THEME.warmWhite,
-                    color: activeStep.shiftType === shiftType
-                      ? (shiftType === 'DS1'
-                        ? CONCEPT_THEME.morning
-                        : shiftType === 'DS2'
-                          ? CONCEPT_THEME.afternoon
-                          : CONCEPT_THEME.night)
-                      : CONCEPT_THEME.muted,
-                    borderColor: CONCEPT_THEME.border,
-                  }}
-                >
-                  {getShiftSelectorLabel(shiftType)}
-                </button>
-              ))
+            {activeStep.kind === 'whole' ? (
+              <div className="rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: SHIFT_UI_META[activeStep.shift]?.bg || CONCEPT_THEME.sand, color: SHIFT_UI_META[activeStep.shift]?.color || CONCEPT_THEME.text }}>
+                {SHIFT_UI_META[activeStep.shift]?.label || activeStep.shift} ({SHIFT_UI_META[activeStep.shift]?.sub || ''})
+              </div>
             ) : (
-              <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: CONCEPT_THEME.nightBg, color: CONCEPT_THEME.night }}>
-                {getShiftSelectorLabel('NS')}
-              </span>
+              <div className="rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
+                {Number(activeStep.fractionalHours || 0).toFixed(2).replace(/\.00$/, '')}h block
+              </div>
             )}
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (!selectedShiftRequired) return;
-                setPickingChoice(1);
-              }}
-              disabled={!selectedShiftRequired}
-              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-sm"
-              style={{
-                background: !selectedShiftRequired
-                  ? CONCEPT_THEME.sand
-                  : pickingChoice === 1
-                    ? CONCEPT_THEME.skyLight
-                    : CONCEPT_THEME.sand,
-                borderColor: !selectedShiftRequired
-                  ? CONCEPT_THEME.border
-                  : pickingChoice === 1
-                    ? CONCEPT_THEME.sky
-                    : CONCEPT_THEME.border,
-                color: !selectedShiftRequired
-                  ? CONCEPT_THEME.muted
-                  : pickingChoice === 1
-                    ? CONCEPT_THEME.sky
-                    : CONCEPT_THEME.text,
-                cursor: !selectedShiftRequired ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <span className="font-semibold">
-                {activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? '1st Night Choice' : '1st Choice'}: {selectedShiftRequired ? formatWizardDate(activeStep.firstChoiceDate) : 'Choose session first'}
-              </span>
-              {activeStep.firstChoiceDate ? <span style={{ color: CONCEPT_THEME.emerald }}>Done</span> : null}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!selectedShiftRequired) return;
-                setPickingChoice(2);
-              }}
-              disabled={!selectedShiftRequired}
-              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 border text-sm"
-              style={{
-                background: !selectedShiftRequired
-                  ? CONCEPT_THEME.sand
-                  : pickingChoice === 2
-                    ? CONCEPT_THEME.amberLight
-                    : CONCEPT_THEME.sand,
-                borderColor: !selectedShiftRequired
-                  ? CONCEPT_THEME.border
-                  : pickingChoice === 2
-                    ? CONCEPT_THEME.amber
-                    : CONCEPT_THEME.border,
-                color: !selectedShiftRequired
-                  ? CONCEPT_THEME.muted
-                  : pickingChoice === 2
-                    ? CONCEPT_THEME.accentOnAccent
-                    : CONCEPT_THEME.text,
-                cursor: !selectedShiftRequired ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <span className="font-semibold">
-                {activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? '2nd Night Choice' : '2nd Choice'}: {selectedShiftRequired ? formatWizardDate(activeStep.secondChoiceDate) : 'Choose session first'}
-              </span>
-              {activeStep.secondChoiceDate ? <span style={{ color: CONCEPT_THEME.emerald }}>Done</span> : null}
-            </button>
-          </div>
-        </div>
-
-        <div className="px-4 py-4">
-          <div className="mb-3 text-sm font-semibold" style={{ color: !selectedShiftRequired ? CONCEPT_THEME.muted : pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.accentText }}>
-            {selectedShiftRequired
-              ? `Pick your ${pickingChoice === 1 ? '1st' : '2nd'} ${activeStep.slotKey === 'DAY1' && activeStep.shiftType === 'NS' ? 'night ' : ''}choice date`
-              : 'Choose a session to start selecting dates'}
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border px-3 py-3" style={{ borderColor: `${CONCEPT_THEME.sky}33`, background: `${CONCEPT_THEME.sky}08` }}>
+              <div className="text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>1st Choice</div>
+              <div className="mt-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatWizardDate(activeStep.choice1Date)}</div>
+            </div>
+            <div className="rounded-xl border px-3 py-3" style={{ borderColor: `${CONCEPT_THEME.emerald}33`, background: `${CONCEPT_THEME.emerald}08` }}>
+              <div className="text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.emerald }}>2nd Choice</div>
+              <div className="mt-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatWizardDate(activeStep.choice2Date)}</div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm font-medium" style={{ color: CONCEPT_THEME.muted }}>
+              Pick your {pickingChoice === 1 ? '1st' : '2nd'} choice date
+            </div>
+            {justPicked ? (
+              <div className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}>
+                Selected: {justPicked}
+              </div>
+            ) : null}
+            {stepToast ? (
+              <div className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>
+                {stepToast}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-4">
             {calendarMonths.map(({ key, year, month }) => {
               const firstDay = new Date(year, month, 1).getDay();
               const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -514,71 +647,46 @@ export default function PreferenceFormScreen() {
                     {monthNames[month]} {year}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
-                    {dayHeaders.map((header, idx) => (
-                      <div key={`${key}-h-${idx}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
-                        {header}
+                    {dayHeaders.map((day, dayIndex) => (
+                      <div key={`${key}-${day}-${dayIndex}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
+                        {day}
                       </div>
                     ))}
-
                     {cells.map((day, idx) => {
-                      if (!day) return <div key={`${key}-empty-${idx}`} />;
+                      if (!day) return <div key={`${key}-blank-${idx}`} />;
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const inRange = dateStr >= cycle.startDate && dateStr <= cycle.endDate;
-                      if (!inRange) {
-                        return (
-                          <div key={`${key}-out-${day}`} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.subtle }}>
-                            {day}
-                          </div>
-                        );
-                      }
-                      const blocked = blockedDateSet.has(dateStr) || blockedSlotSet.has(`${dateStr}:${activeStep.shiftType}`);
-                      const isFirst = activeStep.firstChoiceDate === dateStr;
-                      const isSecond = activeStep.secondChoiceDate === dateStr;
-                      const usedByOtherStep = wizardSteps.some((step, stepIdx) => stepIdx !== currentStep && (step.firstChoiceDate === dateStr || step.secondChoiceDate === dateStr));
-                      const isPicked = justPicked === dateStr;
+                      const blocked = !inRange || isDateBlockedForStep(dateStr, activeStep);
+                      const selected = activeStep.choice1Date === dateStr || activeStep.choice2Date === dateStr;
 
-                      let background = CONCEPT_THEME.warmWhite;
-                      let textColor = CONCEPT_THEME.text;
-                      let borderColor = 'transparent';
-                      if (!selectedShiftRequired) {
-                        background = CONCEPT_THEME.sand;
-                        textColor = CONCEPT_THEME.muted;
-                        borderColor = CONCEPT_THEME.borderLight;
-                      } else if (blocked) {
-                        background = CONCEPT_THEME.sandDark;
-                        textColor = CONCEPT_THEME.muted;
-                      } else if (isFirst) {
-                        background = CONCEPT_THEME.sky;
-                        textColor = 'white';
-                        borderColor = CONCEPT_THEME.sky;
-                      } else if (isSecond) {
-                        background = CONCEPT_THEME.amber;
-                        textColor = 'white';
-                        borderColor = CONCEPT_THEME.amber;
-                      } else if (usedByOtherStep) {
-                        background = CONCEPT_THEME.warmWhite;
-                        textColor = CONCEPT_THEME.muted;
-                        borderColor = CONCEPT_THEME.border;
+                      if (!inRange) {
+                        return <div key={dateStr} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.border }}> {day} </div>;
                       }
 
                       return (
                         <button
-                          key={`${key}-${day}`}
+                          key={dateStr}
                           type="button"
+                          disabled={blocked}
                           onClick={() => handleDatePick(dateStr)}
-                          disabled={!selectedShiftRequired || blocked}
                           className="relative rounded-lg py-2.5 text-sm font-semibold transition-all"
                           style={{
-                            background,
-                            color: textColor,
-                            border: `1.5px solid ${borderColor}`,
-                            transform: isPicked ? 'scale(1.12)' : (isFirst || isSecond) ? 'scale(1.05)' : 'scale(1)',
-                            boxShadow: isPicked ? `0 0 14px ${pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amber}88` : 'none',
-                            cursor: !selectedShiftRequired || blocked ? 'not-allowed' : 'pointer',
+                            background: blocked
+                              ? CONCEPT_THEME.sandDark
+                              : selected
+                                ? CONCEPT_THEME.navy
+                                : 'white',
+                            color: blocked
+                              ? CONCEPT_THEME.muted
+                              : selected
+                                ? 'white'
+                                : CONCEPT_THEME.text,
+                            border: `1.5px solid ${selected ? CONCEPT_THEME.navy : blocked ? 'transparent' : CONCEPT_THEME.border}`,
+                            cursor: blocked ? 'not-allowed' : 'pointer',
                           }}
                         >
                           {day}
-                          {blocked ? <span className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
+                          {blocked ? <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
                         </button>
                       );
                     })}
@@ -587,53 +695,41 @@ export default function PreferenceFormScreen() {
               );
             })}
           </div>
-        </div>
 
-        <div className="px-5 py-4 border-t" style={{ borderColor: CONCEPT_THEME.borderLight, background: CONCEPT_THEME.sand }}>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="mt-4 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => animateToStep(Math.max(0, currentStep - 1), 'back')}
+              onClick={goPrev}
               disabled={currentStep === 0 || stepMotion !== 'idle'}
-              className="px-4 py-2 rounded-lg text-sm font-semibold border disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+              className="rounded-xl px-5 py-2.5 text-base font-bold disabled:cursor-not-allowed"
+              style={{
+                background: currentStep === 0 ? CONCEPT_THEME.sandDark : CONCEPT_THEME.sand,
+                color: currentStep === 0 ? CONCEPT_THEME.muted : CONCEPT_THEME.text,
+              }}
             >
               Previous
             </button>
-
-            <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>
-              {madeChoices} / {totalChoices} choices made
-            </span>
-
-            {currentStep < wizardSteps.length - 1 ? (
-              <button
-                type="button"
-                onClick={() => animateToStep(Math.min(currentStep + 1, wizardSteps.length - 1), 'forward')}
-                disabled={stepMotion !== 'idle'}
-                className={`px-4 py-2 rounded-lg text-sm font-bold ${activeStep.firstChoiceDate && activeStep.secondChoiceDate ? 'concept-anim-pulse' : ''}`}
-                style={{
-                  background: activeStep.firstChoiceDate && activeStep.secondChoiceDate ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark,
-                  color: activeStep.firstChoiceDate && activeStep.secondChoiceDate ? 'white' : CONCEPT_THEME.muted,
-                  opacity: stepMotion === 'idle' ? 1 : 0.65,
-                }}
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!allComplete}
-                className="px-4 py-2 rounded-lg text-sm font-bold disabled:cursor-not-allowed"
-                style={{ background: allComplete ? CONCEPT_THEME.emerald : CONCEPT_THEME.sandDark, color: allComplete ? 'white' : CONCEPT_THEME.muted }}
-              >
-                {allComplete ? 'Submit Preferences' : `${totalChoices - madeChoices} choices left`}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={currentStep >= wizardSteps.length - 1 || stepMotion !== 'idle'}
+              className="rounded-xl px-5 py-2.5 text-base font-bold disabled:cursor-not-allowed"
+              style={{
+                background: currentStep >= wizardSteps.length - 1 ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+                color: currentStep >= wizardSteps.length - 1 ? CONCEPT_THEME.muted : 'white',
+              }}
+            >
+              Next
+            </button>
           </div>
         </div>
+      ) : null}
+
+      {allComplete ? (
+        <div className="rounded-2xl border px-5 py-4" style={{ borderColor: `${CONCEPT_THEME.emerald}33`, background: CONCEPT_THEME.emeraldLight }}>
+          <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.emerald }}>All preference choices completed.</div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

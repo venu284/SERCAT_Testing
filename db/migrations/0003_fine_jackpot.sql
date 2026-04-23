@@ -1,0 +1,1 @@
+ALTER TYPE "public"."slot_key" ADD VALUE 'FRACTIONAL';

@@ -2,8 +2,8 @@ import React from 'react';
 import { SHIFT_BADGE_META } from '../lib/constants';
 import { CONCEPT_THEME } from '../lib/theme';
 
-export default function ConceptShiftBadge({ shiftType }) {
-  const meta = SHIFT_BADGE_META[shiftType] || { label: shiftType, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
+export default function ConceptShiftBadge({ shift }) {
+  const meta = SHIFT_BADGE_META[shift] || { label: shift, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
   return (
     <div
       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg concept-font-body text-xs font-semibold"

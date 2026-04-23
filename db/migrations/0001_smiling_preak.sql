@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "shift_type" text;

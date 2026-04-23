@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CALENDAR_DAY_NAMES, SHIFT_LABELS, SHIFT_ORDER } from '../lib/constants';
+import { ASSIGNMENT_REASON_LABELS, CALENDAR_DAY_NAMES, SHIFT_LABELS, SHIFT_ORDER } from '../lib/constants';
 import { localTodayDateStr, fromDateStr } from '../lib/dates';
 import { COLORS, MEMBER_BG } from '../lib/theme';
 
@@ -48,7 +48,7 @@ export default function ShiftSlotCalendar({
     return [months[idx], ...months.slice(0, idx), ...months.slice(idx + 1)];
   }, [months, prioritizeTodayMonth, todayDate]);
 
-  const getSlotAssignments = (date, shiftType) => filteredAssignments.filter((a) => a.date === date && a.shiftType === shiftType);
+  const getSlotAssignments = (date, shift) => filteredAssignments.filter((a) => a.assignedDate === date && a.shift === shift);
 
   return (
     <div className="space-y-3">
@@ -60,8 +60,8 @@ export default function ShiftSlotCalendar({
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {showShiftLegend ? shifts.map((shiftType) => (
-            <span key={shiftType} className="px-2 py-1 rounded border bg-gray-50 text-gray-600">{SHIFT_LABELS[shiftType]}</span>
+          {showShiftLegend ? shifts.map((shift) => (
+            <span key={shift} className="px-2 py-1 rounded border bg-gray-50 text-gray-600">{SHIFT_LABELS[shift]}</span>
           )) : null}
           {editable && (
             <span className="px-2 py-1 rounded border bg-blue-50 text-blue-700">Calendar setup mode: click day/shift chips to block or unblock</span>
@@ -90,7 +90,7 @@ export default function ShiftSlotCalendar({
                   if (!inRange) return <div key={date} className="min-h-[138px] rounded bg-gray-50" />;
                   const isToday = date === todayDate;
                   const dayBlocked = blockedDateSet.has(date);
-                  const dayAssignedCount = scheduleMode ? shifts.reduce((count, shiftType) => count + (getSlotAssignments(date, shiftType).length > 0 ? 1 : 0), 0) : 0;
+                  const dayAssignedCount = scheduleMode ? shifts.reduce((count, shift) => count + (getSlotAssignments(date, shift).length > 0 ? 1 : 0), 0) : 0;
 
                   return (
                     <div
@@ -131,15 +131,15 @@ export default function ShiftSlotCalendar({
                         ) : <span />}
                       </div>
                       <div className="space-y-1">
-                        {shifts.map((shiftType) => {
-                          const slotKey = `${date}:${shiftType}`;
-                          const slotBlocked = dayBlocked || blockedSlotSet.has(slotKey);
-                          const slotAssignments = getSlotAssignments(date, shiftType);
+                        {shifts.map((shift) => {
+                          const slotId = `${date}:${shift}`;
+                          const slotBlocked = dayBlocked || blockedSlotSet.has(slotId);
+                          const slotAssignments = getSlotAssignments(date, shift);
                           const primaryAssignment = slotAssignments[0] || null;
                           const assignmentMemberLabel = primaryAssignment ? primaryAssignment.memberId : '';
                           const assignmentLabel = filterMember === 'all' ? assignmentMemberLabel : 'Assigned';
-                          const assignmentTypeLabel = primaryAssignment ? primaryAssignment.assignmentType.replace(/_/g, ' ') : '';
-                          const marks = preferenceMarks[slotKey] || [];
+                          const assignmentReasonLabel = primaryAssignment ? (ASSIGNMENT_REASON_LABELS[primaryAssignment.assignmentReason] || primaryAssignment.assignmentReason) : '';
+                          const marks = preferenceMarks[slotId] || [];
                           const hasFirstPreference = marks.some((m) => /1st/i.test(m));
                           const hasSecondPreference = marks.some((m) => /2nd/i.test(m));
                           const preferenceLabel = hasFirstPreference && hasSecondPreference ? '1st + 2nd' : hasFirstPreference ? '1st Choice' : hasSecondPreference ? '2nd Choice' : '';
@@ -148,10 +148,10 @@ export default function ShiftSlotCalendar({
                               : hasFirstPreference ? 'bg-blue-100 border-blue-400 text-blue-800 shadow-md -translate-y-[1px]'
                                 : 'bg-orange-100 border-orange-400 text-orange-800 shadow-md -translate-y-[1px]'
                             : '';
-                          const isActiveSelection = activeSelection?.shiftType === shiftType;
+                          const isActiveSelection = activeSelection?.shift === shift;
                           const canSelect = !scheduleMode && !editable && Boolean(onSelectSlot) && !slotBlocked;
                           const shouldHighlight = canSelect && isActiveSelection;
-                          const assignmentTitles = slotAssignments.map((a) => `${a.memberId} (${a.assignmentType})`).join(', ');
+                          const assignmentTitles = slotAssignments.map((a) => `${a.memberId} (${ASSIGNMENT_REASON_LABELS[a.assignmentReason] || a.assignmentReason})`).join(', ');
                           const prefSummary = marks.length > 3 ? `${marks.slice(0, 3).join(', ')} +${marks.length - 3}` : marks.join(', ');
                           const assignmentStyle = (!scheduleMode && !slotBlocked && primaryAssignment)
                             ? { backgroundColor: MEMBER_BG[primaryAssignment.memberId] || '#eef2ff', borderColor: COLORS[primaryAssignment.memberId] || '#94a3b8' }
@@ -159,7 +159,7 @@ export default function ShiftSlotCalendar({
                           const slotToneClass = slotBlocked
                             ? (availabilityColorMode && !scheduleMode ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-100 border-slate-300 text-gray-600')
                             : scheduleMode
-                              ? (primaryAssignment ? (shiftType === 'NS' ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800') : 'bg-white border-dashed border-gray-200 text-gray-500')
+                              ? (primaryAssignment ? (shift === 'NS' ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-emerald-100 border-emerald-300 text-emerald-800') : 'bg-white border-dashed border-gray-200 text-gray-500')
                               : primaryAssignment
                                 ? 'bg-white border-gray-200 text-gray-700'
                                 : isPreferenceSelectionMode
@@ -168,25 +168,25 @@ export default function ShiftSlotCalendar({
 
                           return (
                             <button
-                              key={slotKey}
+                              key={slotId}
                               type="button"
                               className={`w-full text-left px-2 py-1.5 rounded text-xs border transition-all ${slotToneClass} ${editable ? 'hover:bg-gray-50' : canSelect ? 'hover:brightness-105 cursor-pointer' : ''} ${shouldHighlight ? 'ring-1 ring-blue-400' : ''} ${primaryAssignment && !slotBlocked && !scheduleMode ? 'shadow-sm' : ''} ${preferenceToneClass}`}
                               style={assignmentStyle}
                               onClick={() => {
                                 if (editable) {
-                                  if (!dayBlocked) onToggleSlotBlock?.(date, shiftType);
+                                  if (!dayBlocked) onToggleSlotBlock?.(date, shift);
                                   return;
                                 }
-                                if (canSelect) onSelectSlot(date, shiftType);
+                                if (canSelect) onSelectSlot(date, shift);
                               }}
-                              title={slotBlocked ? `${SHIFT_LABELS[shiftType]} blocked` : assignmentTitles || SHIFT_LABELS[shiftType]}
+                              title={slotBlocked ? `${SHIFT_LABELS[shift]} blocked` : assignmentTitles || SHIFT_LABELS[shift]}
                             >
                               <div className="flex items-center justify-between gap-1">
-                                <span className="font-semibold">{SHIFT_LABELS[shiftType] || shiftType}</span>
+                                <span className="font-semibold">{SHIFT_LABELS[shift] || shift}</span>
                                 {slotBlocked ? (
                                   scheduleMode || isPreferenceSelectionMode ? null : <span className="text-[11px] font-medium">Blocked</span>
                                 ) : scheduleMode ? (
-                                  primaryAssignment ? <span className={`text-[11px] font-semibold ${shiftType === 'NS' ? 'text-indigo-700' : 'text-emerald-700'}`}>Assigned</span> : null
+                                  primaryAssignment ? <span className={`text-[11px] font-semibold ${shift === 'NS' ? 'text-indigo-700' : 'text-emerald-700'}`}>Assigned</span> : null
                                 ) : isPreferenceSelectionMode ? (
                                   marks.length > 0 ? <span className={`text-[11px] font-semibold ${hasFirstPreference && !hasSecondPreference ? 'text-blue-700' : hasSecondPreference && !hasFirstPreference ? 'text-orange-700' : 'text-amber-700'}`}>{preferenceLabel}</span> : null
                                 ) : primaryAssignment ? (
@@ -200,7 +200,7 @@ export default function ShiftSlotCalendar({
                                 )}
                               </div>
                               {!slotBlocked && primaryAssignment && !scheduleMode && (
-                                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: COLORS[primaryAssignment.memberId] }}>{assignmentTypeLabel}</div>
+                                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide" style={{ color: COLORS[primaryAssignment.memberId] }}>{assignmentReasonLabel}</div>
                               )}
                               {!slotBlocked && !primaryAssignment && marks.length > 0 && !scheduleMode && (
                                 <div className={`mt-0.5 text-[11px] font-semibold uppercase tracking-wide ${hasFirstPreference && !hasSecondPreference ? 'text-blue-700' : hasSecondPreference && !hasFirstPreference ? 'text-orange-700' : 'text-amber-700'}`}>Selected Slot</div>

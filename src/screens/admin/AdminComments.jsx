@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import { useComments, useUpdateComment } from '../../hooks/useApiData';
+import { toAdminCommentInbox } from '../../lib/comments-view-models';
 
 function buildStatusTone(status) {
   if (status === 'Read') {
@@ -13,27 +14,18 @@ function buildStatusTone(status) {
 }
 
 export default function AdminComments() {
-  const {
-    memberComments,
-    memberDirectory,
-    markMemberCommentRead,
-    replyToMemberComment,
-  } = useMockApp();
+  const commentsQuery = useComments();
+  const updateComment = useUpdateComment();
 
   const [expandedCommentId, setExpandedCommentId] = useState('');
   const [replyDrafts, setReplyDrafts] = useState({});
   const [replyError, setReplyError] = useState('');
   const [replySuccessId, setReplySuccessId] = useState('');
+  const readMarkedIdsRef = useRef(new Set());
+  const pendingReplyIdsRef = useRef(new Set());
+  const [pendingReplyIds, setPendingReplyIds] = useState({});
 
-  const inbox = useMemo(() => (
-    Object.values(memberComments || {})
-      .flat()
-      .map((entry) => ({
-        ...entry,
-        member: memberDirectory[entry.memberId] || null,
-      }))
-      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-  ), [memberComments, memberDirectory]);
+  const inbox = useMemo(() => toAdminCommentInbox(commentsQuery.data), [commentsQuery.data]);
 
   const handleToggle = (entry) => {
     const nextExpanded = expandedCommentId === entry.id ? '' : entry.id;
@@ -41,23 +33,49 @@ export default function AdminComments() {
     setReplyError('');
     setReplySuccessId('');
 
-    if (nextExpanded && entry.status === 'Sent') {
-      markMemberCommentRead(entry.memberId, entry.id);
+    if (nextExpanded && entry.status === 'Sent' && !readMarkedIdsRef.current.has(entry.id)) {
+      readMarkedIdsRef.current.add(entry.id);
+      updateComment.mutate({ id: entry.id, status: 'read' });
     }
   };
 
-  const handleReplySubmit = (entry) => {
-    const replyText = replyDrafts[entry.id] ?? entry.adminReply ?? '';
-    const result = replyToMemberComment(entry.memberId, entry.id, replyText);
-    if (!result?.ok) {
-      setReplyError(result?.error || 'Unable to save reply.');
+  const handleReplySubmit = async (entry) => {
+    if (pendingReplyIdsRef.current.has(entry.id)) return;
+
+    const replyText = (replyDrafts[entry.id] ?? entry.adminReply ?? '').trim();
+
+    if (!replyText) {
+      setReplyError('Reply message is required.');
       setReplySuccessId('');
       return;
     }
-    setReplyDrafts((prev) => ({ ...prev, [entry.id]: result.comment.adminReply || '' }));
+
+    pendingReplyIdsRef.current.add(entry.id);
+    setPendingReplyIds((prev) => ({ ...prev, [entry.id]: true }));
     setReplyError('');
-    setReplySuccessId(entry.id);
+    setReplySuccessId('');
+
+    try {
+      await updateComment.mutateAsync({ id: entry.id, adminReply: replyText });
+      setReplyDrafts((prev) => ({ ...prev, [entry.id]: replyText }));
+      setReplySuccessId(entry.id);
+    } catch (err) {
+      setReplyError(err?.message || 'Unable to save reply.');
+    } finally {
+      pendingReplyIdsRef.current.delete(entry.id);
+      setPendingReplyIds((prev) => {
+        if (!prev[entry.id]) return prev;
+        const next = { ...prev };
+        delete next[entry.id];
+        return next;
+      });
+    }
   };
+
+  const hasInbox = inbox.length > 0;
+  const showLoading = commentsQuery.isLoading && !hasInbox;
+  const showQueryError = commentsQuery.isError && !hasInbox;
+  const showInlineQueryError = commentsQuery.isError && hasInbox;
 
   return (
     <div className="space-y-4 concept-font-body concept-anim-fade">
@@ -76,19 +94,33 @@ export default function AdminComments() {
           </span>
         </div>
 
-        {inbox.length === 0 ? (
+        {showLoading ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+            Loading member comments...
+          </div>
+        ) : showQueryError ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+            Unable to load the comments inbox.
+          </div>
+        ) : !hasInbox ? (
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             No member comments available yet.
           </div>
         ) : (
           <div className="space-y-3">
+            {showInlineQueryError ? (
+              <div className="rounded-xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+                Unable to load the comments inbox.
+              </div>
+            ) : null}
             {inbox.map((entry) => {
               const tone = buildStatusTone(entry.status);
               const expanded = expandedCommentId === entry.id;
               const replyValue = replyDrafts[entry.id] ?? entry.adminReply ?? '';
-              const institutionName = entry.member?.name || entry.memberId;
-              const piName = entry.member?.piName || '-';
-              const piEmail = entry.member?.piEmail || '-';
+              const replyPending = Boolean(pendingReplyIds[entry.id]);
+              const institutionName = entry.memberName;
+              const piName = entry.piName;
+              const piEmail = entry.piEmail;
 
               return (
                 <div key={entry.id} className="rounded-2xl border" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
@@ -175,10 +207,11 @@ export default function AdminComments() {
                         <button
                           type="button"
                           onClick={() => handleReplySubmit(entry)}
+                          disabled={replyPending}
                           className="rounded-xl px-4 py-2.5 text-sm font-bold"
-                          style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+                          style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: replyPending ? 0.7 : 1 }}
                         >
-                          {entry.adminReply ? 'Update Reply' : 'Send Reply'}
+                          {replyPending ? 'Saving...' : entry.adminReply ? 'Update Reply' : 'Send Reply'}
                         </button>
                       </div>
                     </div>

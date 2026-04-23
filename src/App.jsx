@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
+import NotificationBell from './components/NotificationBell';
 import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
 import LoginScreen from './screens/auth/LoginScreen';
 import MemberDashboard from './screens/member/MemberDashboard';
@@ -20,7 +21,7 @@ import AdminComments from './screens/admin/AdminComments';
 import ConflictLog from './screens/admin/ConflictLog';
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
-import { useMockApp } from './lib/mock-state';
+import { useAppShell } from './hooks/useAppShell';
 
 const MEMBER_ROUTE_BY_TAB = {
   dashboard: '/member/dashboard',
@@ -282,79 +283,62 @@ function MemberPreviewSwitcher({
   );
 }
 
-export default function App() {
+function AppContent() {
   const {
-    session,
-    authScreen,
-    setAuthScreen,
-    loginForm,
-    setLoginForm,
-    loginError,
-    setLoginError,
-    activateToken,
-    setActivateToken,
-    activateForm,
-    setActivateForm,
-    activationSummary,
-    handleSignIn,
-    handleSSOSignIn,
-    handleActivate,
-    isAdminSession,
+    user,
+    authLoading,
+    logout,
+    isAuthenticated,
+    isAdmin,
     currentView,
     setCurrentView,
     memberTab,
     setMemberTab,
     adminTab,
     setAdminTab,
-    handleSignOut,
     cycle,
+    activeCycleId,
     members,
     activeMember,
-    memberTabBadges,
+    hasGeneratedSchedule,
     pendingRegistrationCount,
-    dbStatus,
-    dbBusy,
-    loadFromDatabase,
-    resetToDemoBaseline,
-    saveCurrentToDatabase,
-    results,
-  } = useMockApp();
+    memberTabBadges,
+    dataReady,
+    dataLoading,
+  } = useAppShell();
 
   const location = useLocation();
   const navigate = useNavigate();
   const inMemberArea = location.pathname.startsWith('/member/');
   const inAdminArea = location.pathname.startsWith('/admin/');
   const showMemberShell = inMemberArea && Boolean(activeMember);
-  const showAdminShell = inAdminArea && isAdminSession;
+  const showAdminShell = inAdminArea && isAdmin;
+  const showNotificationBell = isAuthenticated;
 
   useEffect(() => {
-    if (!session) {
-      if (location.pathname !== '/login') {
-        navigate('/login', { replace: true });
-      }
-      return;
-    }
+    if (!isAuthenticated) return;
 
-    if (session.role === 'admin') {
-      if (location.pathname === '/' || location.pathname === '/login') {
+    if (isAdmin) {
+      if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/activate') {
         navigate('/admin/dashboard', { replace: true });
       }
       return;
     }
 
-    if (location.pathname === '/' || location.pathname === '/login' || location.pathname.startsWith('/admin/')) {
+    if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/activate' || location.pathname.startsWith('/admin/')) {
       navigate('/member/dashboard', { replace: true });
     }
-  }, [session, location.pathname, navigate]);
+  }, [isAuthenticated, isAdmin, location.pathname, navigate]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!isAuthenticated) return;
 
     if (location.pathname.startsWith('/member/')) {
       const nextMemberTab = MEMBER_TAB_BY_PATH[location.pathname] || 'dashboard';
       if (memberTab !== nextMemberTab) setMemberTab(nextMemberTab);
-      if (session.role === 'member') {
-        if (currentView !== session.memberId) setCurrentView(session.memberId);
+      if (!isAdmin) {
+        const memberId = user?.institutionAbbreviation || user?.institutionId;
+        if (currentView !== memberId) setCurrentView(memberId);
       } else if ((currentView === 'admin' || !members.some((member) => member.id === currentView)) && members[0]) {
         setCurrentView(members[0].id);
       }
@@ -364,11 +348,11 @@ export default function App() {
     if (location.pathname.startsWith('/admin/')) {
       const nextAdminTab = ADMIN_TAB_BY_PATH[location.pathname] || 'dashboard';
       if (adminTab !== nextAdminTab) setAdminTab(nextAdminTab);
-      if (session.role === 'admin' && currentView !== 'admin') {
+      if (isAdmin && currentView !== 'admin') {
         setCurrentView('admin');
       }
     }
-  }, [session, location.pathname, memberTab, setMemberTab, currentView, setCurrentView, members, adminTab, setAdminTab]);
+  }, [isAuthenticated, isAdmin, user, location.pathname, memberTab, setMemberTab, currentView, setCurrentView, members, adminTab, setAdminTab]);
 
   const openAdminTab = (tabId) => {
     setCurrentView('admin');
@@ -386,58 +370,43 @@ export default function App() {
     navigate(MEMBER_ROUTE_BY_TAB[memberTab] || '/member/dashboard');
   };
 
-  if (!session) {
-    if (authScreen === 'activate' || authScreen === 'activateSuccess') {
-      return (
-        <>
-          <ConceptFontStyles />
-          <ActivateAccountScreen
-            authScreen={authScreen}
-            activateToken={activateToken}
-            setActivateToken={setActivateToken}
-            activateForm={activateForm}
-            setActivateForm={setActivateForm}
-            handleActivate={handleActivate}
-            loginError={loginError}
-            members={members}
-            cycle={cycle}
-            activationSummary={activationSummary}
-            onActivated={(email = '') => {
-              setAuthScreen('login');
-              setLoginError('');
-              setActivateToken('');
-              setActivateForm({ password: '', confirmPassword: '', phone: '' });
-              setLoginForm({ username: email, password: '' });
-            }}
-            onBackToLogin={() => {
-              setAuthScreen('login');
-              setLoginError('');
-              setActivateToken('');
-              setActivateForm({ password: '', confirmPassword: '', phone: '' });
-              setLoginForm((prev) => ({ ...prev, password: '' }));
-            }}
-          />
-        </>
-      );
-    }
-
+  if (authLoading) {
     return (
       <>
         <ConceptFontStyles />
-        <LoginScreen
-          loginForm={loginForm}
-          setLoginForm={setLoginForm}
-          loginError={loginError}
-          handleSignIn={handleSignIn}
-          handleSSOSignIn={handleSSOSignIn}
-          handleResetDemoData={resetToDemoBaseline}
-          onShowActivate={() => {
-            setAuthScreen('activate');
-            setLoginError('');
-          }}
-          members={members}
-          cycle={cycle}
-        />
+        <div className="flex min-h-screen items-center justify-center" style={{ background: '#faf8f5' }}>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#0f2a4a' }}>SERCAT</div>
+            <div className="mt-2 text-sm" style={{ color: '#8896a7' }}>Loading...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <ConceptFontStyles />
+        <Routes>
+          <Route path="/login" element={<LoginScreen cycle={cycle} />} />
+          <Route path="/activate" element={<ActivateAccountScreen cycle={cycle} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </>
+    );
+  }
+
+  if (dataLoading && !dataReady) {
+    return (
+      <>
+        <ConceptFontStyles />
+        <div className="flex min-h-screen items-center justify-center" style={{ background: '#faf8f5' }}>
+          <div className="text-center">
+            <div className="text-lg font-semibold" style={{ color: '#0f2a4a' }}>SERCAT</div>
+            <div className="mt-2 text-sm" style={{ color: '#8896a7' }}>Loading data...</div>
+          </div>
+        </div>
       </>
     );
   }
@@ -449,24 +418,24 @@ export default function App() {
 
   const routesElement = (
     <Routes>
-      <Route path="/" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
-      <Route path="/login" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+      <Route path="/" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+      <Route path="/login" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
       <Route path="/member/dashboard" element={activeMember ? <MemberDashboard /> : <MemberRouteFallback />} />
       <Route path="/member/availability" element={activeMember ? <AvailabilityCalendar /> : <MemberRouteFallback />} />
       <Route path="/member/preferences" element={activeMember ? <PreferenceForm /> : <MemberRouteFallback />} />
       <Route path="/member/schedule" element={activeMember ? <MySchedule /> : <MemberRouteFallback />} />
       <Route path="/member/shift-changes" element={activeMember ? <ShiftChanges /> : <MemberRouteFallback />} />
-      <Route path="/member/comments" element={activeMember ? <MemberComments /> : <MemberRouteFallback />} />
+      <Route path="/member/comments" element={!isAdmin ? <MemberComments /> : <MemberRouteFallback />} />
       <Route path="/member/profile" element={activeMember ? <MemberProfile /> : <MemberRouteFallback />} />
-      <Route path="/admin/dashboard" element={isAdminSession ? <AdminDashboard /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/members" element={isAdminSession ? <MembersAndShares /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/run-cycles" element={isAdminSession ? <RunCycles /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/engine" element={isAdminSession ? <EngineAndSchedule /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/fairness" element={isAdminSession ? (results ? <FairnessPanel /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/shift-changes" element={isAdminSession ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/comments" element={isAdminSession ? <AdminComments /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/conflicts" element={isAdminSession ? (results ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
-      <Route path="*" element={<Navigate to={session.role === 'admin' ? '/admin/dashboard' : '/member/dashboard'} replace />} />
+      <Route path="/admin/dashboard" element={isAdmin ? <AdminDashboard /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/members" element={isAdmin ? <MembersAndShares /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/run-cycles" element={isAdmin ? <RunCycles /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/engine" element={isAdmin ? <EngineAndSchedule /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/fairness" element={isAdmin ? (hasGeneratedSchedule ? <FairnessPanel /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/shift-changes" element={isAdmin ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/comments" element={isAdmin ? <AdminComments /> : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/conflicts" element={isAdmin ? (hasGeneratedSchedule ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
+      <Route path="*" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
     </Routes>
   );
 
@@ -501,8 +470,9 @@ export default function App() {
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{profileInstitution}</div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
-                  onClick={handleSignOut}
+                  onClick={logout}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -538,8 +508,9 @@ export default function App() {
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{adminProfileInstitution}</div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
-                  onClick={handleSignOut}
+                  onClick={logout}
                   className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -568,19 +539,20 @@ export default function App() {
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
                 <div className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
                   <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: `${CONCEPT_THEME.amber}22`, color: CONCEPT_THEME.amber }}>
-                    {getInitials(isAdminSession ? adminProfileName : profileName)}
+                    {getInitials(isAdmin ? adminProfileName : profileName)}
                   </div>
                   <div className="hidden min-w-0 sm:block">
                     <div className="truncate text-sm font-semibold text-white">
-                      {isAdminSession ? adminProfileName : profileName}
+                      {isAdmin ? adminProfileName : profileName}
                     </div>
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>
-                      {isAdminSession ? adminProfileInstitution : profileInstitution}
+                      {isAdmin ? adminProfileInstitution : profileInstitution}
                     </div>
                   </div>
                 </div>
+                {showNotificationBell ? <NotificationBell /> : null}
                 <button
-                  onClick={handleSignOut}
+                  onClick={logout}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
                   style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.16)' }}
                 >
@@ -594,7 +566,7 @@ export default function App() {
         <div className="mx-auto flex-1 w-full max-w-[1600px] px-3 py-4 sm:px-4">
           {showMemberShell ? (
             <div className="space-y-4">
-              {isAdminSession ? (
+              {isAdmin ? (
                 <div className="rounded-2xl border bg-white px-3 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
                   <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Member preview</div>
                   <MemberPreviewSwitcher
@@ -662,7 +634,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {inAdminArea && isAdminSession && (
+              {inAdminArea && isAdmin && (
                 <div className="space-y-4">
                   <div
                     className="sticky z-40 -mx-3 border-b px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4"
@@ -712,7 +684,7 @@ export default function App() {
                 </div>
               )}
 
-              {!isAdminSession && inAdminArea ? (
+              {!isAdmin && inAdminArea ? (
                 <div className="py-12 text-center text-sm text-gray-500">Member sessions cannot access admin screens.</div>
               ) : (
                 routesElement
@@ -723,4 +695,8 @@ export default function App() {
       </div>
     </>
   );
+}
+
+export default function App() {
+  return <AppContent />;
 }

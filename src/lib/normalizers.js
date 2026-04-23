@@ -1,7 +1,32 @@
-import { WHOLE_SLOT_ORDER } from './constants';
-import { normalizeEmail } from './auth';
-import { computeEntitlements } from '../engine/engine';
-import { normalizeWholeShareEntriesForDoubleNight } from './whole-share';
+import { SHIFT_ORDER } from './constants.js';
+import { computeEntitlements } from './entitlements.js';
+
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+
+function legacySlotKeyToShift(slotKey) {
+  if (slotKey === 'NS') return 'NS';
+  if (slotKey === 'DAY2') return 'DS2';
+  return 'DS1';
+}
+
+function normalizeWholePreferenceEntry(entry = {}, shareIndex, shift) {
+  const resolvedShift = entry.shift || entry.shiftType || legacySlotKeyToShift(entry.slotKey || shift);
+  return {
+    shareIndex,
+    shift: resolvedShift,
+    choice1Date: entry.choice1Date || entry.firstChoiceDate || '',
+    choice2Date: entry.choice2Date || entry.secondChoiceDate || '',
+  };
+}
+
+function normalizeFractionalPreferenceEntry(entry = {}, blockIndex, fractionalHours) {
+  return {
+    blockIndex,
+    fractionalHours,
+    choice1Date: entry.choice1Date || entry.firstChoiceDate || '',
+    choice2Date: entry.choice2Date || entry.secondChoiceDate || '',
+  };
+}
 
 export function normalizeMemberRecord(raw) {
   const member = raw || {};
@@ -76,11 +101,11 @@ export function normalizeMemberAccessAccounts(list) {
 export function normalizeShiftChangeRequest(raw, idx = 0) {
   const request = raw || {};
   const sourceDate = String(request.sourceDate || request.fromDate || '').trim();
-  const sourceShiftType = String(request.sourceShiftType || request.fromShift || '').trim();
+  const sourceShift = String(request.sourceShift || request.sourceShiftType || request.fromShift || '').trim();
   const requestedDate = String(request.requestedDate || '').trim();
-  const requestedShiftType = String(request.requestedShiftType || request.requestedShift || '').trim();
+  const requestedShift = String(request.requestedShift || request.requestedShiftType || '').trim();
   const reassignedDate = String(request.reassignedDate || '').trim();
-  const reassignedShiftType = String(request.reassignedShiftType || request.reassignedShift || '').trim();
+  const reassignedShift = String(request.reassignedShift || request.reassignedShiftType || '').trim();
   const status = ['Pending', 'Approved', 'Rejected'].includes(request.status) ? request.status : 'Pending';
   const createdAt = request.createdAt ? String(request.createdAt) : new Date(Date.now() + idx).toISOString();
   return {
@@ -90,13 +115,16 @@ export function normalizeShiftChangeRequest(raw, idx = 0) {
     status,
     reason: String(request.reason || '').trim(),
     sourceDate,
-    sourceShiftType,
+    sourceShift,
     requestedDate,
-    requestedShiftType,
+    requestedShift,
     reassignedDate,
-    reassignedShiftType,
+    reassignedShift,
     adminNote: String(request.adminNote || '').trim(),
     resolvedAt: String(request.resolvedAt || '').trim(),
+    _swapId: String(request._swapId || '').trim(),
+    _scheduleId: String(request._scheduleId || '').trim(),
+    _targetAssignmentId: String(request._targetAssignmentId || '').trim(),
   };
 }
 
@@ -144,45 +172,56 @@ export function normalizeMemberComments(rawComments, members = []) {
   return normalized;
 }
 
-export function normalizeMemberPreferences(member, prefs = { wholeShare: [], fractional: [], submitted: false, notes: '' }) {
+export function normalizeMemberPreferences(
+  member,
+  prefs = { wholeShare: [], fractionalPreferences: [], submitted: false, notes: '' },
+) {
   const entitlement = computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
+  const sourceWhole = Array.isArray(prefs.wholeShare) ? prefs.wholeShare : [];
+  const sourceFractional = Array.isArray(prefs.fractionalPreferences)
+    ? prefs.fractionalPreferences
+    : (Array.isArray(prefs.fractional) ? prefs.fractional : []);
+
   const wholeShare = [];
   for (let i = 0; i < entitlement.wholeShares; i += 1) {
     const shareIndex = i + 1;
-    WHOLE_SLOT_ORDER.forEach((slotKey) => {
-      const existing = prefs.wholeShare?.find(
-        (p) => p.shareIndex === shareIndex
-          && (p.slotKey || (p.shiftType === 'NS' ? 'NS' : p.shiftType === 'DS2' ? 'DAY2' : 'DAY1')) === slotKey,
+    SHIFT_ORDER.forEach((shift) => {
+      const existing = sourceWhole.find(
+        (entry) => entry.shareIndex === shareIndex
+          && (entry.shift || legacySlotKeyToShift(entry.slotKey || 'DS1')) === shift,
       ) || {};
-      const shiftType = slotKey === 'NS'
-        ? 'NS'
-        : (typeof existing.shiftType === 'string' ? existing.shiftType : '');
-      wholeShare.push({
-        shareIndex,
-        slotKey,
-        shiftType,
-        firstChoiceDate: existing.firstChoiceDate || '',
-        secondChoiceDate: existing.secondChoiceDate || '',
-      });
+      wholeShare.push(normalizeWholePreferenceEntry(existing, shareIndex, shift));
     });
   }
-  const normalizedWholeShare = normalizeWholeShareEntriesForDoubleNight(wholeShare);
-  const fractionalCount = Math.ceil(entitlement.fractionalHours / 6);
-  const fractional = Array.from({ length: fractionalCount }, (_, i) => {
-    const existing = prefs.fractional?.[i] || {};
-    return {
-      shiftType: typeof existing.shiftType === 'string' ? existing.shiftType : '',
-      firstChoiceDate: existing.firstChoiceDate || '',
-      secondChoiceDate: existing.secondChoiceDate || '',
-    };
-  });
-  return { wholeShare: normalizedWholeShare, fractional, submitted: Boolean(prefs.submitted), notes: String(prefs.notes || '') };
+
+  const fractionalPreferences = [];
+  let remainingHours = entitlement.fractionalHours;
+  let blockIndex = 1;
+  while (remainingHours > 0.0001) {
+    const hours = Math.min(6, roundTo2(remainingHours));
+    const existing = sourceFractional[blockIndex - 1] || {};
+    fractionalPreferences.push(normalizeFractionalPreferenceEntry(existing, blockIndex, hours));
+    remainingHours = roundTo2(remainingHours - hours);
+    blockIndex += 1;
+  }
+
+  return {
+    wholeShare,
+    fractionalPreferences,
+    submitted: Boolean(prefs.submitted),
+    notes: String(prefs.notes || ''),
+  };
 }
 
-export function sampleWholeShare(shareIndex, firstChoiceDate, secondChoiceDate, day1Shift = 'DS1', day2Shift = 'DS2') {
-  return [
-    { shareIndex, slotKey: 'DAY1', shiftType: day1Shift, firstChoiceDate, secondChoiceDate },
-    { shareIndex, slotKey: 'DAY2', shiftType: day2Shift, firstChoiceDate, secondChoiceDate },
-    { shareIndex, slotKey: 'NS', shiftType: 'NS', firstChoiceDate, secondChoiceDate },
-  ];
+function roundTo2(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+export function sampleWholeShare(shareIndex, firstChoiceDate, secondChoiceDate) {
+  return SHIFT_ORDER.map((shift) => ({
+    shareIndex,
+    shift,
+    choice1Date: firstChoiceDate,
+    choice2Date: secondChoiceDate,
+  }));
 }

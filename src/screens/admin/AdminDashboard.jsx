@@ -2,59 +2,100 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addDays, formatCalendarDate, localTodayDateStr, toDateStr } from '../../lib/dates';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import { usePreferenceStatus, useSchedule, useUsers } from '../../hooks/useApiData';
+
+function StatusCard({ title, detail }) {
+  return (
+    <div
+      className="rounded-2xl px-6 py-5 concept-font-body concept-anim-fade"
+      style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
+    >
+      <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
+      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+    </div>
+  );
+}
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function normalizeDateOnly(value) {
+  if (typeof value === 'string') {
+    return value.split('T')[0];
+  }
+
+  return value ? toDateStr(new Date(value)) : '';
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const {
-    activeMembers,
-    pendingMembers,
-    submittedCount,
-    schedulePublication,
-    cycle,
-    dbStatus,
-    dbBusy,
-    loadFromDatabase,
-    saveCurrentToDatabase,
-  } = useMockApp();
+  const { activeCycle, activeCycleId, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
+  const usersQuery = useUsers({ all: true });
+  const preferenceStatusQuery = usePreferenceStatus(activeCycleId);
+  const scheduleQuery = useSchedule(activeCycleId);
 
-  const preferenceDeadline = cycle.preferenceDeadline || addDays(cycle.startDate, -7);
+  if (cycleLoading || usersQuery.isLoading || preferenceStatusQuery.isLoading || scheduleQuery.isLoading) {
+    return (
+      <StatusCard
+        title="Loading admin dashboard..."
+        detail="Fetching the active cycle, member readiness, and schedule publication status."
+      />
+    );
+  }
+
+  if (cycleError || usersQuery.error || preferenceStatusQuery.error || scheduleQuery.error) {
+    return (
+      <StatusCard
+        title="Unable to load admin dashboard"
+        detail={(cycleError || usersQuery.error || preferenceStatusQuery.error || scheduleQuery.error)?.message || 'Please try again in a moment.'}
+      />
+    );
+  }
+
+  if (!activeCycle) {
+    return (
+      <StatusCard
+        title="Admin dashboard unavailable"
+        detail="No active cycle is available yet."
+      />
+    );
+  }
+
+  const users = extractRows(usersQuery.data);
+  const activeMembers = users.filter((user) => user?.role === 'pi' && user?.isActive && user?.isActivated);
+  const pendingMembers = users.filter((user) => user?.role === 'pi' && user?.isActive && !user?.isActivated);
+  const statusSummary = preferenceStatusQuery.data?.summary || {
+    total: activeMembers.length,
+    submitted: 0,
+    pending: activeMembers.length,
+  };
+  const schedulePublication = scheduleQuery.data || {};
+  const preferenceDeadline = activeCycle.preferenceDeadline
+    ? normalizeDateOnly(activeCycle.preferenceDeadline)
+    : addDays(activeCycle.startDate, -7);
   const published = schedulePublication.status === 'published';
-  const submissionPct = activeMembers.length > 0 ? Math.round((submittedCount / activeMembers.length) * 100) : 0;
+  const submittedCount = statusSummary.submitted ?? 0;
+  const activeMemberCount = statusSummary.total ?? activeMembers.length;
+  const submissionPct = activeMemberCount > 0 ? Math.round((submittedCount / activeMemberCount) * 100) : 0;
   const timeline = [
-    { label: 'Cycle Start', date: cycle.startDate, done: localTodayDateStr() >= cycle.startDate },
+    { label: 'Cycle Start', date: activeCycle.startDate, done: localTodayDateStr() >= activeCycle.startDate },
     { label: 'Deadline', date: preferenceDeadline, done: localTodayDateStr() > preferenceDeadline },
     { label: 'Schedule', date: published ? (schedulePublication.publishedAt ? toDateStr(new Date(schedulePublication.publishedAt)) : 'Published') : 'Pending', done: published, active: !published },
-    { label: 'Cycle End', date: cycle.endDate, done: localTodayDateStr() > cycle.endDate },
+    { label: 'Cycle End', date: activeCycle.endDate, done: localTodayDateStr() > activeCycle.endDate },
   ];
 
   return (
     <div className="space-y-5 concept-font-body concept-anim-fade">
-      <div className="rounded-2xl border bg-white px-3 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>Admin workspace</div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
-            {dbStatus}
-          </span>
-          <button
-            onClick={loadFromDatabase}
-            disabled={dbBusy}
-            className="rounded-xl px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed"
-            style={{ background: dbBusy ? CONCEPT_THEME.sandDark : CONCEPT_THEME.sand, color: dbBusy ? CONCEPT_THEME.subtle : CONCEPT_THEME.text, border: `1px solid ${CONCEPT_THEME.border}` }}
-          >
-            Load Local
-          </button>
-          <button
-            onClick={saveCurrentToDatabase}
-            disabled={dbBusy}
-            className="rounded-xl px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed"
-            style={{ background: dbBusy ? CONCEPT_THEME.sandDark : CONCEPT_THEME.emeraldLight, color: dbBusy ? CONCEPT_THEME.subtle : CONCEPT_THEME.emerald, border: `1px solid ${dbBusy ? CONCEPT_THEME.border : `${CONCEPT_THEME.emerald}33`}` }}
-          >
-            Save Local
-          </button>
-        </div>
-      </div>
-
       <div className="rounded-2xl overflow-hidden concept-anim-pulse" style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.amberLight} 0%, ${CONCEPT_THEME.amberSoft} 100%)`, border: `1px solid ${CONCEPT_THEME.amber}44` }}>
         <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${CONCEPT_THEME.amber}20` }}>
@@ -69,7 +110,7 @@ export default function AdminDashboard() {
             <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.navyMuted }}>
               {published
                 ? 'Members can now view assignments. Use Engine & Schedule to revise or move back to draft.'
-                : `${submittedCount}/${activeMembers.length} active members submitted. Open Schedule to generate or publish.`}
+                : `${submittedCount}/${activeMemberCount} active members submitted. Open Schedule to generate or publish.`}
             </p>
           </div>
           <button
@@ -82,15 +123,15 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className="px-6 pb-4 text-sm font-semibold" style={{ color: CONCEPT_THEME.accentOnAccent }}>
-          Cycle {cycle.id} | Preference deadline: {formatCalendarDate(preferenceDeadline)}
+          Cycle {activeCycle.name || activeCycle.id} | Preference deadline: {formatCalendarDate(preferenceDeadline)}
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Active Members', value: activeMembers.length, sub: 'in cycle', accent: CONCEPT_THEME.navy },
+          { label: 'Active Members', value: activeMemberCount, sub: 'in cycle', accent: CONCEPT_THEME.navy },
           { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.accentText },
-          { label: 'Submissions', value: `${submittedCount}/${activeMembers.length || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky },
+          { label: 'Submissions', value: `${submittedCount}/${activeMemberCount || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky },
           { label: 'Schedule', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>

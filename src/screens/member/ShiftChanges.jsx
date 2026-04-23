@@ -1,29 +1,252 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import {
+  useAvailableDates,
+  useCreateSwapRequest,
+  useSchedule,
+  useSwapRequests,
+} from '../../hooks/useApiData';
+import { formatCalendarDate, fromDateStr } from '../../lib/dates';
 import { SHIFT_ORDER, SHIFT_UI_META } from '../../lib/constants';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useMockApp } from '../../lib/mock-state';
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 export default function ShiftChanges() {
-  const {
-    sortedCurrentMemberAssignments,
-    assignmentKey,
-    selectedShiftChangeSource,
-    setSelectedShiftChangeSource,
-    formatMemberShiftDate,
-    shiftChangeForm,
-    setShiftChangeForm,
-    submitShiftChangeRequest,
-    selectedShiftChangeAssignmentObj,
+  const { user } = useAuth();
+  const { activeCycle, activeCycleId } = useActiveCycle();
+  const scheduleQuery = useSchedule(activeCycleId);
+  const swapRequestsQuery = useSwapRequests();
+  const datesQuery = useAvailableDates(activeCycleId);
+  const createSwapRequest = useCreateSwapRequest();
+
+  const [selectedShiftChangeSource, setSelectedShiftChangeSource] = useState('');
+  const [shiftChangeForm, setShiftChangeForm] = useState({ requestedDate: '', requestedShift: '', reason: '' });
+  const [memberShiftChangeError, setMemberShiftChangeError] = useState('');
+  const [shiftChangeSubmittedFlash, setShiftChangeSubmittedFlash] = useState(false);
+  const [expandedMemberRequestId, setExpandedMemberRequestId] = useState('');
+
+  const cycle = useMemo(() => {
+    if (!activeCycle) return { startDate: '', endDate: '' };
+    return {
+      startDate: activeCycle.startDate || '',
+      endDate: activeCycle.endDate || '',
+    };
+  }, [activeCycle]);
+
+  const scheduleData = scheduleQuery.data || null;
+  const allAssignments = useMemo(
+    () => (Array.isArray(scheduleData?.assignments) ? scheduleData.assignments : []),
+    [scheduleData],
+  );
+
+  const sortedCurrentMemberAssignments = useMemo(
+    () => [...allAssignments].sort((a, b) => {
+      const dateDelta = String(a.assignedDate || '').localeCompare(String(b.assignedDate || ''));
+      if (dateDelta !== 0) return dateDelta;
+      return SHIFT_ORDER.indexOf(a.shift) - SHIFT_ORDER.indexOf(b.shift);
+    }),
+    [allAssignments],
+  );
+
+  const assignmentKey = useCallback(
+    (assignment) => `${assignment.assignedDate}:${assignment.shift}`,
+    [],
+  );
+
+  const availableDateRows = useMemo(() => extractRows(datesQuery.data), [datesQuery.data]);
+  const availableDateMap = useMemo(() => {
+    const map = new Map();
+    availableDateRows.forEach((row) => {
+      if (!row?.date) return;
+      map.set(row.date, row);
+    });
+    return map;
+  }, [availableDateRows]);
+
+  const selectedShiftChangeDate = selectedShiftChangeSource ? selectedShiftChangeSource.split(':')[0] : '';
+
+  const availableShiftRequestDatesForSelection = useMemo(() => (
+    availableDateRows
+      .filter((row) => row.isAvailable)
+      .filter((row) => row.date !== selectedShiftChangeDate)
+      .filter((row) => (
+        (row.ds1Available ?? true)
+        || (row.ds2Available ?? true)
+        || (row.nsAvailable ?? true)
+      ))
+      .map((row) => row.date)
+      .sort()
+  ), [availableDateRows, selectedShiftChangeDate]);
+
+  const availableShiftRequestTypes = useMemo(() => {
+    if (!shiftChangeForm.requestedDate) return SHIFT_ORDER;
+    const row = availableDateMap.get(shiftChangeForm.requestedDate);
+    if (!row || row.isAvailable === false) return [];
+    return SHIFT_ORDER.filter((shift) => {
+      if (shift === 'DS1') return row.ds1Available !== false;
+      if (shift === 'DS2') return row.ds2Available !== false;
+      if (shift === 'NS') return row.nsAvailable !== false;
+      return false;
+    });
+  }, [availableDateMap, shiftChangeForm.requestedDate]);
+
+  const selectedShiftChangeAssignmentObj = useMemo(
+    () => sortedCurrentMemberAssignments.find(
+      (assignment) => assignmentKey(assignment) === selectedShiftChangeSource,
+    ) || null,
+    [sortedCurrentMemberAssignments, assignmentKey, selectedShiftChangeSource],
+  );
+
+  const memberShiftRequests = useMemo(() => {
+    const swaps = extractRows(swapRequestsQuery.data);
+    return swaps
+      .map((swap) => {
+        const targetAssignment = swap.targetAssignment || {};
+        const approved = swap.status === 'approved';
+        return {
+          id: swap.id,
+          sourceDate: targetAssignment.assignedDate || '',
+          sourceShift: targetAssignment.shift || '',
+          requestedDate: (swap.preferredDates || [])[0] || '',
+          requestedShift: '',
+          reason: '',
+          status: approved ? 'Approved' : swap.status === 'denied' ? 'Rejected' : 'Pending',
+          createdAt: swap.createdAt,
+          adminNote: swap.adminNotes || '',
+          reassignedDate: approved ? (targetAssignment.assignedDate || '') : '',
+          reassignedShift: approved ? (targetAssignment.shift || '') : '',
+        };
+      })
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }, [swapRequestsQuery.data]);
+
+  const memberShiftChangeSummary = useMemo(() => ({
+    pending: memberShiftRequests.filter((request) => request.status === 'Pending').length,
+    approved: memberShiftRequests.filter((request) => request.status === 'Approved').length,
+    rejected: memberShiftRequests.filter((request) => request.status === 'Rejected').length,
+  }), [memberShiftRequests]);
+
+  const formatMemberShiftDate = useCallback((dateStr) => {
+    if (!dateStr) return 'N/A';
+    return fromDateStr(dateStr).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedShiftChangeSource && !selectedShiftChangeAssignmentObj) {
+      setSelectedShiftChangeSource('');
+    }
+  }, [selectedShiftChangeAssignmentObj, selectedShiftChangeSource]);
+
+  useEffect(() => {
+    if (!selectedShiftChangeSource) {
+      setShiftChangeForm((prev) => {
+        if (!prev.requestedDate && !prev.requestedShift && !prev.reason) return prev;
+        return { requestedDate: '', requestedShift: '', reason: '' };
+      });
+      return;
+    }
+
+    setShiftChangeForm((prev) => {
+      if (!prev.requestedDate) return prev;
+      if (!availableShiftRequestDatesForSelection.includes(prev.requestedDate)) {
+        return { ...prev, requestedDate: '', requestedShift: '' };
+      }
+      return prev;
+    });
+  }, [availableShiftRequestDatesForSelection, selectedShiftChangeSource]);
+
+  useEffect(() => {
+    setShiftChangeForm((prev) => {
+      if (!prev.requestedDate) {
+        if (!prev.requestedShift) return prev;
+        if (!SHIFT_ORDER.includes(prev.requestedShift)) {
+          return { ...prev, requestedShift: '' };
+        }
+        return prev;
+      }
+
+      if (!prev.requestedShift) return prev;
+      if (!availableShiftRequestTypes.includes(prev.requestedShift)) {
+        return { ...prev, requestedShift: '' };
+      }
+      return prev;
+    });
+  }, [availableShiftRequestTypes]);
+
+  useEffect(() => {
+    if (memberShiftChangeError) setMemberShiftChangeError('');
+  }, [memberShiftChangeError, selectedShiftChangeSource, shiftChangeForm.requestedDate, shiftChangeForm.requestedShift]);
+
+  const submitShiftChangeRequest = useCallback((event) => {
+    event.preventDefault();
+
+    if (!selectedShiftChangeAssignmentObj) {
+      setMemberShiftChangeError('Select an assigned shift to request a change.');
+      return;
+    }
+
+    if (!scheduleData?.scheduleId) {
+      setMemberShiftChangeError('Schedule is not available. Try refreshing.');
+      return;
+    }
+
+    if (shiftChangeForm.requestedDate && !availableShiftRequestDatesForSelection.includes(shiftChangeForm.requestedDate)) {
+      setMemberShiftChangeError('Preferred date is not available.');
+      return;
+    }
+
+    if (shiftChangeForm.requestedDate && shiftChangeForm.requestedShift && !availableShiftRequestTypes.includes(shiftChangeForm.requestedShift)) {
+      setMemberShiftChangeError('Preferred shift is blocked on selected date.');
+      return;
+    }
+
+    createSwapRequest.mutate(
+      {
+        scheduleId: scheduleData.scheduleId,
+        targetAssignmentId: selectedShiftChangeAssignmentObj.id,
+        preferredDates: shiftChangeForm.requestedDate ? [shiftChangeForm.requestedDate] : [],
+      },
+      {
+        onSuccess: () => {
+          setShiftChangeSubmittedFlash(true);
+          window.setTimeout(() => setShiftChangeSubmittedFlash(false), 2800);
+          setMemberShiftChangeError('');
+          setExpandedMemberRequestId('');
+          setSelectedShiftChangeSource('');
+          setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
+        },
+        onError: (err) => {
+          setMemberShiftChangeError(err.message || 'Failed to submit swap request.');
+        },
+      },
+    );
+  }, [
     availableShiftRequestDatesForSelection,
     availableShiftRequestTypes,
-    memberShiftChangeError,
-    setMemberShiftChangeError,
-    shiftChangeSubmittedFlash,
-    memberShiftRequests,
-    memberShiftChangeSummary,
-    expandedMemberRequestId,
-    setExpandedMemberRequestId,
-  } = useMockApp();
+    createSwapRequest,
+    scheduleData,
+    selectedShiftChangeAssignmentObj,
+    shiftChangeForm.requestedDate,
+    shiftChangeForm.requestedShift,
+  ]);
+
+  if (scheduleQuery.isLoading || swapRequestsQuery.isLoading || datesQuery.isLoading) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        Loading shift data...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 concept-font-body">
@@ -50,7 +273,7 @@ export default function ShiftChanges() {
             {sortedCurrentMemberAssignments.map((assignment, idx) => {
               const key = assignmentKey(assignment);
               const selected = selectedShiftChangeSource === key;
-              const meta = SHIFT_UI_META[assignment.shiftType] || { label: assignment.shiftType, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
+              const meta = SHIFT_UI_META[assignment.shift] || { label: assignment.shift, sub: '', color: CONCEPT_THEME.muted, bg: CONCEPT_THEME.sand };
               return (
                 <button
                   key={`shift-change-source-${key}-${idx}`}
@@ -63,7 +286,7 @@ export default function ShiftChanges() {
                     boxShadow: selected ? `0 0 0 2px ${meta.color}22` : 'none',
                   }}
                 >
-                  <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.date)}</div>
+                  <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.assignedDate)}</div>
                   <div className="mt-0.5 text-xs" style={{ color: CONCEPT_THEME.text }}>{meta.label} ({meta.sub})</div>
                 </button>
               );
@@ -80,10 +303,10 @@ export default function ShiftChanges() {
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.sky}08`, borderColor: `${CONCEPT_THEME.sky}33` }}>
               <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>Changing From</div>
               <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
-                {formatMemberShiftDate(selectedShiftChangeAssignmentObj.date)}
+                {formatMemberShiftDate(selectedShiftChangeAssignmentObj.assignedDate)}
               </div>
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-                {SHIFT_UI_META[selectedShiftChangeAssignmentObj.shiftType]?.label || selectedShiftChangeAssignmentObj.shiftType}
+                {SHIFT_UI_META[selectedShiftChangeAssignmentObj.shift]?.label || selectedShiftChangeAssignmentObj.shift}
               </div>
             </div>
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.emerald}08`, borderColor: `${CONCEPT_THEME.emerald}33` }}>
@@ -92,37 +315,37 @@ export default function ShiftChanges() {
                 {shiftChangeForm.requestedDate ? formatMemberShiftDate(shiftChangeForm.requestedDate) : 'Select Date'}
               </div>
               <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-                {shiftChangeForm.requestedShiftType
-                  ? (SHIFT_UI_META[shiftChangeForm.requestedShiftType]?.label || shiftChangeForm.requestedShiftType)
-                  : 'Select Shift Type'}
+                {shiftChangeForm.requestedShift
+                  ? (SHIFT_UI_META[shiftChangeForm.requestedShift]?.label || shiftChangeForm.requestedShift)
+                  : 'Select Shift'}
               </div>
             </div>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-2 gap-2.5" onSubmit={submitShiftChangeRequest}>
-            <select
+            <input
+              type="date"
               value={shiftChangeForm.requestedDate}
-              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedDate: e.target.value }))}
+              min={cycle.startDate}
+              max={cycle.endDate}
+              onChange={(e) => {
+                const date = e.target.value;
+                if (date && !availableShiftRequestDatesForSelection.includes(date)) return;
+                setShiftChangeForm((prev) => ({ ...prev, requestedDate: date }));
+              }}
               className="rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
-            >
-              <option value="">Select Date</option>
-              {availableShiftRequestDatesForSelection.map((date) => (
-                <option key={`shift-change-date-${date}`} value={date}>
-                  {formatMemberShiftDate(date)} ({date})
-                </option>
-              ))}
-            </select>
+            />
             <select
-              value={shiftChangeForm.requestedShiftType}
-              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShiftType: e.target.value }))}
+              value={shiftChangeForm.requestedShift}
+              onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShift: e.target.value }))}
               className="rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             >
-              <option value="">Select Shift Type</option>
-              {(shiftChangeForm.requestedDate ? availableShiftRequestTypes : SHIFT_ORDER).map((shiftType) => (
-                <option key={`shift-change-type-${shiftType}`} value={shiftType}>
-                  {SHIFT_UI_META[shiftType]?.label || shiftType}
+              <option value="">Select Shift</option>
+              {(shiftChangeForm.requestedDate ? availableShiftRequestTypes : SHIFT_ORDER).map((shift) => (
+                <option key={`shift-change-type-${shift}`} value={shift}>
+                  {SHIFT_UI_META[shift]?.label || shift}
                 </option>
               ))}
             </select>
@@ -138,7 +361,7 @@ export default function ShiftChanges() {
                 type="button"
                 onClick={() => {
                   setSelectedShiftChangeSource('');
-                  setShiftChangeForm({ requestedDate: '', requestedShiftType: '', reason: '' });
+                  setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
                   setMemberShiftChangeError('');
                 }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold"
@@ -194,7 +417,7 @@ export default function ShiftChanges() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
-                        {formatMemberShiftDate(request.sourceDate)} | {SHIFT_UI_META[request.sourceShiftType]?.label || request.sourceShiftType || 'Unknown shift'}
+                        {formatMemberShiftDate(request.sourceDate)} | {SHIFT_UI_META[request.sourceShift]?.label || request.sourceShift || 'Unknown shift'}
                       </div>
                       {request.reason ? (
                         <div className="mt-0.5 truncate text-xs" style={{ color: CONCEPT_THEME.muted }}>{request.reason}</div>
@@ -215,7 +438,7 @@ export default function ShiftChanges() {
                           <span className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>Preferred:</span>{' '}
                           <span style={{ color: CONCEPT_THEME.text }}>
                             {request.requestedDate
-                              ? `${formatMemberShiftDate(request.requestedDate)} | ${SHIFT_UI_META[request.requestedShiftType]?.label || request.requestedShiftType || 'Any shift'}`
+                              ? `${formatMemberShiftDate(request.requestedDate)} | ${SHIFT_UI_META[request.requestedShift]?.label || request.requestedShift || 'Any shift'}`
                               : 'Any available slot'}
                           </span>
                         </div>
@@ -223,7 +446,7 @@ export default function ShiftChanges() {
                           <span className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>Admin Reassignment:</span>{' '}
                           <span style={{ color: request.reassignedDate ? CONCEPT_THEME.emerald : CONCEPT_THEME.text }}>
                             {request.reassignedDate
-                              ? `${formatMemberShiftDate(request.reassignedDate)} | ${SHIFT_UI_META[request.reassignedShiftType]?.label || request.reassignedShiftType}`
+                              ? `${formatMemberShiftDate(request.reassignedDate)} | ${SHIFT_UI_META[request.reassignedShift]?.label || request.reassignedShift}`
                               : '-'}
                           </span>
                         </div>

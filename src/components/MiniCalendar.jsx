@@ -37,7 +37,7 @@ export default function MiniCalendar({ startDate, endDate, blocked, selected, on
                 const inRange = ds >= startDate && ds <= endDate;
                 const isBlocked = blockedSet.has(ds);
                 const isSelected = selected?.includes(ds);
-                const dayAssignments = assignments?.filter((a) => a.date === ds) || [];
+                const dayAssignments = assignments?.filter((a) => a.assignedDate === ds) || [];
                 const memberAssignment = highlightMember ? dayAssignments.filter((a) => a.memberId === highlightMember) : dayAssignments;
                 const uniqueMembers = [...new Set(dayAssignments.map((a) => a.memberId))];
 
@@ -58,7 +58,7 @@ export default function MiniCalendar({ startDate, endDate, blocked, selected, on
                       backgroundColor: MEMBER_BG[uniqueMembers[0]] || '#f3f4f6',
                     } : {}}
                     onClick={() => !isBlocked && !viewOnly && onDateClick?.(ds)}
-                    title={isBlocked ? 'Blocked' : dayAssignments.length > 0 ? dayAssignments.map((a) => `${a.memberId} ${a.shiftType} (${a.assignmentType})`).join('\n') : ds}
+                    title={isBlocked ? 'Blocked' : dayAssignments.length > 0 ? dayAssignments.map((a) => `${a.memberId} ${a.shift} (${a.assignmentReason})`).join('\n') : ds}
                   >
                     {day}
                     {uniqueMembers.length > 1 && !highlightMember && (
