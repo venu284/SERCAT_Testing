@@ -1,4 +1,4 @@
-import { createRouter } from '../lib/router.js';
+import { createApiRouter, handleCatchAllRequest } from '../lib/api-catch-all.js';
 
 import healthHandler from '../api-handlers/health.js';
 import auditLogHandler from '../api-handlers/admin/audit-log.js';
@@ -38,70 +38,46 @@ import userRoleHandler from '../api-handlers/users/[id]/role.js';
 import userByIdHandler from '../api-handlers/users/[id].js';
 import usersIndexHandler from '../api-handlers/users/index.js';
 
-const router = createRouter();
-
-router.all('/health', healthHandler);
-
-router.all('/admin/audit-log', auditLogHandler);
-router.all('/admin/send-reminder', sendReminderHandler);
-
-router.all('/auth/activate', activateHandler);
-router.all('/auth/login', loginHandler);
-router.all('/auth/logout', logoutHandler);
-router.all('/auth/me', meHandler);
-router.all('/auth/reset-password', resetPasswordHandler);
-router.all('/auth/set-password', setPasswordHandler);
-
-router.all('/comments', commentsIndexHandler);
-router.all('/comments/:id', commentByIdHandler);
-
-router.all('/cycles/:id/preferences/status', cyclePreferenceStatusHandler);
-router.all('/cycles/:id/shares/snapshot', cycleSharesSnapshotHandler);
-router.all('/cycles/:id/schedules/generate', cycleSchedulesGenerateHandler);
-router.all('/cycles/:id/archive', cycleArchiveHandler);
-router.all('/cycles/:id/dates', cycleDatesHandler);
-router.all('/cycles/:id/preferences', cyclePreferencesHandler);
-router.all('/cycles/:id/schedules', cycleSchedulesIndexHandler);
-router.all('/cycles/:id/shares', cycleSharesIndexHandler);
-router.all('/cycles', cyclesIndexHandler);
-router.all('/cycles/:id', cycleByIdHandler);
-
-router.all('/institutions', institutionsIndexHandler);
-router.all('/institutions/:id', institutionByIdHandler);
-
-router.all('/notifications', notificationsIndexHandler);
-router.all('/notifications/:id', notificationByIdHandler);
-
-router.all('/schedules/:id/assignments/:assignmentId', scheduleAssignmentHandler);
-router.all('/schedules/:id/publish', schedulePublishHandler);
-router.all('/schedules/:id/unpublish', scheduleUnpublishHandler);
-
-router.all('/shares/upload', sharesUploadHandler);
-router.all('/shares', sharesIndexHandler);
-router.all('/shares/:id', shareByIdHandler);
-
-router.all('/swap-requests', swapRequestsIndexHandler);
-router.all('/swap-requests/:id', swapRequestByIdHandler);
-
-router.all('/users/:id/resend-invite', userResendInviteHandler);
-router.all('/users/:id/role', userRoleHandler);
-router.all('/users', usersIndexHandler);
-router.all('/users/:id', userByIdHandler);
+const router = createApiRouter({
+  health: healthHandler,
+  adminAuditLog: auditLogHandler,
+  adminSendReminder: sendReminderHandler,
+  activate: activateHandler,
+  login: loginHandler,
+  logout: logoutHandler,
+  me: meHandler,
+  resetPassword: resetPasswordHandler,
+  setPassword: setPasswordHandler,
+  commentsIndex: commentsIndexHandler,
+  commentById: commentByIdHandler,
+  cyclePreferenceStatus: cyclePreferenceStatusHandler,
+  cycleSharesSnapshot: cycleSharesSnapshotHandler,
+  cycleSchedulesGenerate: cycleSchedulesGenerateHandler,
+  cycleArchive: cycleArchiveHandler,
+  cycleDates: cycleDatesHandler,
+  cyclePreferences: cyclePreferencesHandler,
+  cycleSchedulesIndex: cycleSchedulesIndexHandler,
+  cycleSharesIndex: cycleSharesIndexHandler,
+  cyclesIndex: cyclesIndexHandler,
+  cycleById: cycleByIdHandler,
+  institutionsIndex: institutionsIndexHandler,
+  institutionById: institutionByIdHandler,
+  notificationsIndex: notificationsIndexHandler,
+  notificationById: notificationByIdHandler,
+  scheduleAssignment: scheduleAssignmentHandler,
+  schedulePublish: schedulePublishHandler,
+  scheduleUnpublish: scheduleUnpublishHandler,
+  sharesUpload: sharesUploadHandler,
+  sharesIndex: sharesIndexHandler,
+  shareById: shareByIdHandler,
+  swapRequestsIndex: swapRequestsIndexHandler,
+  swapRequestById: swapRequestByIdHandler,
+  userResendInvite: userResendInviteHandler,
+  userRole: userRoleHandler,
+  usersIndex: usersIndexHandler,
+  userById: userByIdHandler,
+});
 
 export default function handler(req, res) {
-  const pathSegments = Array.isArray(req.query.path)
-    ? req.query.path
-    : [req.query.path].filter(Boolean);
-  const path = `/${pathSegments.join('/')}`;
-
-  const matched = router.match(req.method, path);
-  if (!matched) {
-    return res.status(404).json({
-      error: `API route not found: ${req.method} /api${path}`,
-      code: 'NOT_FOUND',
-    });
-  }
-
-  req.query = { ...req.query, ...matched.params };
-  return matched.handler(req, res);
+  return handleCatchAllRequest(router, req, res);
 }
