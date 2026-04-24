@@ -42,7 +42,7 @@ export function useUsers(params = {}, options = {}) {
         const rows = [];
 
         do {
-          const response = await api.get(buildUrl({ ...restParams, limit, page })).then((r) => r.data);
+          const response = await api.get(buildUrl({ ...restParams, limit, page }));
           const pageRows = Array.isArray(response?.data) ? response.data : [];
           const pagination = response?.pagination ?? null;
 
