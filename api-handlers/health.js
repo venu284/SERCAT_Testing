@@ -1,23 +1,22 @@
 import { db } from '../lib/db.js';
-import { runPreviewAuthReadinessCheck } from '../lib/preview-auth-readiness.js';
+import { sql } from 'drizzle-orm';
+import { success, serverError } from '../lib/api-utils.js';
 
 export default async function handler(req, res) {
-  const readiness = await runPreviewAuthReadinessCheck({ db });
-
-  if (!readiness.ok) {
-    return res.status(readiness.statusCode).json({
-      error: readiness.error,
-      code: readiness.code,
-      checks: readiness.checks,
+  try {
+    const result = await db.execute(sql`SELECT NOW() as now`);
+    return res.status(200).json({
+      data: {
+        status: 'ok',
+        database: 'connected',
+        timestamp: result.rows?.[0]?.now || new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('Health check failed:', err);
+    return res.status(500).json({
+      error: 'Database connection failed',
+      code: 'DB_ERROR',
     });
   }
-
-  return res.status(200).json({
-    data: {
-      status: 'ok',
-      database: 'connected',
-      timestamp: readiness.timestamp,
-      checks: readiness.checks,
-    },
-  });
 }

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "node --test lib/scheduling/engine.test.js src/lib/notification-bell-utils.test.js lib/swap-request-utils.test.js && vitest run api-handlers/health.test.js lib/preview-auth-readiness.test.js src/lib/comments-view-models.test.js src/screens/member/MemberComments.test.jsx src/screens/admin/AdminComments.test.jsx src/screens/admin/MembersAndShares.test.jsx src/screens/member/PreferenceForm.test.jsx src/screens/member/ShiftChanges.test.jsx src/screens/admin/ShiftChangeAdmin.test.jsx src/screens/auth/LoginScreen.test.jsx src/screens/auth/ActivateAccountScreen.test.jsx src/App.auth-routing.test.jsx src/hooks/useActiveCycle.test.js src/hooks/useMemberDashboardContext.test.js src/hooks/useApiData.test.js src/hooks/useAppShell.test.js src/screens/member/MemberDashboard.test.jsx src/screens/admin/AdminDashboard.test.jsx && vite build",
+    "check": "node --test lib/scheduling/engine.test.js src/lib/notification-bell-utils.test.js lib/swap-request-utils.test.js && vitest run src/lib/comments-view-models.test.js src/screens/member/MemberComments.test.jsx src/screens/admin/AdminComments.test.jsx src/screens/admin/MembersAndShares.test.jsx src/screens/member/PreferenceForm.test.jsx src/screens/member/ShiftChanges.test.jsx src/screens/admin/ShiftChangeAdmin.test.jsx src/screens/auth/LoginScreen.test.jsx src/screens/auth/ActivateAccountScreen.test.jsx src/App.auth-routing.test.jsx src/hooks/useActiveCycle.test.js src/hooks/useMemberDashboardContext.test.js src/hooks/useApiData.test.js src/hooks/useAppShell.test.js src/screens/member/MemberDashboard.test.jsx src/screens/admin/AdminDashboard.test.jsx && vite build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -17,9 +17,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@getbrevo/brevo": "^5.0.4",
     "@neondatabase/serverless": "^1.0.2",
-    "@react-email/components": "^1.0.12",
     "@tanstack/react-query": "^5.97.0",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
@@ -27,7 +25,6 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.26.2",
-    "uuid": "^13.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
