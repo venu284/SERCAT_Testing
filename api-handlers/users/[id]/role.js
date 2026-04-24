@@ -5,14 +5,12 @@ import { users } from '../../../db/schema/users.js';
 import { withAdmin } from '../../../lib/middleware/with-admin.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
+import { getZodMessage } from '../../../lib/validation.js';
 
 const roleSchema = z.object({
   role: z.enum(['admin', 'pi']),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

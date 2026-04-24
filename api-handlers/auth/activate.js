@@ -4,7 +4,7 @@ import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
 import { hashPassword, hashToken } from '../../lib/auth-utils.js';
-import { strongPasswordSchema } from '../../lib/validation.js';
+import { strongPasswordSchema, getZodMessage } from '../../lib/validation.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 
 const activateSchema = z.object({
@@ -17,9 +17,6 @@ const activateSchema = z.object({
   path: ['confirmPassword'],
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

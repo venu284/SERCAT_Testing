@@ -5,15 +5,13 @@ import { institutions } from '../../db/schema/institutions.js';
 import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   abbreviation: z.string().trim().min(1).max(20).optional(),
 }).refine((data) => data.name || data.abbreviation, { message: 'At least one field required' });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

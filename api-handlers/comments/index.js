@@ -6,15 +6,13 @@ import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const createCommentSchema = z.object({
   subject: z.string().trim().min(1, 'Subject is required'),
   message: z.string().trim().min(1, 'Message is required'),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

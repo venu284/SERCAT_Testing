@@ -11,6 +11,7 @@ import { withMethod } from '../../../../lib/middleware/with-method.js';
 import { sendEmail } from '../../../../lib/email.js';
 import { preferenceConfirmationEmail } from '../../../../lib/email-templates.js';
 import { createNotification } from '../../../../lib/notifications.js';
+import { getZodMessage } from '../../../../lib/validation.js';
 
 const submitPreferenceSchema = z.object({
   preferences: z.array(z.object({
@@ -27,9 +28,6 @@ const submitPreferenceSchema = z.object({
   })).default([]),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 function formatPreferenceLabel(pref) {
   if (pref.fractionalHours) {

@@ -6,6 +6,7 @@ import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const createCycleSchema = z.object({
   name: z.string().trim().min(1, 'Cycle name is required'),
@@ -17,9 +18,6 @@ const createCycleSchema = z.object({
   path: ['endDate'],
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

@@ -1,6 +1,5 @@
-import { db } from '../lib/db.js';
+import { db } from '../db/index.js';
 import { sql } from 'drizzle-orm';
-import { success, serverError } from '../lib/api-utils.js';
 
 export default async function handler(req, res) {
   try {

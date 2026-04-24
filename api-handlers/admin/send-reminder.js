@@ -10,6 +10,7 @@ import { logAudit } from '../../lib/audit.js';
 import { sendEmail } from '../../lib/email.js';
 import { manualReminderEmail } from '../../lib/email-templates.js';
 import { createNotification } from '../../lib/notifications.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const reminderSchema = z.object({
   cycleId: z.string().uuid(),
@@ -17,9 +18,6 @@ const reminderSchema = z.object({
   piIds: z.array(z.string().uuid()).optional(),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

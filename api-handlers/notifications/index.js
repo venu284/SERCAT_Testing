@@ -4,14 +4,12 @@ import { db } from '../../db/index.js';
 import { notifications } from '../../db/schema/notifications.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const markAllSchema = z.object({
   action: z.literal('read-all'),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

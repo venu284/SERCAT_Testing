@@ -6,15 +6,13 @@ import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const createSchema = z.object({
   name: z.string().trim().min(1, 'Institution name is required'),
   abbreviation: z.string().trim().min(1, 'Abbreviation is required').max(20),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

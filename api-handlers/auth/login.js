@@ -6,15 +6,13 @@ import { institutions } from '../../db/schema/institutions.js';
 import { verifyPassword, signToken, setSessionCookie } from '../../lib/auth-utils.js';
 import { checkRateLimit, resetRateLimit } from '../../lib/middleware/with-rate-limit.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const loginSchema = z.object({
   email: z.string().email().trim().toLowerCase(),
   password: z.string().min(1, 'Password is required'),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

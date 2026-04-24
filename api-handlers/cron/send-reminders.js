@@ -3,6 +3,7 @@ import { db } from '../../db/index.js';
 import { cycles } from '../../db/schema/cycles.js';
 import { cycleShares } from '../../db/schema/cycle-shares.js';
 import { preferences } from '../../db/schema/preferences.js';
+import { fractionalPreferences } from '../../db/schema/fractional-preferences.js';
 import { users } from '../../db/schema/users.js';
 import { sendEmail } from '../../lib/email.js';
 import { deadlineReminderEmail } from '../../lib/email-templates.js';
@@ -59,13 +60,25 @@ export default async function handler(req, res) {
         .innerJoin(users, eq(cycleShares.piId, users.id))
         .where(eq(cycleShares.cycleId, cycle.id));
 
-      const submitted = await db
+      const submittedWhole = await db
         .select({ piId: preferences.piId })
         .from(preferences)
         .where(and(eq(preferences.cycleId, cycle.id), isNotNull(preferences.submittedAt)))
         .groupBy(preferences.piId);
 
-      const submittedPiIds = new Set(submitted.map((s) => s.piId));
+      const submittedFractional = await db
+        .select({ piId: fractionalPreferences.piId })
+        .from(fractionalPreferences)
+        .where(and(
+          eq(fractionalPreferences.cycleId, cycle.id),
+          isNotNull(fractionalPreferences.submittedAt),
+        ))
+        .groupBy(fractionalPreferences.piId);
+
+      const submittedPiIds = new Set([
+        ...submittedWhole.map((s) => s.piId),
+        ...submittedFractional.map((s) => s.piId),
+      ]);
 
       for (const share of sharesInCycle) {
         if (submittedPiIds.has(share.piId)) continue;

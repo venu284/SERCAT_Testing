@@ -6,6 +6,7 @@ import { availableDates } from '../../../db/schema/available-dates.js';
 import { withAuth } from '../../../lib/middleware/with-auth.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
+import { getZodMessage } from '../../../lib/validation.js';
 
 const setDatesSchema = z.object({
   dates: z.array(
@@ -19,9 +20,6 @@ const setDatesSchema = z.object({
   ).min(1, 'At least one date is required'),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

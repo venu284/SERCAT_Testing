@@ -7,6 +7,7 @@ import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const updateUserSchema = z.object({
   email: z.string().email().trim().toLowerCase().optional(),
@@ -17,9 +18,6 @@ const updateUserSchema = z.object({
   activationToken: z.string().trim().min(1).optional(),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

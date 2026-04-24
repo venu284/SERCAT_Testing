@@ -5,6 +5,7 @@ import { cycles } from '../../db/schema/cycles.js';
 import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const updateCycleSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -14,9 +15,6 @@ const updateCycleSchema = z.object({
   status: z.enum(['setup', 'collecting', 'scheduling', 'published', 'archived']).optional(),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

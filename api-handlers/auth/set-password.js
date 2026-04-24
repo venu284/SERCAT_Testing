@@ -3,7 +3,7 @@ import { eq, and, gt } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { hashPassword, hashToken } from '../../lib/auth-utils.js';
-import { strongPasswordSchema } from '../../lib/validation.js';
+import { strongPasswordSchema, getZodMessage } from '../../lib/validation.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 
 const setPasswordSchema = z.object({
@@ -15,9 +15,6 @@ const setPasswordSchema = z.object({
   path: ['confirmPassword'],
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

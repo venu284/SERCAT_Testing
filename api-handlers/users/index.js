@@ -10,6 +10,7 @@ import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.j
 import { sendEmail } from '../../lib/email.js';
 import { accountInviteEmail } from '../../lib/email-templates.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const createUserSchema = z.object({
   email: z.string().email().trim().toLowerCase(),
@@ -18,9 +19,6 @@ const createUserSchema = z.object({
   institutionId: z.string().uuid().nullable().optional(),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {

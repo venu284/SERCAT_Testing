@@ -6,14 +6,12 @@ import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.j
 import { sendEmail } from '../../lib/email.js';
 import { passwordResetEmail } from '../../lib/email-templates.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { getZodMessage } from '../../lib/validation.js';
 
 const resetSchema = z.object({
   email: z.string().email().trim().toLowerCase(),
 });
 
-function getZodMessage(err) {
-  return err.issues?.[0]?.message || err.errors?.[0]?.message || 'Invalid request';
-}
 
 async function handler(req, res) {
   try {
