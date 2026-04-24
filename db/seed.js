@@ -3,7 +3,6 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { institutions } from './schema/institutions.js';
 import { users } from './schema/users.js';
-import { masterShares } from './schema/master-shares.js';
 import { hashPassword } from '../lib/auth-utils.js';
 import { getRequiredDatabaseUrl } from '../lib/env.js';
 
@@ -41,23 +40,41 @@ async function seed() {
 
   // 1. Create default admin account
   const adminPasswordHash = await hashPassword('Admin@123');
-  const [admin] = await db.insert(users).values({
+  const adminValues = {
     email: 'admin@sercat.org',
     passwordHash: adminPasswordHash,
     name: 'SER-CAT Admin',
     role: 'admin',
     isActive: true,
     isActivated: true,
+  };
+
+  const [admin] = await db.insert(users).values(adminValues).onConflictDoUpdate({
+    target: users.email,
+    set: {
+      passwordHash: adminValues.passwordHash,
+      name: adminValues.name,
+      role: adminValues.role,
+      isActive: adminValues.isActive,
+      isActivated: adminValues.isActivated,
+      updatedAt: new Date(),
+    },
   }).returning();
-  console.log(`✅ Admin created: ${admin.email}`);
+  console.log(`✅ Admin ensured: ${admin.email}`);
 
   // 2. Create institutions
   const insertedInstitutions = [];
   for (const inst of SEED_INSTITUTIONS) {
-    const [row] = await db.insert(institutions).values(inst).returning();
+    const [row] = await db.insert(institutions).values(inst).onConflictDoUpdate({
+      target: institutions.abbreviation,
+      set: {
+        name: inst.name,
+        updatedAt: new Date(),
+      },
+    }).returning();
     insertedInstitutions.push(row);
   }
-  console.log(`✅ ${insertedInstitutions.length} institutions created`);
+  console.log(`✅ ${insertedInstitutions.length} institutions ensured`);
 
   console.log(' Seed complete!');
   console.log('');
