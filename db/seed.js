@@ -5,11 +5,12 @@ import { institutions } from './schema/institutions.js';
 import { users } from './schema/users.js';
 import { masterShares } from './schema/master-shares.js';
 import { hashPassword } from '../lib/auth-utils.js';
+import { getRequiredDatabaseUrl } from '../lib/env.js';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = neon(getRequiredDatabaseUrl());
 const db = drizzle(sql);
 
 const SEED_INSTITUTIONS = [

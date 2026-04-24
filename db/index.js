@@ -18,30 +18,53 @@ import * as runAnalytics from './schema/run-analytics.js';
 import * as notifications from './schema/notifications.js';
 import * as comments from './schema/comments.js';
 import * as auditLog from './schema/audit-log.js';
+import { getRequiredDatabaseUrl } from '../lib/env.js';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
-const sql = neon(process.env.DATABASE_URL);
+const schema = {
+  ...institutions,
+  ...users,
+  ...cycles,
+  ...masterShares,
+  ...cycleShares,
+  ...availableDates,
+  ...preferences,
+  ...fractionalPreferences,
+  ...schedules,
+  ...scheduleAssignments,
+  ...swapRequests,
+  ...deficitHistory,
+  ...preferenceHistory,
+  ...runAnalytics,
+  ...notifications,
+  ...comments,
+  ...auditLog,
+};
 
-export const db = drizzle(sql, {
-  schema: {
-    ...institutions,
-    ...users,
-    ...cycles,
-    ...masterShares,
-    ...cycleShares,
-    ...availableDates,
-    ...preferences,
-    ...fractionalPreferences,
-    ...schedules,
-    ...scheduleAssignments,
-    ...swapRequests,
-    ...deficitHistory,
-    ...preferenceHistory,
-    ...runAnalytics,
-    ...notifications,
-    ...comments,
-    ...auditLog,
+let dbInstance;
+
+function createDb() {
+  const sql = neon(getRequiredDatabaseUrl());
+
+  return drizzle(sql, {
+    schema,
+  });
+}
+
+export function getDb() {
+  if (!dbInstance) {
+    dbInstance = createDb();
+  }
+
+  return dbInstance;
+}
+
+export const db = new Proxy({}, {
+  get(_target, property) {
+    const instance = getDb();
+    const value = instance[property];
+    return typeof value === 'function' ? value.bind(instance) : value;
   },
 });

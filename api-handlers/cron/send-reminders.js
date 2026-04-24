@@ -7,6 +7,7 @@ import { users } from '../../db/schema/users.js';
 import { sendEmail } from '../../lib/email.js';
 import { deadlineReminderEmail } from '../../lib/email-templates.js';
 import { createNotification } from '../../lib/notifications.js';
+import { getRequiredEnv } from '../../lib/env.js';
 
 function daysBetween(dateA, dateB) {
   const a = new Date(dateA);
@@ -25,12 +26,12 @@ function formatDate(dateStr) {
 }
 
 export default async function handler(req, res) {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${getRequiredEnv('CRON_SECRET')}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const activeCycles = await db.select().from(cycles).where(eq(cycles.status, 'collecting'));
 
