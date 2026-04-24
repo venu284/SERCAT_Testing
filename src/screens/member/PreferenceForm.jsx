@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ConceptProgressRing from '../../components/ConceptProgressRing';
-import { useAuth } from '../../contexts/AuthContext';
-import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants';
-import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates';
+import ConceptProgressRing from '../../components/ConceptProgressRing.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants.js';
+import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates.js';
 import { computeEntitlements } from '../../lib/entitlements.js';
-import { normalizeMemberPreferences } from '../../lib/normalizers';
-import { CONCEPT_THEME } from '../../lib/theme';
-import { useActiveCycle } from '../../hooks/useActiveCycle';
+import { normalizeMemberPreferences } from '../../lib/normalizers.js';
+import { CONCEPT_THEME } from '../../lib/theme.js';
+import { useActiveCycle } from '../../hooks/useActiveCycle.js';
 import {
   useAvailableDates,
   useMasterShares,
   usePreferences,
   useSubmitPreferences,
-} from '../../hooks/useApiData';
+} from '../../hooks/useApiData.js';
 
 function extractRows(payload) {
   if (Array.isArray(payload)) {

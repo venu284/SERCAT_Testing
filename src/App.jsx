@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import ConceptFontStyles from './components/ConceptFontStyles';
 import NotificationBell from './components/NotificationBell';
 import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
 import LoginScreen from './screens/auth/LoginScreen';
+import ResetPasswordScreen from './screens/auth/ResetPasswordScreen';
 import MemberDashboard from './screens/member/MemberDashboard';
 import AvailabilityCalendar from './screens/member/AvailabilityCalendar';
 import PreferenceForm from './screens/member/PreferenceForm';
@@ -391,6 +393,8 @@ function AppContent() {
         <Routes>
           <Route path="/login" element={<LoginScreen cycle={cycle} />} />
           <Route path="/activate" element={<ActivateAccountScreen cycle={cycle} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordScreen cycle={cycle} />} />
+          <Route path="/reset-password" element={<ResetPasswordScreen cycle={cycle} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </>

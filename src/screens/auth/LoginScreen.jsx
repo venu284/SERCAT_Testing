@@ -88,13 +88,14 @@ export default function LoginScreen({ cycle }) {
                   <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
                     Password
                   </label>
-                  <a
-                    href="mailto:admin@ser-cat.org?subject=SERCAT%20Password%20Help"
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
                     className="text-xs font-semibold"
                     style={{ color: CONCEPT_THEME.sky }}
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
                 <input
                   id="login-password"

@@ -61,3 +61,20 @@ test('navigates to /activate from the activation call to action', async () => {
 
   expect(await screen.findByText('Activate Route Screen')).toBeInTheDocument();
 });
+
+test('navigates to /forgot-password from the forgot password action', async () => {
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter initialEntries={['/login']}>
+      <Routes>
+        <Route path="/login" element={<LoginScreen />} />
+        <Route path="/forgot-password" element={<div>Forgot Password Route Screen</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: /forgot password\\?/i }));
+
+  expect(await screen.findByText('Forgot Password Route Screen')).toBeInTheDocument();
+});
