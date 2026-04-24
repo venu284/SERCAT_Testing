@@ -1,4 +1,3 @@
-import dotenv from 'dotenv';
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as institutions from './schema/institutions.js';
@@ -19,9 +18,6 @@ import * as notifications from './schema/notifications.js';
 import * as comments from './schema/comments.js';
 import * as auditLog from './schema/audit-log.js';
 import { getRequiredDatabaseUrl } from '../lib/env.js';
-
-dotenv.config({ path: '.env.local' });
-dotenv.config();
 
 const schema = {
   ...institutions,
