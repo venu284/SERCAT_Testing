@@ -126,8 +126,10 @@ async function putHandler(req, res) {
       })
       .where(eq(swapRequests.id, id));
 
-    const [requesterUser] = await db.select().from(users).where(eq(users.id, row.requesterId)).limit(1);
-    const [schedule] = await db.select().from(schedules).where(eq(schedules.id, row.scheduleId)).limit(1);
+    const [[requesterUser], [schedule]] = await Promise.all([
+      db.select().from(users).where(eq(users.id, row.requesterId)).limit(1),
+      db.select().from(schedules).where(eq(schedules.id, row.scheduleId)).limit(1),
+    ]);
     const [cycle] = schedule
       ? await db.select().from(cycles).where(eq(cycles.id, schedule.cycleId)).limit(1)
       : [null];

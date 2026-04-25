@@ -11,12 +11,7 @@ import {
   useSwapRequests,
   useUsers,
 } from './useApiData';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-}
+import { extractRows } from '../lib/api';
 
 function extractPreferenceStatusRows(payload) {
   if (Array.isArray(payload)) return payload;

@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, decimal, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, decimal, timestamp, index } from 'drizzle-orm/pg-core';
 import { institutions } from './institutions.js';
 import { users } from './users.js';
 import { cycles } from './cycles.js';
@@ -11,4 +11,7 @@ export const cycleShares = pgTable('cycle_shares', {
   wholeShares: integer('whole_shares').notNull().default(0),
   fractionalShares: decimal('fractional_shares', { precision: 5, scale: 2 }).notNull().default('0'),
   snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('cycle_shares_cycle_id_idx').on(table.cycleId),
+  index('cycle_shares_pi_id_idx').on(table.piId),
+]);

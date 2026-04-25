@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMasterShares } from '../../hooks/useApiData';
-import { api } from '../../lib/api';
+import { api, extractRows } from '../../lib/api';
 
 const EMPTY_FORM = { piName: '', piEmail: '', piPhone: '', piRole: '' };
 
@@ -21,18 +21,6 @@ function StatusCard({ title, detail }) {
       <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
     </div>
   );
-}
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
 }
 
 export default function MemberProfile() {

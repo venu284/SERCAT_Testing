@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, date, boolean, text, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, date, boolean, text, decimal, index } from 'drizzle-orm/pg-core';
 import { schedules } from './schedules.js';
 import { users } from './users.js';
 import { institutions } from './institutions.js';
@@ -20,4 +20,6 @@ export const scheduleAssignments = pgTable('schedule_assignments', {
   fractionalHours: decimal('fractional_hours', { precision: 5, scale: 2 }),
   isShared: boolean('is_shared').notNull().default(false),
   sharedWithPiId: uuid('shared_with_pi_id').references(() => users.id),
-});
+}, (table) => [
+  index('schedule_assignments_schedule_id_idx').on(table.scheduleId),
+]);

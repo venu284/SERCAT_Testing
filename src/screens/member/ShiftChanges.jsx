@@ -10,12 +10,7 @@ import {
 import { formatCalendarDate, fromDateStr } from '../../lib/dates';
 import { SHIFT_ORDER, SHIFT_UI_META } from '../../lib/constants';
 import { CONCEPT_THEME } from '../../lib/theme';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-}
+import { extractRows } from '../../lib/api';
 
 export default function ShiftChanges() {
   const { user } = useAuth();

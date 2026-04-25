@@ -3,18 +3,7 @@ import ShiftSlotCalendar from '../../components/ShiftSlotCalendar';
 import { CONCEPT_THEME } from '../../lib/theme';
 import { useActiveCycle } from '../../hooks/useActiveCycle';
 import { useAvailableDates, useMasterShares, useUsers } from '../../hooks/useApiData';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
+import { extractRows } from '../../lib/api';
 
 export default function AvailabilityCalendar() {
   const { activeCycle, activeCycleId, isLoading: cycleLoading, error: cycleError } = useActiveCycle();

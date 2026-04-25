@@ -4,6 +4,7 @@ import { addDays, formatCalendarDate, localTodayDateStr, toDateStr } from '../..
 import { CONCEPT_THEME } from '../../lib/theme';
 import { useActiveCycle } from '../../hooks/useActiveCycle';
 import { usePreferenceStatus, useSchedule, useUsers } from '../../hooks/useApiData';
+import { extractRows } from '../../lib/api';
 
 function StatusCard({ title, detail }) {
   return (
@@ -15,18 +16,6 @@ function StatusCard({ title, detail }) {
       <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
     </div>
   );
-}
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
 }
 
 function normalizeDateOnly(value) {

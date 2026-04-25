@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants.js';
 import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates.js';
 import { computeEntitlements } from '../../lib/entitlements.js';
-import { normalizeMemberPreferences } from '../../lib/normalizers.js';
+import { buildMember, normalizeMemberPreferences } from '../../lib/normalizers.js';
 import { CONCEPT_THEME } from '../../lib/theme.js';
 import { useActiveCycle } from '../../hooks/useActiveCycle.js';
 import {
@@ -13,36 +13,7 @@ import {
   usePreferences,
   useSubmitPreferences,
 } from '../../hooks/useApiData.js';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
-
-function buildMember(user, share) {
-  if (!share) {
-    return null;
-  }
-
-  const wholeShares = Number(share?.wholeShares) || 0;
-  const fractionalShares = Number(share?.fractionalShares) || 0;
-
-  return {
-    id: share?.institutionAbbreviation || user?.institutionAbbreviation || 'PI',
-    name: share?.institutionName || user?.institutionName || user?.name || 'Member',
-    shares: Number((wholeShares + fractionalShares).toFixed(2)),
-    status: 'ACTIVE',
-    _piUserId: share?.piId || user?.id || null,
-    _institutionUuid: share?.institutionId || user?.institutionId || null,
-  };
-}
+import { extractRows } from '../../lib/api.js';
 
 function buildCycle(activeCycle, dateRows) {
   if (!activeCycle) {

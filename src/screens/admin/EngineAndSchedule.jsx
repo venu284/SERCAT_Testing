@@ -14,18 +14,7 @@ import {
   useUnpublishSchedule,
   useUsers,
 } from '../../hooks/useApiData';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
+import { extractRows } from '../../lib/api';
 
 function buildMemberDirectory(sharesData, usersData) {
   const dir = {};

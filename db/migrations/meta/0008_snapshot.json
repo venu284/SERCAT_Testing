@@ -1,0 +1,441 @@
+{
+  "id": "3d9e7f2a-1b4c-5e8d-a6f3-2c9b0e5d4a7f",
+  "prevId": "f10b815d-9937-49d9-8956-c502fd69074d",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "user_id": { "name": "user_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "action": { "name": "action", "type": "text", "primaryKey": false, "notNull": true },
+        "details": { "name": "details", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "audit_log_user_id_users_id_fk": { "name": "audit_log_user_id_users_id_fk", "tableFrom": "audit_log", "tableTo": "users", "columnsFrom": ["user_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.available_dates": {
+      "name": "available_dates",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "date": { "name": "date", "type": "date", "primaryKey": false, "notNull": true },
+        "is_available": { "name": "is_available", "type": "boolean", "primaryKey": false, "notNull": true, "default": true },
+        "ds1_available": { "name": "ds1_available", "type": "boolean", "primaryKey": false, "notNull": true, "default": true },
+        "ds2_available": { "name": "ds2_available", "type": "boolean", "primaryKey": false, "notNull": true, "default": true },
+        "ns_available": { "name": "ns_available", "type": "boolean", "primaryKey": false, "notNull": true, "default": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "available_dates_cycle_id_cycles_id_fk": { "name": "available_dates_cycle_id_cycles_id_fk", "tableFrom": "available_dates", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.comments": {
+      "name": "comments",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "subject": { "name": "subject", "type": "text", "primaryKey": false, "notNull": true },
+        "message": { "name": "message", "type": "text", "primaryKey": false, "notNull": true },
+        "status": { "name": "status", "type": "comment_status", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'sent'" },
+        "read_at": { "name": "read_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "admin_reply": { "name": "admin_reply", "type": "text", "primaryKey": false, "notNull": false },
+        "admin_reply_by": { "name": "admin_reply_by", "type": "uuid", "primaryKey": false, "notNull": false },
+        "admin_reply_at": { "name": "admin_reply_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "comments_pi_id_users_id_fk": { "name": "comments_pi_id_users_id_fk", "tableFrom": "comments", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "comments_admin_reply_by_users_id_fk": { "name": "comments_admin_reply_by_users_id_fk", "tableFrom": "comments", "tableTo": "users", "columnsFrom": ["admin_reply_by"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.cycle_shares": {
+      "name": "cycle_shares",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "whole_shares": { "name": "whole_shares", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 },
+        "fractional_shares": { "name": "fractional_shares", "type": "numeric(5, 2)", "primaryKey": false, "notNull": true, "default": "'0'" },
+        "snapshot_at": { "name": "snapshot_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "cycle_shares_cycle_id_idx": {
+          "name": "cycle_shares_cycle_id_idx",
+          "columns": [{ "expression": "cycle_id", "isExpression": false, "asc": true, "nulls": "last" }],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        },
+        "cycle_shares_pi_id_idx": {
+          "name": "cycle_shares_pi_id_idx",
+          "columns": [{ "expression": "pi_id", "isExpression": false, "asc": true, "nulls": "last" }],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cycle_shares_cycle_id_cycles_id_fk": { "name": "cycle_shares_cycle_id_cycles_id_fk", "tableFrom": "cycle_shares", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "cycle_shares_institution_id_institutions_id_fk": { "name": "cycle_shares_institution_id_institutions_id_fk", "tableFrom": "cycle_shares", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "cycle_shares_pi_id_users_id_fk": { "name": "cycle_shares_pi_id_users_id_fk", "tableFrom": "cycle_shares", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.cycles": {
+      "name": "cycles",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "name": { "name": "name", "type": "text", "primaryKey": false, "notNull": true },
+        "start_date": { "name": "start_date", "type": "date", "primaryKey": false, "notNull": true },
+        "end_date": { "name": "end_date", "type": "date", "primaryKey": false, "notNull": true },
+        "preference_deadline": { "name": "preference_deadline", "type": "timestamp with time zone", "primaryKey": false, "notNull": true },
+        "status": { "name": "status", "type": "cycle_status", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'setup'" },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.deficit_history": {
+      "name": "deficit_history",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "shift": { "name": "shift", "type": "shift", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "deficit_score": { "name": "deficit_score", "type": "numeric(10, 4)", "primaryKey": false, "notNull": true, "default": "'0'" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deficit_history_institution_id_institutions_id_fk": { "name": "deficit_history_institution_id_institutions_id_fk", "tableFrom": "deficit_history", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "deficit_history_cycle_id_cycles_id_fk": { "name": "deficit_history_cycle_id_cycles_id_fk", "tableFrom": "deficit_history", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.fractional_preferences": {
+      "name": "fractional_preferences",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "block_index": { "name": "block_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "fractional_hours": { "name": "fractional_hours", "type": "numeric(5, 2)", "primaryKey": false, "notNull": true },
+        "choice_1_date": { "name": "choice_1_date", "type": "date", "primaryKey": false, "notNull": false },
+        "choice_2_date": { "name": "choice_2_date", "type": "date", "primaryKey": false, "notNull": false },
+        "submitted_at": { "name": "submitted_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "fractional_preferences_cycle_id_pi_id_idx": {
+          "name": "fractional_preferences_cycle_id_pi_id_idx",
+          "columns": [
+            { "expression": "cycle_id", "isExpression": false, "asc": true, "nulls": "last" },
+            { "expression": "pi_id", "isExpression": false, "asc": true, "nulls": "last" }
+          ],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fractional_preferences_cycle_id_cycles_id_fk": { "name": "fractional_preferences_cycle_id_cycles_id_fk", "tableFrom": "fractional_preferences", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "fractional_preferences_pi_id_users_id_fk": { "name": "fractional_preferences_pi_id_users_id_fk", "tableFrom": "fractional_preferences", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "fractional_preferences_institution_id_institutions_id_fk": { "name": "fractional_preferences_institution_id_institutions_id_fk", "tableFrom": "fractional_preferences", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.institutions": {
+      "name": "institutions",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "name": { "name": "name", "type": "text", "primaryKey": false, "notNull": true },
+        "abbreviation": { "name": "abbreviation", "type": "text", "primaryKey": false, "notNull": true },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "institutions_name_unique": { "name": "institutions_name_unique", "nullsNotDistinct": false, "columns": ["name"] },
+        "institutions_abbreviation_unique": { "name": "institutions_abbreviation_unique", "nullsNotDistinct": false, "columns": ["abbreviation"] }
+      },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.master_shares": {
+      "name": "master_shares",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "whole_shares": { "name": "whole_shares", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 },
+        "fractional_shares": { "name": "fractional_shares", "type": "numeric(5, 2)", "primaryKey": false, "notNull": true, "default": "'0'" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "master_shares_institution_id_institutions_id_fk": { "name": "master_shares_institution_id_institutions_id_fk", "tableFrom": "master_shares", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "master_shares_pi_id_users_id_fk": { "name": "master_shares_pi_id_users_id_fk", "tableFrom": "master_shares", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.notifications": {
+      "name": "notifications",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "user_id": { "name": "user_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "type": { "name": "type", "type": "notification_type", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "title": { "name": "title", "type": "text", "primaryKey": false, "notNull": true },
+        "message": { "name": "message", "type": "text", "primaryKey": false, "notNull": true },
+        "is_read": { "name": "is_read", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "notifications_user_id_idx": {
+          "name": "notifications_user_id_idx",
+          "columns": [{ "expression": "user_id", "isExpression": false, "asc": true, "nulls": "last" }],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notifications_user_id_users_id_fk": { "name": "notifications_user_id_users_id_fk", "tableFrom": "notifications", "tableTo": "users", "columnsFrom": ["user_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.preference_history": {
+      "name": "preference_history",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "share_index": { "name": "share_index", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 },
+        "shift": { "name": "shift", "type": "shift", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "choice_1_date": { "name": "choice_1_date", "type": "date", "primaryKey": false, "notNull": false },
+        "choice_2_date": { "name": "choice_2_date", "type": "date", "primaryKey": false, "notNull": false },
+        "assigned_date": { "name": "assigned_date", "type": "date", "primaryKey": false, "notNull": false },
+        "choice_rank": { "name": "choice_rank", "type": "integer", "primaryKey": false, "notNull": false },
+        "assignment_reason": { "name": "assignment_reason", "type": "text", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "preference_history_pi_id_users_id_fk": { "name": "preference_history_pi_id_users_id_fk", "tableFrom": "preference_history", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "preference_history_institution_id_institutions_id_fk": { "name": "preference_history_institution_id_institutions_id_fk", "tableFrom": "preference_history", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "preference_history_cycle_id_cycles_id_fk": { "name": "preference_history_cycle_id_cycles_id_fk", "tableFrom": "preference_history", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.preferences": {
+      "name": "preferences",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "share_index": { "name": "share_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "shift": { "name": "shift", "type": "shift", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "choice_1_date": { "name": "choice_1_date", "type": "date", "primaryKey": false, "notNull": false },
+        "choice_2_date": { "name": "choice_2_date", "type": "date", "primaryKey": false, "notNull": false },
+        "submitted_at": { "name": "submitted_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "preferences_cycle_id_pi_id_idx": {
+          "name": "preferences_cycle_id_pi_id_idx",
+          "columns": [
+            { "expression": "cycle_id", "isExpression": false, "asc": true, "nulls": "last" },
+            { "expression": "pi_id", "isExpression": false, "asc": true, "nulls": "last" }
+          ],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "preferences_cycle_id_cycles_id_fk": { "name": "preferences_cycle_id_cycles_id_fk", "tableFrom": "preferences", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "preferences_pi_id_users_id_fk": { "name": "preferences_pi_id_users_id_fk", "tableFrom": "preferences", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "preferences_institution_id_institutions_id_fk": { "name": "preferences_institution_id_institutions_id_fk", "tableFrom": "preferences", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.run_analytics": {
+      "name": "run_analytics",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "schedule_id": { "name": "schedule_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "total_first_choice_pct": { "name": "total_first_choice_pct", "type": "numeric(5, 2)", "primaryKey": false, "notNull": false },
+        "total_second_choice_pct": { "name": "total_second_choice_pct", "type": "numeric(5, 2)", "primaryKey": false, "notNull": false },
+        "total_fallback_pct": { "name": "total_fallback_pct", "type": "numeric(5, 2)", "primaryKey": false, "notNull": false },
+        "composite_score": { "name": "composite_score", "type": "numeric(6, 4)", "primaryKey": false, "notNull": false },
+        "fairness_std_deviation": { "name": "fairness_std_deviation", "type": "numeric(10, 4)", "primaryKey": false, "notNull": false },
+        "manual_adjustments_count": { "name": "manual_adjustments_count", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 },
+        "pi_satisfaction_scores": { "name": "pi_satisfaction_scores", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "engine_log": { "name": "engine_log", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "input_snapshot": { "name": "input_snapshot", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "detected_patterns": { "name": "detected_patterns", "type": "jsonb", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "run_analytics_schedule_id_schedules_id_fk": { "name": "run_analytics_schedule_id_schedules_id_fk", "tableFrom": "run_analytics", "tableTo": "schedules", "columnsFrom": ["schedule_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.schedule_assignments": {
+      "name": "schedule_assignments",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "schedule_id": { "name": "schedule_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "pi_id": { "name": "pi_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "share_index": { "name": "share_index", "type": "integer", "primaryKey": false, "notNull": true },
+        "block_index": { "name": "block_index", "type": "integer", "primaryKey": false, "notNull": false },
+        "assigned_date": { "name": "assigned_date", "type": "date", "primaryKey": false, "notNull": true },
+        "shift": { "name": "shift", "type": "shift", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "is_manual_override": { "name": "is_manual_override", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
+        "choice_rank": { "name": "choice_rank", "type": "integer", "primaryKey": false, "notNull": false },
+        "assignment_reason": { "name": "assignment_reason", "type": "text", "primaryKey": false, "notNull": true, "default": "'auto_assigned'" },
+        "hours": { "name": "hours", "type": "numeric(5, 2)", "primaryKey": false, "notNull": true, "default": "'6'" },
+        "fractional_hours": { "name": "fractional_hours", "type": "numeric(5, 2)", "primaryKey": false, "notNull": false },
+        "is_shared": { "name": "is_shared", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
+        "shared_with_pi_id": { "name": "shared_with_pi_id", "type": "uuid", "primaryKey": false, "notNull": false }
+      },
+      "indexes": {
+        "schedule_assignments_schedule_id_idx": {
+          "name": "schedule_assignments_schedule_id_idx",
+          "columns": [{ "expression": "schedule_id", "isExpression": false, "asc": true, "nulls": "last" }],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "schedule_assignments_schedule_id_schedules_id_fk": { "name": "schedule_assignments_schedule_id_schedules_id_fk", "tableFrom": "schedule_assignments", "tableTo": "schedules", "columnsFrom": ["schedule_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "schedule_assignments_pi_id_users_id_fk": { "name": "schedule_assignments_pi_id_users_id_fk", "tableFrom": "schedule_assignments", "tableTo": "users", "columnsFrom": ["pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "schedule_assignments_institution_id_institutions_id_fk": { "name": "schedule_assignments_institution_id_institutions_id_fk", "tableFrom": "schedule_assignments", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "schedule_assignments_shared_with_pi_id_users_id_fk": { "name": "schedule_assignments_shared_with_pi_id_users_id_fk", "tableFrom": "schedule_assignments", "tableTo": "users", "columnsFrom": ["shared_with_pi_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.schedules": {
+      "name": "schedules",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "cycle_id": { "name": "cycle_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "version": { "name": "version", "type": "integer", "primaryKey": false, "notNull": true, "default": 1 },
+        "status": { "name": "status", "type": "schedule_status", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'draft'" },
+        "generated_at": { "name": "generated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "published_at": { "name": "published_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "generated_by": { "name": "generated_by", "type": "uuid", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "schedules_cycle_id_cycles_id_fk": { "name": "schedules_cycle_id_cycles_id_fk", "tableFrom": "schedules", "tableTo": "cycles", "columnsFrom": ["cycle_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "schedules_generated_by_users_id_fk": { "name": "schedules_generated_by_users_id_fk", "tableFrom": "schedules", "tableTo": "users", "columnsFrom": ["generated_by"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.swap_requests": {
+      "name": "swap_requests",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "schedule_id": { "name": "schedule_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "requester_id": { "name": "requester_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "target_assignment_id": { "name": "target_assignment_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "preferred_dates": { "name": "preferred_dates", "type": "text", "primaryKey": false, "notNull": false },
+        "status": { "name": "status", "type": "swap_status", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'pending'" },
+        "admin_notes": { "name": "admin_notes", "type": "text", "primaryKey": false, "notNull": false },
+        "reviewed_by": { "name": "reviewed_by", "type": "uuid", "primaryKey": false, "notNull": false },
+        "reviewed_at": { "name": "reviewed_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "swap_requests_requester_id_idx": {
+          "name": "swap_requests_requester_id_idx",
+          "columns": [{ "expression": "requester_id", "isExpression": false, "asc": true, "nulls": "last" }],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        },
+        "swap_requests_schedule_id_status_idx": {
+          "name": "swap_requests_schedule_id_status_idx",
+          "columns": [
+            { "expression": "schedule_id", "isExpression": false, "asc": true, "nulls": "last" },
+            { "expression": "status", "isExpression": false, "asc": true, "nulls": "last" }
+          ],
+          "isUnique": false, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "swap_requests_schedule_id_schedules_id_fk": { "name": "swap_requests_schedule_id_schedules_id_fk", "tableFrom": "swap_requests", "tableTo": "schedules", "columnsFrom": ["schedule_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "swap_requests_requester_id_users_id_fk": { "name": "swap_requests_requester_id_users_id_fk", "tableFrom": "swap_requests", "tableTo": "users", "columnsFrom": ["requester_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "swap_requests_target_assignment_id_schedule_assignments_id_fk": { "name": "swap_requests_target_assignment_id_schedule_assignments_id_fk", "tableFrom": "swap_requests", "tableTo": "schedule_assignments", "columnsFrom": ["target_assignment_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" },
+        "swap_requests_reviewed_by_users_id_fk": { "name": "swap_requests_reviewed_by_users_id_fk", "tableFrom": "swap_requests", "tableTo": "users", "columnsFrom": ["reviewed_by"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "email": { "name": "email", "type": "text", "primaryKey": false, "notNull": true },
+        "password_hash": { "name": "password_hash", "type": "text", "primaryKey": false, "notNull": false },
+        "name": { "name": "name", "type": "text", "primaryKey": false, "notNull": true },
+        "role": { "name": "role", "type": "user_role", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'pi'" },
+        "institution_id": { "name": "institution_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "is_active": { "name": "is_active", "type": "boolean", "primaryKey": false, "notNull": true, "default": true },
+        "activation_token_hash": { "name": "activation_token_hash", "type": "text", "primaryKey": false, "notNull": false },
+        "activation_token_expires_at": { "name": "activation_token_expires_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "reset_token_hash": { "name": "reset_token_hash", "type": "text", "primaryKey": false, "notNull": false },
+        "reset_token_expires_at": { "name": "reset_token_expires_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "is_activated": { "name": "is_activated", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
+        "last_login_at": { "name": "last_login_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "users_institution_id_institutions_id_fk": { "name": "users_institution_id_institutions_id_fk", "tableFrom": "users", "tableTo": "institutions", "columnsFrom": ["institution_id"], "columnsTo": ["id"], "onDelete": "no action", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": { "name": "users_email_unique", "nullsNotDistinct": false, "columns": ["email"] }
+      },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.comment_status": { "name": "comment_status", "schema": "public", "values": ["sent", "read", "replied"] },
+    "public.cycle_status": { "name": "cycle_status", "schema": "public", "values": ["setup", "collecting", "scheduling", "published", "archived"] },
+    "public.notification_type": { "name": "notification_type", "schema": "public", "values": ["schedule_published", "preference_confirmed", "deadline_reminder", "swap_update", "admin_alert"] },
+    "public.shift": { "name": "shift", "schema": "public", "values": ["DS1", "DS2", "NS"] },
+    "public.schedule_status": { "name": "schedule_status", "schema": "public", "values": ["draft", "published"] },
+    "public.swap_status": { "name": "swap_status", "schema": "public", "values": ["pending", "approved", "denied"] },
+    "public.user_role": { "name": "user_role", "schema": "public", "values": ["admin", "pi"] }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": { "columns": {}, "schemas": {}, "tables": {} }
+}

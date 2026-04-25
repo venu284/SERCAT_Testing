@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { COLORS, CONCEPT_THEME } from '../../lib/theme';
+import { extractRows } from '../../lib/api';
 import {
   useDeactivateUser,
   useMasterShares,
@@ -9,18 +10,6 @@ import {
   useUploadShares,
   useUsers,
 } from '../../hooks/useApiData';
-
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
 
 function StatusBadge({ status }) {
   const badgeByStatus = {

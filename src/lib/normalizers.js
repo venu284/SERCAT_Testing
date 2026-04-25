@@ -172,6 +172,20 @@ export function normalizeMemberComments(rawComments, members = []) {
   return normalized;
 }
 
+export function buildMember(user, share) {
+  if (!share) return null;
+  const wholeShares = Number(share?.wholeShares) || 0;
+  const fractionalShares = Number(share?.fractionalShares) || 0;
+  return {
+    id: share?.institutionAbbreviation || user?.institutionAbbreviation || 'PI',
+    name: share?.institutionName || user?.institutionName || user?.name || 'Member',
+    shares: Number((wholeShares + fractionalShares).toFixed(2)),
+    status: 'ACTIVE',
+    _piUserId: share?.piId || user?.id || null,
+    _institutionUuid: share?.institutionId || user?.institutionId || null,
+  };
+}
+
 export function normalizeMemberPreferences(
   member,
   prefs = { wholeShare: [], fractionalPreferences: [], submitted: false, notes: '' },

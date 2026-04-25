@@ -12,6 +12,7 @@ import {
   useUpdateCycle,
   useUsers,
 } from '../../hooks/useApiData';
+import { extractRows } from '../../lib/api';
 
 const EMPTY_CYCLE = {
   id: '',
@@ -22,17 +23,6 @@ const EMPTY_CYCLE = {
 
 const SHIFT_COLUMN_MAP = { DS1: 'ds1Available', DS2: 'ds2Available', NS: 'nsAvailable' };
 
-function extractRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
 
 function buildMemberDirectory(sharesData, usersData) {
   const dir = {};

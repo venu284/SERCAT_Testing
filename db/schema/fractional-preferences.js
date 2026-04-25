@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, date, decimal, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, date, decimal, timestamp, index } from 'drizzle-orm/pg-core';
 import { cycles } from './cycles.js';
 import { users } from './users.js';
 import { institutions } from './institutions.js';
@@ -14,4 +14,6 @@ export const fractionalPreferences = pgTable('fractional_preferences', {
   choice2Date: date('choice_2_date'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('fractional_preferences_cycle_id_pi_id_idx').on(table.cycleId, table.piId),
+]);

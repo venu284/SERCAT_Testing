@@ -2,20 +2,10 @@ import { useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useActiveCycle } from './useActiveCycle';
 import { useMasterShares, usePreferences, useSchedule } from './useApiData';
+import { buildMember } from '../lib/normalizers';
 import { computeEntitlements } from '../lib/entitlements';
 import { addDays, daysBetweenSigned, localTodayDateStr } from '../lib/dates';
-
-function extractShareRows(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
+import { extractRows } from '../lib/api';
 
 function normalizePreferenceDeadline(cycle) {
   if (!cycle) return '';
@@ -28,24 +18,6 @@ function normalizePreferenceDeadline(cycle) {
   return addDays(cycle.startDate, -7);
 }
 
-function buildMember(user, share) {
-  if (!share) {
-    return null;
-  }
-
-  const wholeShares = Number(share?.wholeShares) || 0;
-  const fractionalShares = Number(share?.fractionalShares) || 0;
-
-  return {
-    id: share?.institutionAbbreviation || user?.institutionAbbreviation || 'PI',
-    name: share?.institutionName || user?.institutionName || user?.name || 'Member',
-    shares: Number((wholeShares + fractionalShares).toFixed(2)),
-    status: 'ACTIVE',
-    _piUserId: share?.piId || user?.id || null,
-    _institutionUuid: share?.institutionId || user?.institutionId || null,
-  };
-}
-
 export function useMemberDashboardContext() {
   const { user } = useAuth();
   const cycleQuery = useActiveCycle();
@@ -53,7 +25,7 @@ export function useMemberDashboardContext() {
   const preferencesQuery = usePreferences(cycleQuery.activeCycleId);
   const scheduleQuery = useSchedule(cycleQuery.activeCycleId);
 
-  const shareRows = useMemo(() => extractShareRows(sharesQuery.data), [sharesQuery.data]);
+  const shareRows = useMemo(() => extractRows(sharesQuery.data), [sharesQuery.data]);
 
   const member = useMemo(() => {
     const activeShare = shareRows.find((row) => row?.piId === user?.id)

@@ -57,6 +57,13 @@
       "when": 1776978569987,
       "tag": "0007_skinny_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1745452800000,
+      "tag": "0008_add_performance_indexes",
+      "breakpoints": true
     }
   ]
 }

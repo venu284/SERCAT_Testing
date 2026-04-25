@@ -80,25 +80,29 @@ export default async function handler(req, res) {
         ...submittedFractional.map((s) => s.piId),
       ]);
 
-      for (const share of sharesInCycle) {
-        if (submittedPiIds.has(share.piId)) continue;
+      const pending = sharesInCycle.filter((share) => !submittedPiIds.has(share.piId));
 
-        const emailData = deadlineReminderEmail({
-          name: share.piName,
-          cycleName: cycle.name,
-          daysRemaining,
-          deadlineDate: formatDate(deadlineDate),
-        });
+      await Promise.all(
+        pending.map((share) => {
+          const emailData = deadlineReminderEmail({
+            name: share.piName,
+            cycleName: cycle.name,
+            daysRemaining,
+            deadlineDate: formatDate(deadlineDate),
+          });
+          return Promise.all([
+            sendEmail({ to: share.piEmail, ...emailData }),
+            createNotification({
+              userId: share.piId,
+              type: 'deadline_reminder',
+              title: `Preference Deadline: ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`,
+              message: `Submit your beam time preferences for ${cycle.name} before ${cycle.preferenceDeadline}.`,
+            }),
+          ]);
+        }),
+      );
 
-        await sendEmail({ to: share.piEmail, ...emailData });
-        await createNotification({
-          userId: share.piId,
-          type: 'deadline_reminder',
-          title: `Preference Deadline: ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`,
-          message: `Submit your beam time preferences for ${cycle.name} before ${cycle.preferenceDeadline}.`,
-        });
-        totalSent += 1;
-      }
+      totalSent += pending.length;
     }
 
     console.log(`[CRON] Deadline reminders sent: ${totalSent}`);
