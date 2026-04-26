@@ -65,3 +65,5 @@ After updating Preview env vars and redeploying:
 - `npm run dev` starts only the Vite frontend. It is useful for UI-only work, but it will not exercise the server scheduling APIs.
 - Browser local state storage was versioned after the server-scheduling migration. If you were testing an older build, the app now starts from a clean local snapshot automatically.
 - Email delivery requires valid Brevo environment variables in `.env.local` or Vercel.
+
+Tigger.
