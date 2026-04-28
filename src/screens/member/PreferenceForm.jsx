@@ -146,10 +146,10 @@ function buildWizardCalendarMonths(startDate, endDate) {
   return [...monthMap.values()];
 }
 
-const CHOICE_SWITCH_DELAY_MS = 420;
+const CHOICE_SWITCH_DELAY_MS = 220;
 const STEP_HOLD_MS = 180;
-const STEP_SLIDE_MS = 280;
-const STEP_ENTER_DELAY_MS = 130;
+const STEP_SLIDE_MS = 340;
+const STEP_ENTER_DELAY_MS = 36;
 const STEP_TOAST_MS = 1350;
 
 export default function PreferenceFormScreen() {
@@ -393,10 +393,12 @@ export default function PreferenceFormScreen() {
     if (!activeStep || stepMotion !== 'idle' || isPreferenceDeadlinePassed) return;
     if (isDateBlockedForStep(date, activeStep)) return;
     const choice = pickingChoice;
-    const stepLabel = `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`;
+    const otherDate = choice === 1 ? activeStep.choice2Date : activeStep.choice1Date;
+    if (otherDate === date) return;
+
     setStepDate(activeStep, choice, date);
-    setJustPicked(stepLabel);
-    queueTimeout(() => setJustPicked(''), 1200);
+    setJustPicked(date);
+    queueTimeout(() => setJustPicked(''), 520);
 
     if (choice === 1) {
       choiceSwitchPendingRef.current = true;
@@ -412,7 +414,7 @@ export default function PreferenceFormScreen() {
 
     const nextIndex = currentStep + 1;
     if (nextIndex < wizardSteps.length) {
-      animateToStep(nextIndex, 'forward', `${activeStep.label} complete`);
+      animateToStep(nextIndex, 'forward', 'Step Complete');
     } else {
       setStepToast('Step complete');
       queueTimeout(() => setStepToast(''), STEP_TOAST_MS);
@@ -440,6 +442,8 @@ export default function PreferenceFormScreen() {
     });
   };
 
+  const getChoiceAccent = (choice) => (choice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.amber);
+  const getChoiceAccentLight = (choice) => (choice === 1 ? CONCEPT_THEME.skyLight : CONCEPT_THEME.amberLight);
   const formatWizardDate = (dateStr) => (dateStr ? formatCalendarDate(dateStr) : 'Not selected');
 
   const startEditingSubmitted = () => {
@@ -491,60 +495,51 @@ export default function PreferenceFormScreen() {
     return (
       <div className="space-y-4 concept-font-body concept-anim-fade">
         <div
-          className="rounded-2xl border bg-white px-5 py-5 shadow-sm"
-          style={{ borderColor: `${CONCEPT_THEME.emerald}55` }}
+          className="rounded-2xl border px-6 py-6 text-center concept-anim-scale"
+          style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}40` }}
         >
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <div
-                className="mb-2 inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]"
-                style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
-              >
-                Submitted
-              </div>
-              <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.emerald }}>
-                Preferences Submitted
-              </h3>
-              <p className="mt-2 text-sm" style={{ color: CONCEPT_THEME.text }}>
-                Your preferences for <span className="font-semibold">Cycle {cycle.id}</span> have been saved.
-              </p>
-              <p className="mt-1 text-sm" style={{ color: isPreferenceDeadlinePassed ? CONCEPT_THEME.error : CONCEPT_THEME.muted }}>
-                {isPreferenceDeadlinePassed
-                  ? `The preference deadline has passed (${formatCalendarDate(preferenceDeadline)}). Choices can no longer be edited.`
-                  : `You can edit these choices until the deadline (${formatCalendarDate(preferenceDeadline)}).`}
-              </p>
-            </div>
-            {canEditPreferences ? (
-              <button
-                type="button"
-                onClick={startEditingSubmitted}
-                className="rounded-xl px-5 py-2.5 text-base font-bold transition-all"
-                style={{ background: CONCEPT_THEME.navy, color: 'white' }}
-              >
-                Edit Choices
-              </button>
-            ) : null}
-          </div>
+          <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>
+            Preferences Submitted
+          </h3>
+          <p className="mt-2 text-sm" style={{ color: CONCEPT_THEME.text }}>
+            Your {wizardSteps.length} slot preferences are saved for cycle {cycle.id}.
+          </p>
+          <p className="mt-2 text-sm" style={{ color: isPreferenceDeadlinePassed ? CONCEPT_THEME.error : CONCEPT_THEME.text }}>
+            {isPreferenceDeadlinePassed
+              ? `The preference deadline has passed (${formatCalendarDate(preferenceDeadline)}). Choices can no longer be edited.`
+              : `You can edit the preferences until the deadline (${formatCalendarDate(preferenceDeadline)}).`}
+          </p>
+          {canEditPreferences ? (
+            <button
+              type="button"
+              onClick={startEditingSubmitted}
+              className="mt-4 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all"
+              style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+            >
+              Edit Choices
+            </button>
+          ) : null}
         </div>
 
-        <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <h4 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
+        <div className="rounded-xl border bg-white p-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+          <h4 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>
             Submission Summary
           </h4>
-          <div className="mt-3 divide-y" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+          <div className="space-y-2 text-xs">
             {wizardSteps.map((step, index) => (
               <div
                 key={`${step.kind}-${step.shareIndex || step.blockIndex}-${step.shift || 'fractional'}-summary`}
-                className="flex items-center justify-between gap-3 py-3 text-sm flex-wrap"
+                className="rounded-lg p-2.5"
+                style={{ background: CONCEPT_THEME.sand }}
               >
-                <div className="font-bold" style={{ color: CONCEPT_THEME.text }}>
+                <span className="font-semibold text-gray-700">
                   Step {index + 1}: {step.label}
-                </div>
-                <div className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>
+                </span>
+                <span className="block mt-0.5 text-gray-600">
                   1st: {formatWizardDate(step.choice1Date)}
                   {' '}|{' '}
                   2nd: {formatWizardDate(step.choice2Date)}
-                </div>
+                </span>
               </div>
             ))}
           </div>
@@ -558,14 +553,11 @@ export default function PreferenceFormScreen() {
       <div className="rounded-2xl border bg-white px-5 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Preference Selection Sheet</h3>
-            <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.text }}>
-              <span className="font-semibold">Cycle {cycle.id}</span>
-              {' '}|{' '}
-              <span className="font-semibold">Deadline {formatCalendarDate(preferenceDeadline)}</span>
-            </p>
+            <h3 className="concept-font-display text-xl font-bold leading-snug" style={{ color: CONCEPT_THEME.navy }}>
+              Preference Selection Sheet
+            </h3>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
             {submitPrefs.isPending ? (
@@ -581,6 +573,18 @@ export default function PreferenceFormScreen() {
             ) : null}
           </div>
         </div>
+        <div className="mt-3 flex justify-center">
+          <div
+            className="rounded-full px-4 py-2 text-base font-bold text-center"
+            style={{
+              background: CONCEPT_THEME.amberLight,
+              color: CONCEPT_THEME.accentOnAccent,
+              border: `1px solid ${CONCEPT_THEME.amber}33`,
+            }}
+          >
+            Cycle {cycle.id} - deadline {formatCalendarDate(preferenceDeadline)}
+          </div>
+        </div>
       </div>
 
       {isPreferenceDeadlinePassed ? (
@@ -591,8 +595,8 @@ export default function PreferenceFormScreen() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <div className="flex gap-1.5 flex-nowrap overflow-hidden">
+      <div className="rounded-2xl border bg-white px-4 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="flex w-full items-stretch gap-1 sm:gap-1.5">
           {wizardSteps.map((step, index) => {
             const isActive = index === currentStep;
             const doneCount = Number(Boolean(step.choice1Date)) + Number(Boolean(step.choice2Date));
@@ -603,10 +607,11 @@ export default function PreferenceFormScreen() {
                 key={`${step.kind}-${step.shareIndex || step.blockIndex}-${step.shift || 'fractional'}`}
                 type="button"
                 onClick={() => jumpToStep(index)}
-                className="min-w-0 flex-1 rounded-xl border px-1.5 py-2 text-center transition-all"
+                title={step.label}
+                className="min-w-0 flex-1 rounded-xl px-1 py-2 text-center transition-all sm:px-1.5 sm:py-2.5"
                 style={{
                   background: isActive
-                    ? CONCEPT_THEME.navy
+                    ? `${CONCEPT_THEME.navy}08`
                     : isComplete
                       ? CONCEPT_THEME.emeraldLight
                       : isPartial
@@ -616,11 +621,11 @@ export default function PreferenceFormScreen() {
                     ? CONCEPT_THEME.navy
                     : isComplete
                       ? `${CONCEPT_THEME.emerald}66`
-                      : isPartial
-                        ? `${CONCEPT_THEME.accentOnAccent}55`
-                        : CONCEPT_THEME.border,
+                    : isPartial
+                      ? `${CONCEPT_THEME.accentOnAccent}55`
+                      : CONCEPT_THEME.border,
                   color: isActive
-                    ? 'white'
+                    ? CONCEPT_THEME.navy
                     : isComplete
                       ? CONCEPT_THEME.emerald
                       : isPartial
@@ -628,13 +633,45 @@ export default function PreferenceFormScreen() {
                         : CONCEPT_THEME.text,
                 }}
               >
-                <div className="mx-auto mb-1 flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-bold" style={{
-                  borderColor: 'currentColor',
-                  background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
-                }}>
-                  {isComplete ? '✓' : index + 1}
+                <div className="flex flex-col items-center gap-1 sm:gap-1.5">
+                  <div
+                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-all sm:h-8 sm:w-8"
+                    style={{
+                      background: isActive
+                        ? CONCEPT_THEME.navy
+                        : isComplete
+                          ? CONCEPT_THEME.emeraldLight
+                          : isPartial
+                            ? CONCEPT_THEME.amberLight
+                            : CONCEPT_THEME.sand,
+                      color: isActive
+                        ? 'white'
+                        : isComplete
+                          ? CONCEPT_THEME.emerald
+                          : isPartial
+                            ? CONCEPT_THEME.accentOnAccent
+                            : CONCEPT_THEME.muted,
+                      borderColor: isActive
+                        ? CONCEPT_THEME.navy
+                        : isComplete
+                          ? `${CONCEPT_THEME.emerald}55`
+                          : isPartial
+                            ? `${CONCEPT_THEME.amber}55`
+                            : CONCEPT_THEME.border,
+                      transform: isActive && stepToast ? 'scale(1.08)' : 'scale(1)',
+                    }}
+                  >
+                    {isComplete ? '✓' : index + 1}
+                  </div>
+                  <div className="min-w-0 w-full">
+                    <div
+                      className="truncate text-[11px] font-bold uppercase tracking-[0.08em] leading-tight sm:text-xs"
+                      style={{ color: isActive ? CONCEPT_THEME.navy : CONCEPT_THEME.muted }}
+                    >
+                      Step {index + 1}
+                    </div>
+                  </div>
                 </div>
-                <div className="truncate text-[11px] font-semibold uppercase tracking-wide">Step {index + 1}</div>
               </button>
             );
           })}
@@ -643,9 +680,26 @@ export default function PreferenceFormScreen() {
 
       {activeStep ? (
         <div
-          className="rounded-2xl border bg-white px-5 py-4 shadow-sm transition-all"
-          style={{ borderColor: CONCEPT_THEME.borderLight, ...getMotionStyle() }}
+          className="relative overflow-hidden rounded-2xl border bg-white concept-anim-scale"
+          style={{ borderColor: CONCEPT_THEME.borderLight }}
         >
+          {stepToast ? (
+            <div
+              className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
+              style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald, border: `1px solid ${CONCEPT_THEME.emerald}33` }}
+            >
+              {stepToast}
+            </div>
+          ) : null}
+          <div
+            className="transition-all"
+            style={{
+              ...getMotionStyle(),
+              transition: 'transform 220ms ease, opacity 220ms ease',
+              pointerEvents: stepMotion === 'idle' ? 'auto' : 'none',
+            }}
+          >
+          <div className="px-5 py-4 border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>
@@ -672,6 +726,8 @@ export default function PreferenceFormScreen() {
               { choice: 2, label: '2nd Choice', date: activeStep.choice2Date },
             ].map((item) => {
               const isActiveChoice = pickingChoice === item.choice;
+              const accent = getChoiceAccent(item.choice);
+              const accentLight = getChoiceAccentLight(item.choice);
               return (
                 <button
                   key={item.choice}
@@ -679,41 +735,54 @@ export default function PreferenceFormScreen() {
                   aria-pressed={isActiveChoice}
                   onClick={() => setPickingChoice(item.choice)}
                   disabled={stepMotion !== 'idle' || isPreferenceDeadlinePassed}
-                  className="rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed"
+                  className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all disabled:cursor-not-allowed"
                   style={{
-                    borderColor: isActiveChoice ? CONCEPT_THEME.sky : CONCEPT_THEME.border,
-                    background: isActiveChoice ? CONCEPT_THEME.sky : 'white',
+                    borderColor: isActiveChoice ? accent : CONCEPT_THEME.border,
+                    background: isActiveChoice ? accent : 'white',
                     color: isActiveChoice ? 'white' : CONCEPT_THEME.text,
+                    boxShadow: isActiveChoice ? `0 0 0 3px ${accentLight}` : 'none',
                   }}
                 >
-                  <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'currentColor' }}>
-                    {item.label}
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'currentColor' }}>
+                      {item.label}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold" style={{ color: 'currentColor' }}>
+                      {formatWizardDate(item.date)}
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-semibold" style={{ color: 'currentColor' }}>
-                    {formatWizardDate(item.date)}
-                  </div>
+                  {item.date ? (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-xs font-bold"
+                      style={{
+                        background: isActiveChoice ? 'rgba(255,255,255,0.18)' : CONCEPT_THEME.emeraldLight,
+                        color: isActiveChoice ? 'white' : CONCEPT_THEME.emerald,
+                      }}
+                    >
+                      Done
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
           </div>
+          </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm font-medium" style={{ color: CONCEPT_THEME.muted }}>
+          <div className="px-5 pt-3 flex items-center justify-between gap-3 flex-wrap">
+            <div
+              className="text-sm font-semibold"
+              style={{ color: pickingChoice === 1 ? CONCEPT_THEME.sky : CONCEPT_THEME.accentOnAccent }}
+            >
               Pick your {pickingChoice === 1 ? '1st' : '2nd'} choice date
             </div>
             {justPicked ? (
               <div className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}>
-                Selected: {justPicked}
-              </div>
-            ) : null}
-            {stepToast ? (
-              <div className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>
-                {stepToast}
+                Selected: {formatWizardDate(justPicked)}
               </div>
             ) : null}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-4">
+          <div className="px-4 py-4 flex flex-wrap gap-4">
             {calendarMonths.map(({ key, year, month }) => {
               const firstDay = new Date(year, month, 1).getDay();
               const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -737,10 +806,35 @@ export default function PreferenceFormScreen() {
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const inRange = dateStr >= cycle.startDate && dateStr <= cycle.endDate;
                       const blocked = isPreferenceDeadlinePassed || !inRange || isDateBlockedForStep(dateStr, activeStep);
-                      const selected = activeStep.choice1Date === dateStr || activeStep.choice2Date === dateStr;
+                      const isFirst = activeStep.choice1Date === dateStr;
+                      const isSecond = activeStep.choice2Date === dateStr;
+                      const usedByOtherStep = wizardSteps.some((step, stepIndex) => (
+                        stepIndex !== currentStep && (step.choice1Date === dateStr || step.choice2Date === dateStr)
+                      ));
+                      const isPicked = justPicked === dateStr;
 
                       if (!inRange) {
-                        return <div key={dateStr} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.border }}> {day} </div>;
+                        return <div key={dateStr} className="py-2 text-center text-sm" style={{ color: CONCEPT_THEME.subtle }}> {day} </div>;
+                      }
+
+                      let background = CONCEPT_THEME.warmWhite;
+                      let textColor = CONCEPT_THEME.text;
+                      let borderColor = 'transparent';
+                      if (blocked) {
+                        background = CONCEPT_THEME.sandDark;
+                        textColor = CONCEPT_THEME.muted;
+                      } else if (isFirst) {
+                        background = CONCEPT_THEME.sky;
+                        textColor = 'white';
+                        borderColor = CONCEPT_THEME.sky;
+                      } else if (isSecond) {
+                        background = CONCEPT_THEME.amber;
+                        textColor = 'white';
+                        borderColor = CONCEPT_THEME.amber;
+                      } else if (usedByOtherStep) {
+                        background = CONCEPT_THEME.warmWhite;
+                        textColor = CONCEPT_THEME.muted;
+                        borderColor = CONCEPT_THEME.border;
                       }
 
                       return (
@@ -751,17 +845,11 @@ export default function PreferenceFormScreen() {
                           onClick={() => handleDatePick(dateStr)}
                           className="relative rounded-lg py-2.5 text-sm font-semibold transition-all"
                           style={{
-                            background: blocked
-                              ? CONCEPT_THEME.sandDark
-                              : selected
-                                ? CONCEPT_THEME.navy
-                                : 'white',
-                            color: blocked
-                              ? CONCEPT_THEME.muted
-                              : selected
-                                ? 'white'
-                                : CONCEPT_THEME.text,
-                            border: `1.5px solid ${selected ? CONCEPT_THEME.navy : blocked ? 'transparent' : CONCEPT_THEME.border}`,
+                            background,
+                            color: textColor,
+                            border: `1.5px solid ${borderColor}`,
+                            transform: isPicked ? 'scale(1.12)' : (isFirst || isSecond) ? 'scale(1.05)' : 'scale(1)',
+                            boxShadow: isPicked ? `0 0 14px ${getChoiceAccent(pickingChoice)}88` : 'none',
                             cursor: blocked ? 'not-allowed' : 'pointer',
                           }}
                         >
@@ -776,7 +864,7 @@ export default function PreferenceFormScreen() {
             })}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="px-5 py-4 border-t flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: CONCEPT_THEME.borderLight, background: CONCEPT_THEME.sand }}>
             <button
               type="button"
               onClick={goPrev}
@@ -820,6 +908,7 @@ export default function PreferenceFormScreen() {
                 Next
               </button>
             )}
+          </div>
           </div>
         </div>
       ) : null}

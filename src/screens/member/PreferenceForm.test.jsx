@@ -275,12 +275,37 @@ describe('PreferenceForm', () => {
 
     expect(firstChoice).toHaveAttribute('aria-pressed', 'false');
     expect(secondChoice).toHaveAttribute('aria-pressed', 'true');
-    expect(secondChoice).toHaveStyle({ background: '#2b7bb5', color: 'rgb(255, 255, 255)' });
+    expect(secondChoice).toHaveStyle({ background: '#c8920a', color: 'rgb(255, 255, 255)' });
 
     fireEvent.click(screen.getByRole('button', { name: '21' }));
 
     expect(within(firstChoice).getByText('Not selected')).toBeInTheDocument();
     expect(within(secondChoice).getByText('Apr 21, 2026')).toBeInTheDocument();
+    expect(within(secondChoice).getByText('Done')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '21' })).toHaveStyle({
+      background: '#c8920a',
+      color: 'rgb(255, 255, 255)',
+    });
+  });
+
+  it('does not allow the same date for both choices in one step', async () => {
+    vi.useFakeTimers();
+
+    render(<PreferenceForm />);
+
+    const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
+    const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
+
+    fireEvent.click(screen.getByRole('button', { name: '21' }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(240);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '21' }));
+
+    expect(within(firstChoice).getByText('Apr 21, 2026')).toBeInTheDocument();
+    expect(within(secondChoice).getByText('Not selected')).toBeInTheDocument();
   });
 
   it('shows a disabled submit button on the final step until all choices are complete', async () => {
