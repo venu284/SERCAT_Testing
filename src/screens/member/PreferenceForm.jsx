@@ -146,10 +146,10 @@ function buildWizardCalendarMonths(startDate, endDate) {
   return [...monthMap.values()];
 }
 
-const CHOICE_SWITCH_DELAY_MS = 220;
-const STEP_HOLD_MS = 80;
-const STEP_SLIDE_MS = 180;
-const STEP_ENTER_DELAY_MS = 30;
+const CHOICE_SWITCH_DELAY_MS = 420;
+const STEP_HOLD_MS = 180;
+const STEP_SLIDE_MS = 280;
+const STEP_ENTER_DELAY_MS = 130;
 const STEP_TOAST_MS = 1350;
 
 export default function PreferenceFormScreen() {
