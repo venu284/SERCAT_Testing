@@ -84,8 +84,6 @@ export default function AvailabilityCalendar() {
             </div>
             <div className="rounded-xl border px-3 py-2 text-xs" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.muted }}>
               Blocked dates are configured by the SERCAT admin for maintenance windows, holidays, or operational constraints.
-              If you believe a date should be available, contact{' '}
-              <a href="mailto:admin@ser-cat.org" className="font-semibold" style={{ color: CONCEPT_THEME.sky }}>admin@ser-cat.org</a>.
             </div>
           </div>
           <ShiftSlotCalendar cycle={cycleProp} assignments={[]} editable={false} memberDirectory={memberDirectory} availabilityColorMode />
