@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const useAuth = vi.fn();
@@ -110,14 +110,43 @@ function buildSubmitMutation(overrides = {}) {
   return {
     mutate: vi.fn(),
     isPending: false,
+    isSuccess: false,
     isError: false,
     error: null,
     ...overrides,
   };
 }
 
+function buildCompletePreferenceRows(overrides = {}) {
+  return {
+    preferences: [
+      { shareIndex: 1, shift: 'DS1', choice1Date: '2026-04-20', choice2Date: '2026-04-21', piId: 'pi-1' },
+      { shareIndex: 1, shift: 'DS2', choice1Date: '2026-04-21', choice2Date: '2026-04-22', piId: 'pi-1' },
+      { shareIndex: 1, shift: 'NS', choice1Date: '2026-04-20', choice2Date: '2026-04-22', piId: 'pi-1' },
+    ],
+    fractionalPreferences: [
+      { blockIndex: 1, fractionalHours: 6, choice1Date: '2026-04-20', choice2Date: '2026-04-21', piId: 'pi-1' },
+      { blockIndex: 2, fractionalHours: 6, choice1Date: '2026-04-21', choice2Date: '2026-04-22', piId: 'pi-1' },
+    ],
+    submittedAt: null,
+    submissions: [],
+    ...overrides,
+  };
+}
+
+function buildCompletePreferencesData(overrides = {}) {
+  return {
+    data: {
+      data: buildCompletePreferenceRows(overrides),
+    },
+  };
+}
+
 describe('PreferenceForm', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00-04:00'));
+
     useAuth.mockReset();
     useActiveCycle.mockReset();
     useMasterShares.mockReset();
@@ -162,7 +191,7 @@ describe('PreferenceForm', () => {
     expect(screen.getByText('No active share found for your account.')).toBeInTheDocument();
   });
 
-  it('blocks per-shift unavailable dates and debounces whole-share preference saves with optimistic UI updates', async () => {
+  it('blocks per-shift unavailable dates and keeps selections local until final submit', async () => {
     vi.useFakeTimers();
     const submitMutation = buildSubmitMutation();
     useSubmitPreferences.mockReturnValue(submitMutation);
@@ -184,65 +213,171 @@ describe('PreferenceForm', () => {
       vi.advanceTimersByTime(800);
     });
 
-    expect(submitMutation.mutate).toHaveBeenCalledWith({
-      cycleId: 'cycle-1',
-      preferences: [
-        {
-          shareIndex: 1,
-          shift: 'DS1',
-          choice1Date: '2026-04-21',
-          choice2Date: null,
-        },
-      ],
-      fractionalPreferences: [],
-    });
+    expect(submitMutation.mutate).not.toHaveBeenCalled();
   });
 
-  it('posts fractional preference rows when the first incomplete step is a fractional block', async () => {
+  it('switches from 1st choice to 2nd choice after a friendly delay', async () => {
     vi.useFakeTimers();
-    const submitMutation = buildSubmitMutation();
-    useSubmitPreferences.mockReturnValue(submitMutation);
-    usePreferences.mockReturnValue(buildPreferencesQuery({
-      data: {
-        data: {
-          preferences: [
-            { shareIndex: 1, shift: 'DS1', choice1Date: '2026-04-20', choice2Date: '2026-04-21', piId: 'pi-1' },
-            { shareIndex: 1, shift: 'DS2', choice1Date: '2026-04-20', choice2Date: '2026-04-21', piId: 'pi-1' },
-            { shareIndex: 1, shift: 'NS', choice1Date: '2026-04-20', choice2Date: '2026-04-21', piId: 'pi-1' },
-          ],
-          fractionalPreferences: [],
-          submittedAt: null,
-          submissions: [],
-        },
-      },
-    }));
 
     render(<PreferenceForm />);
 
-    expect(screen.getByText('Fractional Block 1 - 6h')).toBeInTheDocument();
+    const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
+    const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
 
+    fireEvent.click(screen.getByRole('button', { name: '21' }));
+
+    expect(firstChoice).toHaveAttribute('aria-pressed', 'true');
+    expect(secondChoice).toHaveAttribute('aria-pressed', 'false');
+
+    await act(async () => {
+      vi.advanceTimersByTime(240);
+    });
+
+    expect(firstChoice).toHaveAttribute('aria-pressed', 'false');
+    expect(secondChoice).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('advances to the next step quickly after both choices are selected without refreshing or saving', async () => {
+    vi.useFakeTimers();
+    const submitMutation = buildSubmitMutation();
+    useSubmitPreferences.mockReturnValue(submitMutation);
+
+    render(<PreferenceForm />);
+
+    expect(screen.getByText('Share 1 - Morning Shift')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '21' }));
+    await act(async () => {
+      vi.advanceTimersByTime(240);
+    });
     fireEvent.click(screen.getByRole('button', { name: '22' }));
 
     await act(async () => {
-      vi.advanceTimersByTime(800);
+      vi.advanceTimersByTime(320);
     });
+
+    expect(screen.getByText('Share 1 - Afternoon Shift')).toBeInTheDocument();
+    expect(submitMutation.mutate).not.toHaveBeenCalled();
+  });
+
+  it('lets members choose which choice date is being picked and highlights the active choice', () => {
+    render(<PreferenceForm />);
+
+    const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
+    const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
+
+    expect(firstChoice).toHaveAttribute('aria-pressed', 'true');
+    expect(firstChoice).toHaveStyle({ background: '#2b7bb5', color: 'rgb(255, 255, 255)' });
+    expect(secondChoice).toHaveAttribute('aria-pressed', 'false');
+    expect(secondChoice).toHaveStyle({ background: 'white' });
+
+    fireEvent.click(secondChoice);
+
+    expect(firstChoice).toHaveAttribute('aria-pressed', 'false');
+    expect(secondChoice).toHaveAttribute('aria-pressed', 'true');
+    expect(secondChoice).toHaveStyle({ background: '#2b7bb5', color: 'rgb(255, 255, 255)' });
+
+    fireEvent.click(screen.getByRole('button', { name: '21' }));
+
+    expect(within(firstChoice).getByText('Not selected')).toBeInTheDocument();
+    expect(within(secondChoice).getByText('Apr 21, 2026')).toBeInTheDocument();
+  });
+
+  it('shows a disabled submit button on the final step until all choices are complete', async () => {
+    vi.useFakeTimers();
+
+    render(<PreferenceForm />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Step 5/i }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const submitButton = screen.getByRole('button', { name: 'Submit Preferences' });
+    expect(submitButton).toBeDisabled();
+  });
+
+  it('submits all completed whole-share and fractional preferences from the final submit button', () => {
+    const submitMutation = buildSubmitMutation();
+    useSubmitPreferences.mockReturnValue(submitMutation);
+    usePreferences.mockReturnValue(buildPreferencesQuery(buildCompletePreferencesData()));
+
+    render(<PreferenceForm />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Preferences' }));
 
     expect(submitMutation.mutate).toHaveBeenCalledWith({
       cycleId: 'cycle-1',
       preferences: [
         { shareIndex: 1, shift: 'DS1', choice1Date: '2026-04-20', choice2Date: '2026-04-21' },
-        { shareIndex: 1, shift: 'DS2', choice1Date: '2026-04-20', choice2Date: '2026-04-21' },
-        { shareIndex: 1, shift: 'NS', choice1Date: '2026-04-20', choice2Date: '2026-04-21' },
+        { shareIndex: 1, shift: 'DS2', choice1Date: '2026-04-21', choice2Date: '2026-04-22' },
+        { shareIndex: 1, shift: 'NS', choice1Date: '2026-04-20', choice2Date: '2026-04-22' },
       ],
       fractionalPreferences: [
-        {
-          blockIndex: 1,
-          fractionalHours: 6,
-          choice1Date: '2026-04-22',
-          choice2Date: null,
-        },
+        { blockIndex: 1, fractionalHours: 6, choice1Date: '2026-04-20', choice2Date: '2026-04-21' },
+        { blockIndex: 2, fractionalHours: 6, choice1Date: '2026-04-21', choice2Date: '2026-04-22' },
       ],
     });
+  });
+
+  it('shows the submitted confirmation page and summary after a successful submit', () => {
+    const submitMutation = buildSubmitMutation();
+    let submitState = submitMutation;
+    useSubmitPreferences.mockImplementation(() => submitState);
+    usePreferences.mockReturnValue(buildPreferencesQuery(buildCompletePreferencesData()));
+
+    const { rerender } = render(<PreferenceForm />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Preferences' }));
+    submitState = { ...submitMutation, isSuccess: true };
+    rerender(<PreferenceForm />);
+
+    expect(screen.getByRole('heading', { name: 'Preferences Submitted' })).toBeInTheDocument();
+    expect(screen.getByText('Submission Summary')).toBeInTheDocument();
+    const stepOneRow = screen.getByText('Step 1: Share 1 - Morning Shift').parentElement;
+    expect(stepOneRow).toBeInTheDocument();
+    expect(within(stepOneRow).getByText(/1st: Apr 20, 2026/)).toBeInTheDocument();
+    expect(within(stepOneRow).getByText(/2nd: Apr 21, 2026/)).toBeInTheDocument();
+  });
+
+  it('opens server-loaded submitted preferences in review mode', () => {
+    usePreferences.mockReturnValue(buildPreferencesQuery(buildCompletePreferencesData({
+      submittedAt: '2026-04-10T12:00:00Z',
+    })));
+
+    render(<PreferenceForm />);
+
+    expect(screen.getByRole('heading', { name: 'Preferences Submitted' })).toBeInTheDocument();
+    expect(screen.getByText('Submission Summary')).toBeInTheDocument();
+  });
+
+  it('lets members edit submitted choices on the preference deadline', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-13T12:00:00-04:00'));
+    usePreferences.mockReturnValue(buildPreferencesQuery(buildCompletePreferencesData({
+      submittedAt: '2026-04-10T12:00:00Z',
+    })));
+
+    render(<PreferenceForm />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Choices' }));
+
+    expect(screen.getByText('Preference Selection Sheet')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Preferences Submitted' })).not.toBeInTheDocument();
+  });
+
+  it('blocks editing and submitting after the preference deadline', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-14T12:00:00-04:00'));
+    usePreferences.mockReturnValue(buildPreferencesQuery(buildCompletePreferencesData({
+      submittedAt: '2026-04-10T12:00:00Z',
+    })));
+
+    render(<PreferenceForm />);
+
+    expect(screen.queryByRole('button', { name: 'Edit Choices' })).not.toBeInTheDocument();
+    expect(screen.getByText(/The preference deadline has passed/i)).toBeInTheDocument();
   });
 });
 

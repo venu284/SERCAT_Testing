@@ -28,6 +28,22 @@ const submitPreferenceSchema = z.object({
   })).default([]),
 });
 
+function normalizeDateOnly(value) {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  const stringValue = String(value);
+  return stringValue.includes('T') ? stringValue.split('T')[0] : stringValue.slice(0, 10);
+}
+
+function currentLocalDateOnly() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
+function isPreferenceDeadlinePassed(cycle) {
+  const deadline = normalizeDateOnly(cycle?.preferenceDeadline);
+  return Boolean(deadline && currentLocalDateOnly() > deadline);
+}
 
 function formatPreferenceLabel(pref) {
   if (pref.fractionalHours) {
@@ -149,6 +165,13 @@ async function handler(req, res) {
       return res.status(400).json({
         error: `Cannot submit preferences when cycle is in "${cycle.status}" status`,
         code: 'INVALID_CYCLE_STATUS',
+      });
+    }
+
+    if (req.user.role !== 'admin' && isPreferenceDeadlinePassed(cycle)) {
+      return res.status(400).json({
+        error: 'Preference deadline has passed',
+        code: 'PREFERENCE_DEADLINE_PASSED',
       });
     }
 

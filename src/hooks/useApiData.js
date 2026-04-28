@@ -43,8 +43,11 @@ export function useUsers(params = {}, options = {}) {
 
         do {
           const response = await api.get(buildUrl({ ...restParams, limit, page }));
-          const pageRows = Array.isArray(response?.data) ? response.data : [];
-          const pagination = response?.pagination ?? null;
+          const payload = response?.data && !Array.isArray(response.data) && response.data.data !== undefined
+            ? response.data
+            : response;
+          const pageRows = Array.isArray(payload?.data) ? payload.data : [];
+          const pagination = payload?.pagination ?? null;
 
           rows.push(...pageRows);
           lastPagination = pagination;

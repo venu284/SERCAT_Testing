@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConceptProgressRing from '../../components/ConceptProgressRing.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { SHIFT_ORDER, SHIFT_PLAIN_LABELS, SHIFT_UI_META } from '../../lib/constants.js';
-import { addDays, formatCalendarDate, fromDateStr, generateDateRange } from '../../lib/dates.js';
+import { addDays, formatCalendarDate, fromDateStr, generateDateRange, localTodayDateStr } from '../../lib/dates.js';
 import { computeEntitlements } from '../../lib/entitlements.js';
 import { buildMember, normalizeMemberPreferences } from '../../lib/normalizers.js';
 import { CONCEPT_THEME } from '../../lib/theme.js';
@@ -146,11 +146,11 @@ function buildWizardCalendarMonths(startDate, endDate) {
   return [...monthMap.values()];
 }
 
-const STEP_HOLD_MS = 180;
-const STEP_SLIDE_MS = 340;
-const STEP_ENTER_DELAY_MS = 36;
+const CHOICE_SWITCH_DELAY_MS = 220;
+const STEP_HOLD_MS = 80;
+const STEP_SLIDE_MS = 180;
+const STEP_ENTER_DELAY_MS = 30;
 const STEP_TOAST_MS = 1350;
-const SAVE_DEBOUNCE_MS = 800;
 
 export default function PreferenceFormScreen() {
   const auth = useAuth();
@@ -166,10 +166,11 @@ export default function PreferenceFormScreen() {
   const [justPicked, setJustPicked] = useState('');
   const [stepToast, setStepToast] = useState('');
   const [stepMotion, setStepMotion] = useState('idle');
+  const [editingSubmitted, setEditingSubmitted] = useState(false);
 
   const timeoutIdsRef = useRef([]);
-  const pendingPrefsRef = useRef(null);
-  const saveTimeoutRef = useRef(null);
+  const choiceSwitchPendingRef = useRef(false);
+  const choiceSwitchTokenRef = useRef(0);
 
   const shareRows = useMemo(() => extractRows(sharesQuery.data), [sharesQuery.data]);
   const dateRows = useMemo(() => extractRows(datesQuery.data), [datesQuery.data]);
@@ -235,6 +236,9 @@ export default function PreferenceFormScreen() {
   const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const preferenceDeadline = cycle.preferenceDeadline || (cycle.startDate ? addDays(cycle.startDate, -7) : '');
   const allComplete = wizardSteps.every((step) => step.choice1Date && step.choice2Date);
+  const isPreferenceDeadlinePassed = Boolean(preferenceDeadline && localTodayDateStr() > preferenceDeadline);
+  const canEditPreferences = !isPreferenceDeadlinePassed;
+  const shouldShowSubmittedReview = Boolean(submitPrefs.isSuccess || (normalizedServerPrefs.submitted && !editingSubmitted));
 
   const isLoading = Boolean(
     auth.loading
@@ -258,34 +262,21 @@ export default function PreferenceFormScreen() {
 
   const resolvePickingChoice = (step) => (step?.choice1Date && !step?.choice2Date ? 2 : 1);
 
-  const flushPendingSave = useCallback(() => {
-    if (!pendingPrefsRef.current || !cycleQuery.activeCycleId) return;
-    submitPrefs.mutate({
-      cycleId: cycleQuery.activeCycleId,
-      ...buildSubmitPayload(pendingPrefsRef.current),
-    });
-    pendingPrefsRef.current = null;
-  }, [cycleQuery.activeCycleId, submitPrefs]);
+  const cancelChoiceSwitch = () => {
+    choiceSwitchPendingRef.current = false;
+    choiceSwitchTokenRef.current += 1;
+  };
 
   const commitPreferences = useCallback((nextPrefs) => {
-    if (!member || !cycleQuery.activeCycleId) return;
+    if (!member) return;
     const normalized = normalizeMemberPreferences(member, nextPrefs);
     setLocalPrefs(normalized);
-    pendingPrefsRef.current = normalized;
-
-    if (saveTimeoutRef.current) {
-      window.clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = window.setTimeout(() => {
-      saveTimeoutRef.current = null;
-      flushPendingSave();
-    }, SAVE_DEBOUNCE_MS);
-  }, [cycleQuery.activeCycleId, flushPendingSave, member]);
+  }, [member]);
 
   useEffect(() => {
     setLocalPrefs(null);
-    pendingPrefsRef.current = null;
+    setEditingSubmitted(false);
+    cancelChoiceSwitch();
   }, [prefsQuery.data]);
 
   useEffect(() => {
@@ -305,19 +296,14 @@ export default function PreferenceFormScreen() {
   }, [localPrefs, wizardSteps]);
 
   useEffect(() => {
+    if (choiceSwitchPendingRef.current) return;
     setPickingChoice(resolvePickingChoice(wizardSteps[currentStep]));
   }, [currentStep, wizardSteps]);
 
   useEffect(() => () => {
-    if (saveTimeoutRef.current) {
-      window.clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-      flushPendingSave();
-    }
-
     timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     timeoutIdsRef.current = [];
-  }, [flushPendingSave]);
+  }, []);
 
   const getMotionStyle = () => {
     if (stepMotion === 'hold-forward' || stepMotion === 'hold-back') {
@@ -335,6 +321,7 @@ export default function PreferenceFormScreen() {
   const animateToStep = (targetIndex, direction = 'forward', flashLabel = '') => {
     const nextStep = wizardSteps[targetIndex];
     if (!nextStep || targetIndex === currentStep || stepMotion !== 'idle') return;
+    cancelChoiceSwitch();
     if (flashLabel) {
       setStepToast(flashLabel);
       queueTimeout(() => setStepToast(''), STEP_TOAST_MS);
@@ -403,7 +390,7 @@ export default function PreferenceFormScreen() {
   };
 
   const handleDatePick = (date) => {
-    if (!activeStep || stepMotion !== 'idle') return;
+    if (!activeStep || stepMotion !== 'idle' || isPreferenceDeadlinePassed) return;
     if (isDateBlockedForStep(date, activeStep)) return;
     const choice = pickingChoice;
     const stepLabel = `${activeStep.label} ${choice === 1 ? '1st' : '2nd'}`;
@@ -412,7 +399,14 @@ export default function PreferenceFormScreen() {
     queueTimeout(() => setJustPicked(''), 1200);
 
     if (choice === 1) {
-      setPickingChoice(2);
+      choiceSwitchPendingRef.current = true;
+      const choiceSwitchToken = choiceSwitchTokenRef.current + 1;
+      choiceSwitchTokenRef.current = choiceSwitchToken;
+      queueTimeout(() => {
+        if (choiceSwitchTokenRef.current !== choiceSwitchToken) return;
+        choiceSwitchPendingRef.current = false;
+        setPickingChoice(2);
+      }, CHOICE_SWITCH_DELAY_MS);
       return;
     }
 
@@ -438,7 +432,25 @@ export default function PreferenceFormScreen() {
     if (currentStep < wizardSteps.length - 1) animateToStep(currentStep + 1, 'forward');
   };
 
+  const submitPreferences = () => {
+    if (!cycleQuery.activeCycleId || !allComplete || submitPrefs.isPending || isPreferenceDeadlinePassed) return;
+    submitPrefs.mutate({
+      cycleId: cycleQuery.activeCycleId,
+      ...buildSubmitPayload(effectivePrefs),
+    });
+  };
+
   const formatWizardDate = (dateStr) => (dateStr ? formatCalendarDate(dateStr) : 'Not selected');
+
+  const startEditingSubmitted = () => {
+    if (!canEditPreferences) return;
+    setLocalPrefs(effectivePrefs);
+    setEditingSubmitted(true);
+    setCurrentStep(0);
+    setPickingChoice(resolvePickingChoice(wizardSteps[0]));
+    cancelChoiceSwitch();
+    submitPrefs.reset?.();
+  };
 
   if (isLoading) {
     return (
@@ -475,6 +487,72 @@ export default function PreferenceFormScreen() {
     );
   }
 
+  if (shouldShowSubmittedReview) {
+    return (
+      <div className="space-y-4 concept-font-body concept-anim-fade">
+        <div
+          className="rounded-2xl border bg-white px-5 py-5 shadow-sm"
+          style={{ borderColor: `${CONCEPT_THEME.emerald}55` }}
+        >
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div
+                className="mb-2 inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]"
+                style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
+              >
+                Submitted
+              </div>
+              <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.emerald }}>
+                Preferences Submitted
+              </h3>
+              <p className="mt-2 text-sm" style={{ color: CONCEPT_THEME.text }}>
+                Your preferences for <span className="font-semibold">Cycle {cycle.id}</span> have been saved.
+              </p>
+              <p className="mt-1 text-sm" style={{ color: isPreferenceDeadlinePassed ? CONCEPT_THEME.error : CONCEPT_THEME.muted }}>
+                {isPreferenceDeadlinePassed
+                  ? `The preference deadline has passed (${formatCalendarDate(preferenceDeadline)}). Choices can no longer be edited.`
+                  : `You can edit these choices until the deadline (${formatCalendarDate(preferenceDeadline)}).`}
+              </p>
+            </div>
+            {canEditPreferences ? (
+              <button
+                type="button"
+                onClick={startEditingSubmitted}
+                className="rounded-xl px-5 py-2.5 text-base font-bold transition-all"
+                style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+              >
+                Edit Choices
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+          <h4 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
+            Submission Summary
+          </h4>
+          <div className="mt-3 divide-y" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+            {wizardSteps.map((step, index) => (
+              <div
+                key={`${step.kind}-${step.shareIndex || step.blockIndex}-${step.shift || 'fractional'}-summary`}
+                className="flex items-center justify-between gap-3 py-3 text-sm flex-wrap"
+              >
+                <div className="font-bold" style={{ color: CONCEPT_THEME.text }}>
+                  Step {index + 1}: {step.label}
+                </div>
+                <div className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>
+                  1st: {formatWizardDate(step.choice1Date)}
+                  {' '}|{' '}
+                  2nd: {formatWizardDate(step.choice2Date)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 concept-font-body concept-anim-fade">
       <div className="rounded-2xl border bg-white px-5 py-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
@@ -491,16 +569,27 @@ export default function PreferenceFormScreen() {
             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
             {submitPrefs.isPending ? (
-              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Saving...</div>
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Submitting...</div>
+            ) : null}
+            {submitPrefs.isSuccess ? (
+              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.emerald }}>Preferences submitted</div>
             ) : null}
             {submitPrefs.isError ? (
               <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.error }}>
-                Save failed — {submitPrefs.error?.message || 'try again'}
+                Submit failed - {submitPrefs.error?.message || 'try again'}
               </div>
             ) : null}
           </div>
         </div>
       </div>
+
+      {isPreferenceDeadlinePassed ? (
+        <div className="rounded-2xl border px-5 py-4" style={{ borderColor: `${CONCEPT_THEME.error}33`, background: CONCEPT_THEME.errorLight }}>
+          <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.error }}>
+            The preference deadline has passed. Preferences can no longer be edited or submitted.
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex gap-1.5 flex-nowrap overflow-hidden">
@@ -578,14 +667,34 @@ export default function PreferenceFormScreen() {
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border px-3 py-3" style={{ borderColor: `${CONCEPT_THEME.sky}33`, background: `${CONCEPT_THEME.sky}08` }}>
-              <div className="text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>1st Choice</div>
-              <div className="mt-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatWizardDate(activeStep.choice1Date)}</div>
-            </div>
-            <div className="rounded-xl border px-3 py-3" style={{ borderColor: `${CONCEPT_THEME.emerald}33`, background: `${CONCEPT_THEME.emerald}08` }}>
-              <div className="text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.emerald }}>2nd Choice</div>
-              <div className="mt-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatWizardDate(activeStep.choice2Date)}</div>
-            </div>
+            {[
+              { choice: 1, label: '1st Choice', date: activeStep.choice1Date },
+              { choice: 2, label: '2nd Choice', date: activeStep.choice2Date },
+            ].map((item) => {
+              const isActiveChoice = pickingChoice === item.choice;
+              return (
+                <button
+                  key={item.choice}
+                  type="button"
+                  aria-pressed={isActiveChoice}
+                  onClick={() => setPickingChoice(item.choice)}
+                  disabled={stepMotion !== 'idle' || isPreferenceDeadlinePassed}
+                  className="rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed"
+                  style={{
+                    borderColor: isActiveChoice ? CONCEPT_THEME.sky : CONCEPT_THEME.border,
+                    background: isActiveChoice ? CONCEPT_THEME.sky : 'white',
+                    color: isActiveChoice ? 'white' : CONCEPT_THEME.text,
+                  }}
+                >
+                  <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'currentColor' }}>
+                    {item.label}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold" style={{ color: 'currentColor' }}>
+                    {formatWizardDate(item.date)}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
@@ -627,7 +736,7 @@ export default function PreferenceFormScreen() {
                       if (!day) return <div key={`${key}-blank-${idx}`} />;
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const inRange = dateStr >= cycle.startDate && dateStr <= cycle.endDate;
-                      const blocked = !inRange || isDateBlockedForStep(dateStr, activeStep);
+                      const blocked = isPreferenceDeadlinePassed || !inRange || isDateBlockedForStep(dateStr, activeStep);
                       const selected = activeStep.choice1Date === dateStr || activeStep.choice2Date === dateStr;
 
                       if (!inRange) {
@@ -680,25 +789,46 @@ export default function PreferenceFormScreen() {
             >
               Previous
             </button>
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={currentStep >= wizardSteps.length - 1 || stepMotion !== 'idle'}
-              className="rounded-xl px-5 py-2.5 text-base font-bold disabled:cursor-not-allowed"
-              style={{
-                background: currentStep >= wizardSteps.length - 1 ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
-                color: currentStep >= wizardSteps.length - 1 ? CONCEPT_THEME.muted : 'white',
-              }}
-            >
-              Next
-            </button>
+            {currentStep >= wizardSteps.length - 1 ? (
+              <button
+                type="button"
+                onClick={submitPreferences}
+                disabled={!allComplete || submitPrefs.isPending || stepMotion !== 'idle' || isPreferenceDeadlinePassed}
+                className="rounded-xl px-5 py-2.5 text-base font-bold disabled:cursor-not-allowed"
+                style={{
+                  background: !allComplete || submitPrefs.isPending || stepMotion !== 'idle' || isPreferenceDeadlinePassed
+                    ? CONCEPT_THEME.sandDark
+                    : CONCEPT_THEME.navy,
+                  color: !allComplete || submitPrefs.isPending || stepMotion !== 'idle' || isPreferenceDeadlinePassed
+                    ? CONCEPT_THEME.muted
+                    : 'white',
+                }}
+              >
+                {submitPrefs.isPending ? 'Submitting...' : 'Submit Preferences'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={stepMotion !== 'idle'}
+                className="rounded-xl px-5 py-2.5 text-base font-bold disabled:cursor-not-allowed"
+                style={{
+                  background: stepMotion !== 'idle' ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+                  color: stepMotion !== 'idle' ? CONCEPT_THEME.muted : 'white',
+                }}
+              >
+                Next
+              </button>
+            )}
           </div>
         </div>
       ) : null}
 
       {allComplete ? (
         <div className="rounded-2xl border px-5 py-4" style={{ borderColor: `${CONCEPT_THEME.emerald}33`, background: CONCEPT_THEME.emeraldLight }}>
-          <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.emerald }}>All preference choices completed.</div>
+          <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.emerald }}>
+            {submitPrefs.isSuccess ? 'Preferences submitted successfully.' : 'All preference choices completed. Submit preferences when ready.'}
+          </div>
         </div>
       ) : null}
     </div>
