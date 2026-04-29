@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, count, ilike } from 'drizzle-orm';
+import { eq, count, ilike, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
@@ -63,11 +63,12 @@ async function handler(req, res) {
         })
         .from(users)
         .leftJoin(institutions, eq(users.institutionId, institutions.id))
+        .where(isNull(users.deletedAt))
         .orderBy(users.name)
         .limit(limit)
         .offset(offset);
 
-      const [{ total }] = await db.select({ total: count() }).from(users);
+      const [{ total }] = await db.select({ total: count() }).from(users).where(isNull(users.deletedAt));
       return res.status(200).json(paginatedResponse(rows, Number(total), page, limit));
     }
 

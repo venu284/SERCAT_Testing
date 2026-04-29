@@ -108,6 +108,17 @@ export function useDeactivateUser() {
   });
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/users/${id}?permanent=true`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['master-shares'] });
+    },
+  });
+}
+
 export function useResendInvite() {
   const qc = useQueryClient();
   return useMutation({

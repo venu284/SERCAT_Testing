@@ -125,6 +125,34 @@ async function handler(req, res) {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 
+    if (req.query.permanent === 'true') {
+      if (existing.isActive) {
+        return res.status(400).json({ error: 'User must be deactivated before permanent deletion', code: 'MUST_DEACTIVATE_FIRST' });
+      }
+      const anonymizedEmail = `deleted-${id}@removed.local`;
+      const [anonymized] = await db
+        .update(users)
+        .set({
+          name: 'Deleted Member',
+          email: anonymizedEmail,
+          phone: null,
+          roleTitle: null,
+          pendingEmail: null,
+          activationTokenHash: null,
+          activationTokenExpiresAt: null,
+          resetTokenHash: null,
+          resetTokenExpiresAt: null,
+          emailVerifyTokenHash: null,
+          emailVerifyTokenExpiresAt: null,
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id))
+        .returning({ id: users.id });
+      await logAudit(req.user.userId, 'user.permanentDelete', { targetUserId: id, originalEmail: existing.email });
+      return res.status(200).json({ data: anonymized });
+    }
+
     if (existing.role === 'admin') {
       const adminRows = await db
         .select()

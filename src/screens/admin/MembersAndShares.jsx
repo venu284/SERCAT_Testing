@@ -4,13 +4,17 @@ import { COLORS, CONCEPT_THEME } from '../../lib/theme';
 import { extractRows } from '../../lib/api';
 import {
   useDeactivateUser,
+  useDeleteUser,
   useMasterShares,
+  usePreferences,
+  usePreferenceStatus,
   useResendInvite,
   useUpdateShare,
   useUpdateUser,
   useUploadShares,
   useUsers,
 } from '../../hooks/useApiData';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
 
 function StatusBadge({ status }) {
   const badgeByStatus = {
@@ -42,7 +46,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCancelInvite, onReinvite }) {
+function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCancelInvite, onReinvite, onDelete }) {
   if (member.status === 'ACTIVE') {
     return (
       <div className="flex flex-wrap gap-2">
@@ -90,14 +94,24 @@ function ActionButtons({ member, onDeactivate, onChangePi, onResendInvite, onCan
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onReinvite(member)}
-      className="rounded-full px-3 py-1.5 text-xs font-semibold"
-      style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}
-    >
-      Re-invite
-    </button>
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => onReinvite(member)}
+        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+        style={{ background: `${CONCEPT_THEME.navy}12`, color: CONCEPT_THEME.navy }}
+      >
+        Re-invite
+      </button>
+      <button
+        type="button"
+        onClick={() => onDelete(member)}
+        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+        style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }}
+      >
+        Delete
+      </button>
+    </div>
   );
 }
 
@@ -257,10 +271,28 @@ function ConfirmActionModal({ modalState, onClose, onSubmit }) {
   if (!modalState) return null;
   const memberLabel = modalState.member?.institutionName || modalState.member?.abbreviation || 'member';
   const isDeactivate = modalState.type === 'deactivate';
-  const title = isDeactivate ? `Deactivate ${memberLabel}?` : `Cancel invite for ${memberLabel}?`;
-  const description = isDeactivate
-    ? 'This will disable member sign-in until the institution is re-invited.'
-    : 'This will remove the pending invite and mark the institution as deactivated.';
+  const isDelete = modalState.type === 'deleteUser';
+
+  let title;
+  let description;
+  let confirmLabel;
+  let cancelLabel;
+  if (isDelete) {
+    title = `Permanently delete ${memberLabel}?`;
+    description = 'This will anonymize the member\'s personal information (name, email). Their preference and scheduling data will be preserved for future use. This cannot be undone.';
+    confirmLabel = 'Permanently Delete';
+    cancelLabel = 'Cancel';
+  } else if (isDeactivate) {
+    title = `Deactivate ${memberLabel}?`;
+    description = 'This will disable member sign-in until the institution is re-invited.';
+    confirmLabel = 'Deactivate Member';
+    cancelLabel = 'Keep Current State';
+  } else {
+    title = `Cancel invite for ${memberLabel}?`;
+    description = 'This will remove the pending invite and mark the institution as deactivated.';
+    confirmLabel = 'Cancel Invite';
+    cancelLabel = 'Keep Current State';
+  }
 
   return (
     <ModalFrame
@@ -274,15 +306,15 @@ function ConfirmActionModal({ modalState, onClose, onSubmit }) {
             className="rounded-xl px-4 py-2.5 text-sm font-semibold"
             style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
           >
-            Keep Current State
+            {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onSubmit}
             className="rounded-xl px-4 py-2.5 text-sm font-bold"
-            style={{ background: isDeactivate ? CONCEPT_THEME.error : CONCEPT_THEME.text, color: 'white' }}
+            style={{ background: CONCEPT_THEME.error, color: 'white' }}
           >
-            {isDeactivate ? 'Deactivate Member' : 'Cancel Invite'}
+            {confirmLabel}
           </button>
         </>
       )}
@@ -291,6 +323,99 @@ function ConfirmActionModal({ modalState, onClose, onSubmit }) {
       {modalState.error ? (
         <div className="rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
           {modalState.error}
+        </div>
+      ) : null}
+    </ModalFrame>
+  );
+}
+
+function MemberPreferencesModal({ member, prefData, onClose }) {
+  if (!member) return null;
+  const memberLabel = member.institutionName || member.abbreviation || 'Member';
+
+  const wholePrefs = (prefData?.data?.preferences || []).filter((p) => p.piId === member.userId);
+  const fracPrefs = (prefData?.data?.fractionalPreferences || []).filter((p) => p.piId === member.userId);
+  const submission = (prefData?.data?.submissions || []).find((s) => s.piId === member.userId);
+
+  const formatDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
+  const shiftLabel = { DS1: 'Day Shift 1', DS2: 'Day Shift 2', NS: 'Night Shift' };
+
+  return (
+    <ModalFrame title={`Preferences — ${memberLabel}`} onClose={onClose} actions={(
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+        style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+      >
+        Close
+      </button>
+    )}>
+      {submission?.submittedAt ? (
+        <p className="text-xs" style={{ color: CONCEPT_THEME.muted }}>
+          Submitted {new Date(submission.submittedAt).toLocaleString()}
+        </p>
+      ) : null}
+
+      {wholePrefs.length === 0 && fracPrefs.length === 0 ? (
+        <p className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No preferences submitted yet.</p>
+      ) : null}
+
+      {wholePrefs.length > 0 ? (
+        <div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em]" style={{ color: CONCEPT_THEME.muted }}>Whole Shares</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+                  <th className="px-2 py-1.5 text-left font-semibold">Share</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Shift</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">1st Choice</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">2nd Choice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wholePrefs.map((p) => (
+                  <tr key={p.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>#{p.shareIndex}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{shiftLabel[p.shift] || p.shift}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{formatDate(p.choice1Date)}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.muted }}>{formatDate(p.choice2Date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {fracPrefs.length > 0 ? (
+        <div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em]" style={{ color: CONCEPT_THEME.muted }}>Fractional Shares</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
+                  <th className="px-2 py-1.5 text-left font-semibold">Block</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Hours</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Shift</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">1st Choice</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">2nd Choice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fracPrefs.map((p) => (
+                  <tr key={p.id} className="border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>#{p.blockIndex}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{p.fractionalHours}h</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{shiftLabel[p.shift] || p.shift}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.text }}>{formatDate(p.choice1Date)}</td>
+                    <td className="px-2 py-1.5" style={{ color: CONCEPT_THEME.muted }}>{formatDate(p.choice2Date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
     </ModalFrame>
@@ -334,17 +459,22 @@ function buildMembers(usersPayload, sharesPayload) {
 
 export default function MembersAndShares() {
   const location = useLocation();
+  const { activeCycleId } = useActiveCycle();
   const usersQuery = useUsers({ all: true });
   const sharesQuery = useMasterShares();
   const updateUser = useUpdateUser();
   const deactivateUser = useDeactivateUser();
+  const deleteUser = useDeleteUser();
   const resendInvite = useResendInvite();
   const updateShare = useUpdateShare();
   const uploadShares = useUploadShares();
+  const prefStatusQuery = usePreferenceStatus(activeCycleId, { enabled: Boolean(activeCycleId) });
+  const prefDataQuery = usePreferences(activeCycleId, { enabled: Boolean(activeCycleId) });
 
   const [notice, setNotice] = useState(null);
   const [memberFormError, setMemberFormError] = useState('');
   const [modalState, setModalState] = useState(null);
+  const [prefsModalMember, setPrefsModalMember] = useState(null);
   const [memberStatusFilter, setMemberStatusFilter] = useState(location.state?.tab ?? 'all');
   const [newMemberForm, setNewMemberForm] = useState({
     abbreviation: '',
@@ -353,6 +483,11 @@ export default function MembersAndShares() {
     piName: '',
     piEmail: '',
   });
+
+  const prefStatusByPiId = useMemo(() => {
+    const list = prefStatusQuery.data?.data?.status || [];
+    return Object.fromEntries(list.map((s) => [s.piId, s]));
+  }, [prefStatusQuery.data]);
 
   const members = useMemo(
     () => buildMembers(usersQuery.data, sharesQuery.data),
@@ -546,12 +681,33 @@ export default function MembersAndShares() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!modalState?.member) return;
+    try {
+      await deleteUser.mutateAsync(modalState.member.userId);
+      closeModal();
+      showNotice(
+        'success',
+        'Member permanently deleted',
+        `${modalState.member.institutionName || modalState.member.abbreviation} has been removed. Their data is preserved anonymously.`,
+      );
+    } catch (err) {
+      setModalState((prev) => (
+        prev ? { ...prev, error: err.message || 'Unable to delete member.' } : prev
+      ));
+    }
+  };
+
+  const openPrefsModal = (member) => setPrefsModalMember(member);
+  const closePrefsModal = () => setPrefsModalMember(null);
+
   const handleModalSubmit = () => {
     if (!modalState) return;
     if (modalState.type === 'changePi') return handleChangePi();
     if (modalState.type === 'reinvite') return handleReinvite();
     if (modalState.type === 'deactivate') return handleDeactivate();
     if (modalState.type === 'cancelInvite') return handleCancelInvite();
+    if (modalState.type === 'deleteUser') return handleDeleteUser();
     return null;
   };
 
@@ -672,13 +828,14 @@ export default function MembersAndShares() {
                 <th className="px-2 py-2 text-left text-[13px] font-semibold uppercase tracking-[0.16em]">PI Email</th>
                 <th className="px-2 py-2 text-right text-[13px] font-semibold uppercase tracking-[0.16em]">Shares</th>
                 <th className="px-2 py-2 text-left text-[13px] font-semibold uppercase tracking-[0.16em]">Status</th>
+                <th className="px-2 py-2 text-left text-[13px] font-semibold uppercase tracking-[0.16em]">Preferences</th>
                 <th className="px-2 py-2 text-left text-[13px] font-semibold uppercase tracking-[0.16em]">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-2 py-6 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+                  <td colSpan={8} className="px-2 py-6 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
                     No members match the selected filter.
                   </td>
                 </tr>
@@ -717,6 +874,41 @@ export default function MembersAndShares() {
                     ) : null}
                   </td>
                   <td className="px-2 py-3">
+                    {member.status === 'ACTIVE' ? (() => {
+                      const prefStatus = prefStatusByPiId[member.userId];
+                      if (prefStatus?.hasSubmitted) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-[0.16em]"
+                              style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald }}
+                            >
+                              Submitted
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openPrefsModal(member)}
+                              className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                              style={{ background: `${CONCEPT_THEME.sky}16`, color: CONCEPT_THEME.sky }}
+                            >
+                              View
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <span
+                          className="inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-[0.16em]"
+                          style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}
+                        >
+                          Pending
+                        </span>
+                      );
+                    })() : (
+                      <span className="text-xs" style={{ color: CONCEPT_THEME.muted }}>—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3">
                     <ActionButtons
                       member={member}
                       onDeactivate={(nextMember) => openConfirmModal('deactivate', nextMember)}
@@ -724,6 +916,7 @@ export default function MembersAndShares() {
                       onResendInvite={handleResendInvite}
                       onCancelInvite={(nextMember) => openConfirmModal('cancelInvite', nextMember)}
                       onReinvite={(nextMember) => openPiModal('reinvite', nextMember)}
+                      onDelete={(nextMember) => openConfirmModal('deleteUser', nextMember)}
                     />
                   </td>
                 </tr>
@@ -807,11 +1000,19 @@ export default function MembersAndShares() {
         />
       ) : null}
 
-      {modalState?.type === 'cancelInvite' || modalState?.type === 'deactivate' ? (
+      {modalState?.type === 'cancelInvite' || modalState?.type === 'deactivate' || modalState?.type === 'deleteUser' ? (
         <ConfirmActionModal
           modalState={modalState}
           onClose={closeModal}
           onSubmit={handleModalSubmit}
+        />
+      ) : null}
+
+      {prefsModalMember ? (
+        <MemberPreferencesModal
+          member={prefsModalMember}
+          prefData={prefDataQuery.data}
+          onClose={closePrefsModal}
         />
       ) : null}
     </div>
