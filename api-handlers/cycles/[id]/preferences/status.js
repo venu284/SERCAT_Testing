@@ -31,7 +31,7 @@ async function handler(req, res) {
       .from(cycleShares)
       .innerJoin(users, eq(cycleShares.piId, users.id))
       .leftJoin(institutions, eq(cycleShares.institutionId, institutions.id))
-      .where(eq(cycleShares.cycleId, cycleId))
+      .where(and(eq(cycleShares.cycleId, cycleId), eq(users.isActive, true), isNull(users.deletedAt)))
       .orderBy(institutions.name);
 
     // When no snapshot taken yet, fall back to all active+activated PI users

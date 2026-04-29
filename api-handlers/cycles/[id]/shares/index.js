@@ -34,7 +34,7 @@ async function handler(req, res) {
       .from(cycleShares)
       .innerJoin(institutions, eq(cycleShares.institutionId, institutions.id))
       .innerJoin(users, eq(cycleShares.piId, users.id))
-      .where(and(eq(cycleShares.cycleId, id), isNull(users.deletedAt)))
+      .where(and(eq(cycleShares.cycleId, id), eq(users.isActive, true), isNull(users.deletedAt)))
       .orderBy(institutions.name);
 
     return res.status(200).json({ data: rows });
