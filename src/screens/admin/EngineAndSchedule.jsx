@@ -7,12 +7,10 @@ import {
   useAvailableDates,
   useCycleShares,
   useGenerateSchedule,
-  useMasterShares,
   usePreferenceStatus,
   usePreferences,
   usePublishSchedule,
   useSchedule,
-  useSnapshotShares,
   useUnpublishSchedule,
   useUsers,
 } from '../../hooks/useApiData';
@@ -116,26 +114,20 @@ export default function EngineAndSchedule() {
   const { activeCycle, activeCycleId, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
   const scheduleQuery = useSchedule(activeCycleId);
   const generateMutation = useGenerateSchedule();
-  const snapshotSharesMutation = useSnapshotShares();
   const publishMutation = usePublishSchedule();
   const unpublishMutation = useUnpublishSchedule();
   const prefStatusQuery = usePreferenceStatus(activeCycleId);
   const cycleSharesQuery = useCycleShares(activeCycleId);
-  const masterSharesQuery = useMasterShares();
   const usersQuery = useUsers({ all: true });
   const prefsQuery = usePreferences(activeCycleId, { refetchInterval: 30000, staleTime: 0 });
   const datesQuery = useAvailableDates(activeCycleId);
   const [engineProgress, setEngineProgress] = useState({ running: false, value: 0, message: '' });
 
-  const cycleShareRows = useMemo(() => extractRows(cycleSharesQuery.data), [cycleSharesQuery.data]);
-  const scheduleSharesData = cycleShareRows.length > 0 ? cycleSharesQuery.data : masterSharesQuery.data;
-  const needsShareSnapshot = cycleShareRows.length === 0;
-
-  const members = useMemo(() => buildMembers(scheduleSharesData), [scheduleSharesData]);
+  const members = useMemo(() => buildMembers(cycleSharesQuery.data), [cycleSharesQuery.data]);
   const activeMembers = useMemo(() => members.filter((member) => member.status === 'ACTIVE'), [members]);
   const memberDirectory = useMemo(
-    () => buildMemberDirectory(scheduleSharesData, usersQuery.data),
-    [scheduleSharesData, usersQuery.data],
+    () => buildMemberDirectory(cycleSharesQuery.data, usersQuery.data),
+    [cycleSharesQuery.data, usersQuery.data],
   );
 
   const results = useMemo(() => {
@@ -210,28 +202,18 @@ export default function EngineAndSchedule() {
   }, [activeCycle, datesQuery.data]);
 
   const originalChoiceMarks = useMemo(
-    () => buildOriginalChoiceMarks(prefsQuery.data, scheduleSharesData),
-    [prefsQuery.data, scheduleSharesData],
+    () => buildOriginalChoiceMarks(prefsQuery.data, cycleSharesQuery.data),
+    [prefsQuery.data, cycleSharesQuery.data],
   );
 
   const submittedCount = useMemo(() => (
     prefStatusQuery.data?.summary?.submitted ?? 0
   ), [prefStatusQuery.data]);
-  const activeMemberCount = prefStatusQuery.data?.summary?.total ?? activeMembers.length;
-  const isGenerateDisabled = engineProgress.running
-    || snapshotSharesMutation.isPending
-    || generateMutation.isPending
-    || activeMemberCount === 0;
 
   const runEngine = useCallback(async () => {
     if (!activeCycleId) return;
     setEngineProgress({ running: true, value: 20, message: 'Sending to server...' });
     try {
-      if (needsShareSnapshot) {
-        setEngineProgress({ running: true, value: 35, message: 'Snapshotting shares...' });
-        await snapshotSharesMutation.mutateAsync(activeCycleId);
-        await cycleSharesQuery.refetch();
-      }
       setEngineProgress({ running: true, value: 50, message: 'Generating schedule...' });
       await generateMutation.mutateAsync(activeCycleId);
       setEngineProgress({ running: true, value: 90, message: 'Loading results...' });
@@ -240,7 +222,7 @@ export default function EngineAndSchedule() {
     } catch (err) {
       setEngineProgress({ running: false, value: 0, message: `Error: ${err.message}` });
     }
-  }, [activeCycleId, cycleSharesQuery, generateMutation, needsShareSnapshot, scheduleQuery, snapshotSharesMutation]);
+  }, [activeCycleId, generateMutation, scheduleQuery]);
 
   const publishSchedule = useCallback(async () => {
     if (!results?._scheduleId) return;
@@ -266,7 +248,6 @@ export default function EngineAndSchedule() {
     || scheduleQuery.isLoading
     || prefStatusQuery.isLoading
     || cycleSharesQuery.isLoading
-    || masterSharesQuery.isLoading
     || usersQuery.isLoading
     || prefsQuery.isLoading
     || datesQuery.isLoading;
@@ -274,7 +255,6 @@ export default function EngineAndSchedule() {
     || scheduleQuery.error
     || prefStatusQuery.error
     || cycleSharesQuery.error
-    || masterSharesQuery.error
     || usersQuery.error
     || prefsQuery.error
     || datesQuery.error;
@@ -312,14 +292,14 @@ export default function EngineAndSchedule() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
             onClick={runEngine}
-            disabled={isGenerateDisabled}
+            disabled={engineProgress.running || activeMembers.length === 0}
             className="rounded-xl px-4 py-2.5 text-sm font-bold transition-all disabled:cursor-not-allowed"
             style={{
-              background: isGenerateDisabled ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
-              color: isGenerateDisabled ? CONCEPT_THEME.muted : 'white',
+              background: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+              color: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.muted : 'white',
             }}
           >
-            Generate Schedule ({submittedCount}/{activeMemberCount} submitted)
+            Generate Schedule ({submittedCount}/{activeMembers.length} submitted)
           </button>
           {results && schedulePublication.status === 'draft' && (
             <button

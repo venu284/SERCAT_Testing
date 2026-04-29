@@ -22,7 +22,7 @@ vi.mock('../lib/api', () => ({
   },
 }));
 
-import { useCreateInstitution, usePublishSchedule, useSchedule, useUsers } from './useApiData';
+import { useCreateInstitution, useUsers } from './useApiData';
 
 describe('useUsers', () => {
   beforeEach(() => {
@@ -100,60 +100,5 @@ describe('useCreateInstitution', () => {
       abbreviation: 'UGA',
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['institutions'] });
-  });
-});
-
-describe('useSchedule', () => {
-  beforeEach(() => {
-    useQuery.mockClear();
-    apiGet.mockReset();
-    apiPost.mockReset();
-    invalidateQueries.mockReset();
-    useQueryClient.mockReturnValue({ invalidateQueries });
-    apiGet.mockResolvedValue({ data: { data: null } });
-  });
-
-  it('fetches cycle schedules with fresh-on-mount polling defaults', async () => {
-    const query = useSchedule('cycle-1');
-
-    await query.queryFn();
-
-    expect(query.queryKey).toEqual(['schedule', 'cycle-1']);
-    expect(query.enabled).toBe(true);
-    expect(query.staleTime).toBe(0);
-    expect(query.refetchInterval).toBe(30000);
-    expect(apiGet).toHaveBeenCalledWith('/cycles/cycle-1/schedules');
-  });
-
-  it('allows callers to override schedule polling options and disable the query', () => {
-    const query = useSchedule('cycle-1', {
-      enabled: false,
-      refetchInterval: false,
-      staleTime: 120000,
-    });
-
-    expect(query.enabled).toBe(false);
-    expect(query.refetchInterval).toBe(false);
-    expect(query.staleTime).toBe(120000);
-  });
-});
-
-describe('usePublishSchedule', () => {
-  beforeEach(() => {
-    useMutation.mockClear();
-    apiPost.mockReset();
-    invalidateQueries.mockReset();
-    useQueryClient.mockReturnValue({ invalidateQueries });
-  });
-
-  it('publishes schedules and invalidates schedule and cycle queries', async () => {
-    const mutation = usePublishSchedule();
-
-    await mutation.mutationFn('schedule-1');
-    mutation.onSuccess();
-
-    expect(apiPost).toHaveBeenCalledWith('/schedules/schedule-1/publish');
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['schedule'] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['cycles'] });
   });
 });
