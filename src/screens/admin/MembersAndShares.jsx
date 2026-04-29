@@ -333,9 +333,9 @@ function MemberPreferencesModal({ member, prefData, onClose }) {
   if (!member) return null;
   const memberLabel = member.institutionName || member.abbreviation || 'Member';
 
-  const wholePrefs = (prefData?.data?.preferences || []).filter((p) => p.piId === member.userId);
-  const fracPrefs = (prefData?.data?.fractionalPreferences || []).filter((p) => p.piId === member.userId);
-  const submission = (prefData?.data?.submissions || []).find((s) => s.piId === member.userId);
+  const wholePrefs = (prefData?.preferences || []).filter((p) => p.piId === member.userId);
+  const fracPrefs = (prefData?.fractionalPreferences || []).filter((p) => p.piId === member.userId);
+  const submission = (prefData?.submissions || []).find((s) => s.piId === member.userId);
 
   const formatDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
   const shiftLabel = { DS1: 'Day Shift 1', DS2: 'Day Shift 2', NS: 'Night Shift' };
@@ -485,7 +485,7 @@ export default function MembersAndShares() {
   });
 
   const prefStatusByPiId = useMemo(() => {
-    const list = prefStatusQuery.data?.data?.status || [];
+    const list = prefStatusQuery.data?.status || [];
     return Object.fromEntries(list.map((s) => [s.piId, s]));
   }, [prefStatusQuery.data]);
 
