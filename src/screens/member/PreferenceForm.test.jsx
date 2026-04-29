@@ -191,13 +191,16 @@ describe('PreferenceForm', () => {
     expect(screen.getByText('No active share found for your account.')).toBeInTheDocument();
   });
 
-  it('blocks per-shift unavailable dates and keeps selections local until final submit', async () => {
+  it('blocks per-shift unavailable dates after the session type is selected', async () => {
     vi.useFakeTimers();
     const submitMutation = buildSubmitMutation();
     useSubmitPreferences.mockReturnValue(submitMutation);
     useDatesWithBlockedDs1();
 
     render(<PreferenceForm />);
+
+    // Select DS1 shift so blocked dates render as disabled
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
 
     const blockedDate = screen.getByRole('button', { name: '20' });
     const openDate = screen.getByRole('button', { name: '21' });
@@ -220,6 +223,9 @@ describe('PreferenceForm', () => {
     vi.useFakeTimers();
 
     render(<PreferenceForm />);
+
+    // Select DS1 so date picking is enabled
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
 
     const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
     const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
@@ -244,7 +250,11 @@ describe('PreferenceForm', () => {
 
     render(<PreferenceForm />);
 
-    expect(screen.getByText('Share 1 - Morning Shift')).toBeInTheDocument();
+    // Step 1 is Share 1 - Day Slot 1 (prototype slot-key label)
+    expect(screen.getByText('Share 1 - Day Slot 1')).toBeInTheDocument();
+
+    // Select DS1 shift first
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
 
     fireEvent.click(screen.getByRole('button', { name: '21' }));
     await act(async () => {
@@ -253,15 +263,18 @@ describe('PreferenceForm', () => {
     fireEvent.click(screen.getByRole('button', { name: '22' }));
 
     await act(async () => {
-      vi.advanceTimersByTime(320);
+      vi.advanceTimersByTime(600);
     });
 
-    expect(screen.getByText('Share 1 - Afternoon Shift')).toBeInTheDocument();
+    expect(screen.getByText('Share 1 - Day Slot 2')).toBeInTheDocument();
     expect(submitMutation.mutate).not.toHaveBeenCalled();
   });
 
   it('lets members choose which choice date is being picked and highlights the active choice', () => {
     render(<PreferenceForm />);
+
+    // Select DS1 shift to enable date picking
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
 
     const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
     const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
@@ -292,6 +305,9 @@ describe('PreferenceForm', () => {
     vi.useFakeTimers();
 
     render(<PreferenceForm />);
+
+    // Select DS1 shift first
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
 
     const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
     const secondChoice = screen.getByRole('button', { name: /2nd Choice/i });
@@ -360,7 +376,8 @@ describe('PreferenceForm', () => {
 
     expect(screen.getByRole('heading', { name: 'Preferences Submitted' })).toBeInTheDocument();
     expect(screen.getByText('Submission Summary')).toBeInTheDocument();
-    const stepOneRow = screen.getByText('Step 1: Share 1 - Morning Shift').parentElement;
+    // Step 1 is Day Slot 1 (DAY1 mapped from DS1 server data)
+    const stepOneRow = screen.getByText('Step 1: Share 1 - Day Slot 1').parentElement;
     expect(stepOneRow).toBeInTheDocument();
     expect(within(stepOneRow).getByText(/1st: Apr 20, 2026/)).toBeInTheDocument();
     expect(within(stepOneRow).getByText(/2nd: Apr 21, 2026/)).toBeInTheDocument();
@@ -403,6 +420,39 @@ describe('PreferenceForm', () => {
 
     expect(screen.queryByRole('button', { name: 'Edit Choices' })).not.toBeInTheDocument();
     expect(screen.getByText(/The preference deadline has passed/i)).toBeInTheDocument();
+  });
+
+  it('requires session selection before date picking is enabled', () => {
+    render(<PreferenceForm />);
+
+    const firstChoice = screen.getByRole('button', { name: /1st Choice/i });
+    expect(within(firstChoice).getByText('Choose session first')).toBeInTheDocument();
+    expect(firstChoice).toBeDisabled();
+
+    // Calendar dates not blocked by isDateBlockedForStep when no shift — clicking does nothing
+    // Select DS1 to enable
+    fireEvent.click(screen.getByRole('button', { name: /Morning Shift/i }));
+
+    expect(within(firstChoice).getByText('Not selected')).toBeInTheDocument();
+    expect(firstChoice).not.toBeDisabled();
+  });
+
+  it('clearing DAY1 shift to NS hides Day Slot 2 step (double-night)', async () => {
+    vi.useFakeTimers();
+
+    render(<PreferenceForm />);
+
+    // Initially 5 steps (DAY1, DAY2, NS for share + 2 fractional)
+    expect(screen.getAllByRole('button', { name: /Step \d+/i })).toHaveLength(5);
+
+    // Select NS on DAY1 (double-night) → DAY2 disappears → 4 steps
+    fireEvent.click(screen.getByRole('button', { name: /Night Shift/i }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(screen.getAllByRole('button', { name: /Step \d+/i })).toHaveLength(4);
   });
 });
 

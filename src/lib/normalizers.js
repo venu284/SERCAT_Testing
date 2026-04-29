@@ -1,21 +1,25 @@
-import { SHIFT_ORDER } from './constants.js';
+import { WHOLE_SLOT_ORDER } from './constants.js';
 import { computeEntitlements } from './entitlements.js';
+import { normalizeWholeShareEntriesForDoubleNight } from './whole-share.js';
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
-function legacySlotKeyToShift(slotKey) {
-  if (slotKey === 'NS') return 'NS';
-  if (slotKey === 'DAY2') return 'DS2';
-  return 'DS1';
+function legacyShiftToSlotKey(shift) {
+  if (shift === 'NS') return 'NS';
+  if (shift === 'DS2') return 'DAY2';
+  return 'DAY1';
 }
 
-function normalizeWholePreferenceEntry(entry = {}, shareIndex, shift) {
-  const resolvedShift = entry.shift || entry.shiftType || legacySlotKeyToShift(entry.slotKey || shift);
+function normalizeWholePreferenceEntry(entry = {}, shareIndex, slotKey) {
+  const shiftType = slotKey === 'NS'
+    ? 'NS'
+    : (typeof (entry.shiftType || entry.shift) === 'string' ? (entry.shiftType || entry.shift || '') : '');
   return {
     shareIndex,
-    shift: resolvedShift,
-    choice1Date: entry.choice1Date || entry.firstChoiceDate || '',
-    choice2Date: entry.choice2Date || entry.secondChoiceDate || '',
+    slotKey,
+    shiftType,
+    firstChoiceDate: entry.firstChoiceDate || entry.choice1Date || '',
+    secondChoiceDate: entry.secondChoiceDate || entry.choice2Date || '',
   };
 }
 
@@ -23,8 +27,9 @@ function normalizeFractionalPreferenceEntry(entry = {}, blockIndex, fractionalHo
   return {
     blockIndex,
     fractionalHours,
-    choice1Date: entry.choice1Date || entry.firstChoiceDate || '',
-    choice2Date: entry.choice2Date || entry.secondChoiceDate || '',
+    shiftType: typeof entry.shiftType === 'string' ? entry.shiftType : '',
+    firstChoiceDate: entry.firstChoiceDate || entry.choice1Date || '',
+    secondChoiceDate: entry.secondChoiceDate || entry.choice2Date || '',
   };
 }
 
@@ -188,40 +193,42 @@ export function buildMember(user, share) {
 
 export function normalizeMemberPreferences(
   member,
-  prefs = { wholeShare: [], fractionalPreferences: [], submitted: false, notes: '' },
+  prefs = { wholeShare: [], fractional: [], submitted: false, notes: '' },
 ) {
   const entitlement = computeEntitlements([member])[0] || { wholeShares: 0, fractionalHours: 0 };
   const sourceWhole = Array.isArray(prefs.wholeShare) ? prefs.wholeShare : [];
-  const sourceFractional = Array.isArray(prefs.fractionalPreferences)
-    ? prefs.fractionalPreferences
-    : (Array.isArray(prefs.fractional) ? prefs.fractional : []);
+  const sourceFractional = Array.isArray(prefs.fractional)
+    ? prefs.fractional
+    : (Array.isArray(prefs.fractionalPreferences) ? prefs.fractionalPreferences : []);
 
   const wholeShare = [];
   for (let i = 0; i < entitlement.wholeShares; i += 1) {
     const shareIndex = i + 1;
-    SHIFT_ORDER.forEach((shift) => {
+    WHOLE_SLOT_ORDER.forEach((slotKey) => {
       const existing = sourceWhole.find(
         (entry) => entry.shareIndex === shareIndex
-          && (entry.shift || legacySlotKeyToShift(entry.slotKey || 'DS1')) === shift,
+          && (entry.slotKey === slotKey || legacyShiftToSlotKey(entry.shift || '') === slotKey),
       ) || {};
-      wholeShare.push(normalizeWholePreferenceEntry(existing, shareIndex, shift));
+      wholeShare.push(normalizeWholePreferenceEntry(existing, shareIndex, slotKey));
     });
   }
 
-  const fractionalPreferences = [];
+  const normalizedWholeShare = normalizeWholeShareEntriesForDoubleNight(wholeShare);
+
+  const fractional = [];
   let remainingHours = entitlement.fractionalHours;
   let blockIndex = 1;
   while (remainingHours > 0.0001) {
     const hours = Math.min(6, roundTo2(remainingHours));
     const existing = sourceFractional[blockIndex - 1] || {};
-    fractionalPreferences.push(normalizeFractionalPreferenceEntry(existing, blockIndex, hours));
+    fractional.push(normalizeFractionalPreferenceEntry(existing, blockIndex, hours));
     remainingHours = roundTo2(remainingHours - hours);
     blockIndex += 1;
   }
 
   return {
-    wholeShare,
-    fractionalPreferences,
+    wholeShare: normalizedWholeShare,
+    fractional,
     submitted: Boolean(prefs.submitted),
     notes: String(prefs.notes || ''),
   };
@@ -231,11 +238,10 @@ function roundTo2(value) {
   return Number(Number(value || 0).toFixed(2));
 }
 
-export function sampleWholeShare(shareIndex, firstChoiceDate, secondChoiceDate) {
-  return SHIFT_ORDER.map((shift) => ({
-    shareIndex,
-    shift,
-    choice1Date: firstChoiceDate,
-    choice2Date: secondChoiceDate,
-  }));
+export function sampleWholeShare(shareIndex, firstChoiceDate, secondChoiceDate, day1Shift = 'DS1', day2Shift = 'DS2') {
+  return [
+    { shareIndex, slotKey: 'DAY1', shiftType: day1Shift, firstChoiceDate, secondChoiceDate },
+    { shareIndex, slotKey: 'DAY2', shiftType: day2Shift, firstChoiceDate, secondChoiceDate },
+    { shareIndex, slotKey: 'NS', shiftType: 'NS', firstChoiceDate, secondChoiceDate },
+  ];
 }

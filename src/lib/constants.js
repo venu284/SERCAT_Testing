@@ -2,6 +2,8 @@ import { CONCEPT_THEME } from './theme.js';
 
 export const SHIFT_HOURS = { DS1: 6, DS2: 6, NS: 12 };
 export const SHIFT_ORDER = ['DS1', 'DS2', 'NS'];
+export const WHOLE_SLOT_ORDER = ['DAY1', 'DAY2', 'NS'];
+export const WHOLE_SLOT_LABELS = { DAY1: 'Day Slot 1', DAY2: 'Day Slot 2', NS: 'Night Slot' };
 export const SHIFT_LABELS = {
   DS1: 'DS1 (9am-3pm)',
   DS2: 'DS2 (3pm-9pm)',
