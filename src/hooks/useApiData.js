@@ -212,10 +212,12 @@ export function useSnapshotShares() {
 }
 
 export function usePreferences(cycleId, options = {}) {
+  const { enabled, ...rest } = options;
   return useQuery({
     queryKey: ['preferences', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/preferences`).then((r) => r.data),
-    enabled: Boolean(cycleId) && (options.enabled ?? true),
+    enabled: Boolean(cycleId) && (enabled ?? true),
+    ...rest,
   });
 }
 
@@ -224,7 +226,10 @@ export function useSubmitPreferences() {
   return useMutation({
     mutationFn: ({ cycleId, preferences, fractionalPreferences = [] }) =>
       api.post(`/cycles/${cycleId}/preferences`, { preferences, fractionalPreferences }),
-    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['preferences', vars.cycleId] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['preferences', vars.cycleId] });
+      qc.invalidateQueries({ queryKey: ['preference-status', vars.cycleId] });
+    },
   });
 }
 
