@@ -222,6 +222,7 @@ export function usePreferenceStatus(cycleId, options = {}) {
     queryKey: ['preference-status', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/preferences/status`).then((r) => r.data),
     enabled: Boolean(cycleId) && (options.enabled ?? true),
+    refetchInterval: 30000,
   });
 }
 

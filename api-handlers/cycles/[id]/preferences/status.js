@@ -34,6 +34,24 @@ async function handler(req, res) {
       .where(eq(cycleShares.cycleId, cycleId))
       .orderBy(institutions.name);
 
+    // When no snapshot taken yet, fall back to all active+activated PI users
+    const piList = shares.length > 0
+      ? shares
+      : await db
+          .select({
+            piId: users.id,
+            piName: users.name,
+            piEmail: users.email,
+            institutionName: institutions.name,
+            institutionAbbreviation: institutions.abbreviation,
+            wholeShares: null,
+            fractionalShares: null,
+          })
+          .from(users)
+          .leftJoin(institutions, eq(users.institutionId, institutions.id))
+          .where(and(eq(users.role, 'pi'), eq(users.isActive, true), eq(users.isActivated, true)))
+          .orderBy(institutions.name);
+
     const submittedWhole = await db
       .select({ piId: preferences.piId })
       .from(preferences)
@@ -51,7 +69,7 @@ async function handler(req, res) {
       ...submittedFractional.map((s) => s.piId),
     ]);
 
-    const status = shares.map((s) => ({
+    const status = piList.map((s) => ({
       ...s,
       hasSubmitted: submittedPiIds.has(s.piId),
     }));
