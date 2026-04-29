@@ -10,6 +10,7 @@ import meHandler from '../api-handlers/auth/me.js';
 import resetPasswordHandler from '../api-handlers/auth/reset-password.js';
 import setPasswordHandler from '../api-handlers/auth/set-password.js';
 import commentByIdHandler from '../api-handlers/comments/[id].js';
+import commentMessagesHandler from '../api-handlers/comments/[id]/messages.js';
 import commentsIndexHandler from '../api-handlers/comments/index.js';
 import cycleArchiveHandler from '../api-handlers/cycles/[id]/archive.js';
 import cycleDatesHandler from '../api-handlers/cycles/[id]/dates.js';
@@ -50,6 +51,7 @@ const router = createApiRouter({
   setPassword: setPasswordHandler,
   commentsIndex: commentsIndexHandler,
   commentById: commentByIdHandler,
+  commentMessages: commentMessagesHandler,
   cyclePreferenceStatus: cyclePreferenceStatusHandler,
   cycleSharesSnapshot: cycleSharesSnapshotHandler,
   cycleSchedulesGenerate: cycleSchedulesGenerateHandler,
