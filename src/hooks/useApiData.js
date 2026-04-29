@@ -93,6 +93,8 @@ export function useUpdateUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['master-shares'] });
+      qc.invalidateQueries({ queryKey: ['cycle-shares'] });
+      qc.invalidateQueries({ queryKey: ['preference-status'] });
     },
   });
 }
@@ -104,6 +106,8 @@ export function useDeactivateUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['master-shares'] });
+      qc.invalidateQueries({ queryKey: ['cycle-shares'] });
+      qc.invalidateQueries({ queryKey: ['preference-status'] });
     },
   });
 }
@@ -115,6 +119,8 @@ export function useDeleteUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['master-shares'] });
+      qc.invalidateQueries({ queryKey: ['cycle-shares'] });
+      qc.invalidateQueries({ queryKey: ['preference-status'] });
     },
   });
 }

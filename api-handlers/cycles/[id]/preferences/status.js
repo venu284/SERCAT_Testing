@@ -1,4 +1,4 @@
-import { eq, and, isNotNull } from 'drizzle-orm';
+import { eq, and, isNotNull, isNull } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { cycles } from '../../../../db/schema/cycles.js';
 import { cycleShares } from '../../../../db/schema/cycle-shares.js';
@@ -47,7 +47,7 @@ async function handler(req, res) {
         })
         .from(users)
         .leftJoin(institutions, eq(users.institutionId, institutions.id))
-        .where(and(eq(users.role, 'pi'), eq(users.isActive, true), eq(users.isActivated, true)))
+        .where(and(eq(users.role, 'pi'), eq(users.isActive, true), eq(users.isActivated, true), isNull(users.deletedAt)))
         .orderBy(institutions.name);
 
       piList = piUsers.map((u) => ({ ...u, wholeShares: null, fractionalShares: null }));

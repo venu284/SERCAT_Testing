@@ -210,6 +210,10 @@ export default function EngineAndSchedule() {
     prefStatusQuery.data?.summary?.submitted ?? 0
   ), [prefStatusQuery.data]);
 
+  const totalExpected = useMemo(() => (
+    prefStatusQuery.data?.summary?.total ?? activeMembers.length
+  ), [prefStatusQuery.data, activeMembers.length]);
+
   const runEngine = useCallback(async () => {
     if (!activeCycleId) return;
     setEngineProgress({ running: true, value: 20, message: 'Sending to server...' });
@@ -299,7 +303,7 @@ export default function EngineAndSchedule() {
               color: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.muted : 'white',
             }}
           >
-            Generate Schedule ({submittedCount}/{activeMembers.length} submitted)
+            Generate Schedule ({submittedCount}/{totalExpected} submitted)
           </button>
           {results && schedulePublication.status === 'draft' && (
             <button

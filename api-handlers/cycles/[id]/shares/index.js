@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { cycleShares } from '../../../../db/schema/cycle-shares.js';
 import { institutions } from '../../../../db/schema/institutions.js';
@@ -26,6 +26,7 @@ async function handler(req, res) {
         piId: cycleShares.piId,
         piName: users.name,
         piEmail: users.email,
+        isActive: users.isActive,
         wholeShares: cycleShares.wholeShares,
         fractionalShares: cycleShares.fractionalShares,
         snapshotAt: cycleShares.snapshotAt,
@@ -33,7 +34,7 @@ async function handler(req, res) {
       .from(cycleShares)
       .innerJoin(institutions, eq(cycleShares.institutionId, institutions.id))
       .innerJoin(users, eq(cycleShares.piId, users.id))
-      .where(eq(cycleShares.cycleId, id))
+      .where(and(eq(cycleShares.cycleId, id), isNull(users.deletedAt)))
       .orderBy(institutions.name);
 
     return res.status(200).json({ data: rows });
