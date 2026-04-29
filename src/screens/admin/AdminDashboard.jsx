@@ -74,7 +74,7 @@ export default function AdminDashboard() {
     : addDays(activeCycle.startDate, -7);
   const published = schedulePublication.status === 'published';
   const submittedCount = statusSummary.submitted ?? 0;
-  const activeMemberCount = statusSummary.total ?? activeMembers.length;
+  const activeMemberCount = statusSummary.total || activeMembers.length;
   const submissionPct = activeMemberCount > 0 ? Math.round((submittedCount / activeMemberCount) * 100) : 0;
   const timeline = [
     { label: 'Cycle Start', date: activeCycle.startDate, done: localTodayDateStr() >= activeCycle.startDate },
@@ -118,12 +118,20 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Active Members', value: activeMemberCount, sub: 'in cycle', accent: CONCEPT_THEME.navy },
-          { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.accentText },
-          { label: 'Submissions', value: `${submittedCount}/${activeMemberCount || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky },
-          { label: 'Schedule', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted },
+          { label: 'Active Members', value: activeMemberCount, sub: 'in cycle', accent: CONCEPT_THEME.navy, onClick: () => navigate('/admin/members', { state: { tab: 'active' } }) },
+          { label: 'Invited Members', value: pendingMembers.length, sub: 'awaiting activation', accent: CONCEPT_THEME.accentText, onClick: () => navigate('/admin/members', { state: { tab: 'invited' } }) },
+          { label: 'Submissions', value: `${submittedCount}/${activeMemberCount || 0}`, sub: `${submissionPct}% complete`, accent: CONCEPT_THEME.sky, onClick: () => navigate('/admin/engine') },
+          { label: 'Schedule', value: published ? 'Published' : 'Draft', sub: published ? 'member-visible' : 'review mode', accent: published ? CONCEPT_THEME.emerald : CONCEPT_THEME.navyMuted, onClick: () => navigate('/admin/engine') },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
+          <div
+            key={stat.label}
+            className="rounded-xl px-4 py-3 cursor-pointer"
+            style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
+            onClick={stat.onClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && stat.onClick()}
+          >
             <div className="mb-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>{stat.label}</div>
             <div className="concept-font-display text-2xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
             <div className="mt-0.5 text-sm" style={{ color: CONCEPT_THEME.muted }}>{stat.sub}</div>

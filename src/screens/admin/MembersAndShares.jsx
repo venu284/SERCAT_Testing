@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { COLORS, CONCEPT_THEME } from '../../lib/theme';
 import { extractRows } from '../../lib/api';
 import {
@@ -332,6 +333,7 @@ function buildMembers(usersPayload, sharesPayload) {
 }
 
 export default function MembersAndShares() {
+  const location = useLocation();
   const usersQuery = useUsers({ all: true });
   const sharesQuery = useMasterShares();
   const updateUser = useUpdateUser();
@@ -343,7 +345,7 @@ export default function MembersAndShares() {
   const [notice, setNotice] = useState(null);
   const [memberFormError, setMemberFormError] = useState('');
   const [modalState, setModalState] = useState(null);
-  const [memberStatusFilter, setMemberStatusFilter] = useState('all');
+  const [memberStatusFilter, setMemberStatusFilter] = useState(location.state?.tab ?? 'all');
   const [newMemberForm, setNewMemberForm] = useState({
     abbreviation: '',
     name: '',
