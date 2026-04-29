@@ -119,7 +119,7 @@ export default function EngineAndSchedule() {
   const prefStatusQuery = usePreferenceStatus(activeCycleId);
   const cycleSharesQuery = useCycleShares(activeCycleId);
   const usersQuery = useUsers({ all: true });
-  const prefsQuery = usePreferences(activeCycleId, { refetchInterval: 30000 });
+  const prefsQuery = usePreferences(activeCycleId, { refetchInterval: 30000, staleTime: 0 });
   const datesQuery = useAvailableDates(activeCycleId);
   const [engineProgress, setEngineProgress] = useState({ running: false, value: 0, message: '' });
 
