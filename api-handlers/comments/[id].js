@@ -2,14 +2,13 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { comments } from '../../db/schema/comments.js';
-import { withAdmin } from '../../lib/middleware/with-admin.js';
+import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { getZodMessage } from '../../lib/validation.js';
 
 const updateCommentSchema = z.object({
-  status: z.enum(['read', 'replied']).optional(),
-  adminReply: z.string().optional(),
+  status: z.enum(['read', 'resolved']).optional(),
 });
 
 
@@ -23,41 +22,38 @@ async function handler(req, res) {
       return res.status(404).json({ error: 'Comment not found', code: 'NOT_FOUND' });
     }
 
-    const adminReply = String(body.adminReply || '').trim();
-    if (!adminReply && !body.status) {
+    if (!body.status) {
       return res.status(400).json({ error: 'No changes requested', code: 'VALIDATION_ERROR' });
     }
-    if (body.status === 'replied' && !adminReply) {
-      return res.status(400).json({ error: 'Reply message is required.', code: 'VALIDATION_ERROR' });
+
+    if (body.status === 'read') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can mark comments as read', code: 'FORBIDDEN' });
+      }
+      if (comment.status !== 'sent') {
+        return res.status(200).json({ data: comment });
+      }
+    }
+
+    if (body.status === 'resolved') {
+      if (req.user.role !== 'pi') {
+        return res.status(403).json({ error: 'Only the PI can resolve their comment', code: 'FORBIDDEN' });
+      }
+      if (comment.piId !== req.user.userId) {
+        return res.status(403).json({ error: 'You can only resolve your own comments', code: 'FORBIDDEN' });
+      }
     }
 
     const now = new Date();
-    let updated = comment;
-
-    if (adminReply) {
-      [updated] = await db
-        .update(comments)
-        .set({
-          status: 'replied',
-          adminReply,
-          adminReplyBy: req.user.userId,
-          adminReplyAt: now,
-          readAt: comment.readAt || now,
-          updatedAt: now,
-        })
-        .where(eq(comments.id, id))
-        .returning();
-    } else if (body.status === 'read' && comment.status === 'sent') {
-      [updated] = await db
-        .update(comments)
-        .set({
-          status: 'read',
-          readAt: comment.readAt || now,
-          updatedAt: now,
-        })
-        .where(eq(comments.id, id))
-        .returning();
-    }
+    const [updated] = await db
+      .update(comments)
+      .set({
+        status: body.status,
+        readAt: body.status === 'read' ? (comment.readAt || now) : comment.readAt,
+        updatedAt: now,
+      })
+      .where(eq(comments.id, id))
+      .returning();
 
     await logAudit(req.user.userId, 'comment.update', {
       commentId: id,
@@ -74,4 +70,4 @@ async function handler(req, res) {
   }
 }
 
-export default withMethod('PUT', withAdmin(handler));
+export default withMethod('PUT', withAuth(handler));

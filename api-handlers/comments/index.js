@@ -1,7 +1,8 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { comments } from '../../db/schema/comments.js';
+import { commentMessages } from '../../db/schema/comments.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
@@ -23,12 +24,8 @@ async function handler(req, res) {
           piId: comments.piId,
           institutionId: comments.institutionId,
           subject: comments.subject,
-          message: comments.message,
           status: comments.status,
           readAt: comments.readAt,
-          adminReply: comments.adminReply,
-          adminReplyBy: comments.adminReplyBy,
-          adminReplyAt: comments.adminReplyAt,
           createdAt: comments.createdAt,
           updatedAt: comments.updatedAt,
           piName: users.name,
@@ -46,7 +43,31 @@ async function handler(req, res) {
           .where(eq(comments.piId, req.user.userId))
           .orderBy(desc(comments.createdAt));
 
-      return res.status(200).json({ data: rows });
+      if (rows.length === 0) {
+        return res.status(200).json({ data: [] });
+      }
+
+      const commentIds = rows.map((r) => r.id);
+      const messages = await db
+        .select()
+        .from(commentMessages)
+        .where(inArray(commentMessages.commentId, commentIds))
+        .orderBy(commentMessages.createdAt);
+
+      const messagesByCommentId = {};
+      for (const msg of messages) {
+        if (!messagesByCommentId[msg.commentId]) {
+          messagesByCommentId[msg.commentId] = [];
+        }
+        messagesByCommentId[msg.commentId].push(msg);
+      }
+
+      const data = rows.map((row) => ({
+        ...row,
+        messages: messagesByCommentId[row.id] || [],
+      }));
+
+      return res.status(200).json({ data });
     }
 
     if (req.user.role !== 'pi') {
@@ -60,13 +81,20 @@ async function handler(req, res) {
       piId: req.user.userId,
       institutionId: req.user.institutionId || null,
       subject: body.subject,
-      message: body.message,
       status: 'sent',
       createdAt: now,
       updatedAt: now,
     }).returning();
 
-    return res.status(201).json({ data: created });
+    await db.insert(commentMessages).values({
+      commentId: created.id,
+      authorId: req.user.userId,
+      role: 'pi',
+      body: body.message,
+      createdAt: now,
+    });
+
+    return res.status(201).json({ data: { ...created, messages: [{ commentId: created.id, authorId: req.user.userId, role: 'pi', body: body.message, createdAt: now }] } });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: getZodMessage(err), code: 'VALIDATION_ERROR' });

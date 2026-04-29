@@ -301,6 +301,22 @@ export function useUpdateComment() {
   });
 }
 
+export function useAddCommentMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }) => api.post(`/comments/${id}/messages`, { body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments'] }),
+  });
+}
+
+export function useResolveComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.put(`/comments/${id}`, { status: 'resolved' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments'] }),
+  });
+}
+
 export function useMarkNotificationRead() {
   const qc = useQueryClient();
   return useMutation({

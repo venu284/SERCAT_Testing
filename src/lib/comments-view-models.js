@@ -1,11 +1,8 @@
 function toCommentStatusLabel(status) {
   if (status === 'read') return 'Read';
   if (status === 'replied') return 'Replied';
+  if (status === 'resolved') return 'Resolved';
   return 'Sent';
-}
-
-function toEmptyString(value) {
-  return value ?? '';
 }
 
 function toNewestFirst(a, b) {
@@ -16,13 +13,11 @@ function normalizeBaseComment(comment) {
   return {
     id: comment.id,
     subject: comment.subject,
-    message: comment.message,
     status: toCommentStatusLabel(comment.status),
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
-    readAt: toEmptyString(comment.readAt),
-    adminReply: toEmptyString(comment.adminReply),
-    adminReplyAt: toEmptyString(comment.adminReplyAt),
+    readAt: comment.readAt ?? '',
+    messages: Array.isArray(comment.messages) ? comment.messages : [],
   };
 }
 
@@ -30,7 +25,10 @@ export function toMemberCommentHistory(comments) {
   if (!Array.isArray(comments)) return [];
 
   return comments
-    .map((comment) => normalizeBaseComment(comment))
+    .map((comment) => ({
+      ...normalizeBaseComment(comment),
+      canReply: comment.status !== 'resolved',
+    }))
     .sort(toNewestFirst);
 }
 

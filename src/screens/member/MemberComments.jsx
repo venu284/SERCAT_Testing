@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { CONCEPT_THEME } from '../../lib/theme';
-import { useComments, useCreateComment } from '../../hooks/useApiData';
+import { useComments, useCreateComment, useAddCommentMessage, useResolveComment } from '../../hooks/useApiData';
 import { toMemberCommentHistory } from '../../lib/comments-view-models';
 
 function buildStatusTone(status) {
@@ -10,16 +10,52 @@ function buildStatusTone(status) {
   if (status === 'Replied') {
     return { bg: CONCEPT_THEME.tealLight, color: CONCEPT_THEME.teal };
   }
+  if (status === 'Resolved') {
+    return { bg: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted };
+  }
   return { bg: CONCEPT_THEME.skyLight, color: CONCEPT_THEME.sky };
+}
+
+function MessageBubble({ msg }) {
+  const isMe = msg.role === 'pi';
+  return (
+    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className="max-w-[80%] rounded-2xl px-4 py-3"
+        style={{
+          background: isMe ? CONCEPT_THEME.navy : CONCEPT_THEME.tealLight,
+          color: isMe ? 'white' : CONCEPT_THEME.text,
+        }}
+      >
+        {!isMe && (
+          <div className="mb-1 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: CONCEPT_THEME.teal }}>
+            Admin
+          </div>
+        )}
+        <p className="whitespace-pre-wrap text-sm leading-6">{msg.body}</p>
+        <div className="mt-1 text-xs" style={{ color: isMe ? 'rgba(255,255,255,0.55)' : CONCEPT_THEME.muted }}>
+          {new Date(msg.createdAt).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function MemberComments() {
   const commentsQuery = useComments();
   const createComment = useCreateComment();
+  const addMessage = useAddCommentMessage();
+  const resolveComment = useResolveComment();
+
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+
+  const [replyDrafts, setReplyDrafts] = useState({});
+  const [replyErrors, setReplyErrors] = useState({});
+  const [replyPending, setReplyPending] = useState({});
+  const [resolvePending, setResolvePending] = useState({});
 
   const history = useMemo(() => toMemberCommentHistory(commentsQuery.data), [commentsQuery.data]);
 
@@ -29,8 +65,8 @@ export default function MemberComments() {
     const trimmedMessage = message.trim();
 
     if (!trimmedSubject || !trimmedMessage) {
-      setError('Both subject and message are required.');
-      setSuccess('');
+      setFormError('Both subject and message are required.');
+      setFormSuccess('');
       return;
     }
 
@@ -38,11 +74,40 @@ export default function MemberComments() {
       await createComment.mutateAsync({ subject: trimmedSubject, message: trimmedMessage });
       setSubject('');
       setMessage('');
-      setError('');
-      setSuccess('Comment sent to the scheduling team.');
+      setFormError('');
+      setFormSuccess('Comment sent to the scheduling team.');
     } catch (err) {
-      setError(err?.message || 'Unable to submit your comment.');
-      setSuccess('');
+      setFormError(err?.message || 'Unable to submit your comment.');
+      setFormSuccess('');
+    }
+  };
+
+  const handleReply = async (entry) => {
+    const body = (replyDrafts[entry.id] ?? '').trim();
+    if (!body) {
+      setReplyErrors((prev) => ({ ...prev, [entry.id]: 'Reply cannot be empty.' }));
+      return;
+    }
+    setReplyPending((prev) => ({ ...prev, [entry.id]: true }));
+    setReplyErrors((prev) => ({ ...prev, [entry.id]: '' }));
+    try {
+      await addMessage.mutateAsync({ id: entry.id, body });
+      setReplyDrafts((prev) => ({ ...prev, [entry.id]: '' }));
+    } catch (err) {
+      setReplyErrors((prev) => ({ ...prev, [entry.id]: err?.message || 'Unable to send reply.' }));
+    } finally {
+      setReplyPending((prev) => ({ ...prev, [entry.id]: false }));
+    }
+  };
+
+  const handleResolve = async (entry) => {
+    setResolvePending((prev) => ({ ...prev, [entry.id]: true }));
+    try {
+      await resolveComment.mutateAsync(entry.id);
+    } catch {
+      // silently ignore — UI will refresh from query
+    } finally {
+      setResolvePending((prev) => ({ ...prev, [entry.id]: false }));
     }
   };
 
@@ -82,14 +147,14 @@ export default function MemberComments() {
           </label>
         </div>
 
-        {error ? (
+        {formError ? (
           <div className="mt-4 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
-            {error}
+            {formError}
           </div>
         ) : null}
-        {success ? (
+        {formSuccess ? (
           <div className="mt-4 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}>
-            {success}
+            {formSuccess}
           </div>
         ) : null}
 
@@ -107,9 +172,9 @@ export default function MemberComments() {
 
       <div className="rounded-2xl border bg-white px-5 py-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h4 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>History</h4>
+          <h4 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Conversation History</h4>
           <span className="rounded-xl px-3 py-1.5 text-xs font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
-            {history.length} messages
+            {history.length} threads
           </span>
         </div>
 
@@ -126,17 +191,19 @@ export default function MemberComments() {
             No comments submitted yet.
           </div>
         ) : (
-          <div className="space-y-3">
-            {commentsQuery.isError ? (
-              <div className="rounded-xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.borderLight, color: CONCEPT_THEME.muted }}>
-                Unable to load comment history.
-              </div>
-            ) : null}
+          <div className="space-y-4">
             {history.map((entry) => {
               const tone = buildStatusTone(entry.status);
+              const hasAdminReply = entry.messages.some((m) => m.role === 'admin');
+              const isResolved = entry.status === 'Resolved';
+              const draft = replyDrafts[entry.id] ?? '';
+              const isPending = Boolean(replyPending[entry.id]);
+              const isResolvePending = Boolean(resolvePending[entry.id]);
+              const replyErr = replyErrors[entry.id] || '';
+
               return (
-                <div key={entry.id} className="rounded-2xl border px-4 py-4" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                <div key={entry.id} className="rounded-2xl border" style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.borderLight }}>
+                  <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4">
                     <div className="min-w-0 flex-1">
                       <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>{entry.subject || 'Untitled message'}</div>
                       <div className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
@@ -147,22 +214,59 @@ export default function MemberComments() {
                       {entry.status}
                     </span>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6" style={{ color: CONCEPT_THEME.text }}>
-                    {entry.message}
-                  </p>
-                  {entry.adminReply ? (
-                    <div className="mt-4 rounded-2xl border px-4 py-3" style={{ background: CONCEPT_THEME.tealLight, borderColor: `${CONCEPT_THEME.teal}33` }}>
-                      <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.teal }}>
-                        Admin Reply
+
+                  <div className="mt-3 space-y-2 px-4">
+                    {entry.messages.map((msg) => (
+                      <MessageBubble key={msg.id} msg={msg} />
+                    ))}
+                  </div>
+
+                  {!isResolved ? (
+                    <div className="mt-4 border-t px-4 pb-4 pt-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                      <label className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>
+                        Reply
+                      </label>
+                      <textarea
+                        value={draft}
+                        onChange={(event) => setReplyDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        rows={3}
+                        className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition"
+                        style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text, resize: 'vertical' }}
+                        placeholder="Type your reply..."
+                      />
+                      {replyErr ? (
+                        <div className="mt-2 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+                          {replyErr}
+                        </div>
+                      ) : null}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleReply(entry)}
+                          disabled={isPending}
+                          className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                          style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: isPending ? 0.7 : 1 }}
+                        >
+                          {isPending ? 'Sending...' : 'Send Reply'}
+                        </button>
+                        {hasAdminReply ? (
+                          <button
+                            type="button"
+                            onClick={() => handleResolve(entry)}
+                            disabled={isResolvePending}
+                            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                            style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted, opacity: isResolvePending ? 0.7 : 1 }}
+                          >
+                            {isResolvePending ? 'Resolving...' : 'Mark Resolved'}
+                          </button>
+                        ) : null}
                       </div>
-                      <div className="mt-1 text-xs" style={{ color: CONCEPT_THEME.muted }}>
-                        {entry.adminReplyAt ? `Sent ${new Date(entry.adminReplyAt).toLocaleString()}` : 'Sent by admin'}
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6" style={{ color: CONCEPT_THEME.text }}>
-                        {entry.adminReply}
-                      </p>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="px-4 pb-4 pt-3">
+                      <span className="text-xs" style={{ color: CONCEPT_THEME.muted }}>This conversation has been resolved.</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
