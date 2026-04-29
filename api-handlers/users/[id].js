@@ -12,6 +12,8 @@ import { getZodMessage } from '../../lib/validation.js';
 const updateUserSchema = z.object({
   email: z.string().email().trim().toLowerCase().optional(),
   name: z.string().trim().min(1).optional(),
+  phone: z.string().trim().nullable().optional(),
+  roleTitle: z.string().trim().nullable().optional(),
   institutionId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
   resetActivation: z.boolean().optional(),
@@ -50,8 +52,9 @@ async function handler(req, res) {
       const body = isAdmin
         ? parsedBody
         : {
-          email: parsedBody.email,
           name: parsedBody.name,
+          phone: parsedBody.phone,
+          roleTitle: parsedBody.roleTitle,
         };
 
       if (body.email) {
@@ -102,6 +105,8 @@ async function handler(req, res) {
           email: users.email,
           name: users.name,
           role: users.role,
+          phone: users.phone,
+          roleTitle: users.roleTitle,
           institutionId: users.institutionId,
           isActive: users.isActive,
           isActivated: users.isActivated,

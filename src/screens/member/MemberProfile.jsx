@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useMasterShares } from '../../hooks/useApiData';
 import { api, extractRows } from '../../lib/api';
 
-const EMPTY_FORM = { piName: '', piEmail: '', piPhone: '', piRole: '' };
+const EMPTY_FORM = { piName: '', piPhone: '', piRole: '' };
 
 function formatStatus(status) {
   if (!status) return 'Unknown';
@@ -31,6 +31,10 @@ export default function MemberProfile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
+  const [emailChangeOpen, setEmailChangeOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailChangeSending, setEmailChangeSending] = useState(false);
+  const [emailChangeMsg, setEmailChangeMsg] = useState({ type: '', text: '' });
   const isAdminSession = user?.role === 'admin';
 
   useEffect(() => {
@@ -58,8 +62,8 @@ export default function MemberProfile() {
       status: user.isActive === false ? 'DEACTIVATED' : 'ACTIVE',
       piName: profileIdentity.name || '',
       piEmail: profileIdentity.email || '',
-      piPhone: '',
-      piRole: user.role === 'admin' ? 'Administrator' : 'Principal Investigator',
+      piPhone: user.phone || '',
+      piRole: user.roleTitle || '',
       _userId: user.id,
     };
   }, [isAdminSession, profileIdentity.email, profileIdentity.name, sharesQuery.data, user]);
@@ -68,7 +72,6 @@ export default function MemberProfile() {
     if (!activeMember) return;
     setForm({
       piName: activeMember.piName || '',
-      piEmail: activeMember.piEmail || '',
       piPhone: activeMember.piPhone || '',
       piRole: activeMember.piRole || '',
     });
@@ -109,28 +112,22 @@ export default function MemberProfile() {
     try {
       const response = await api.put(`/users/${activeMember._userId}`, {
         name: form.piName,
-        email: form.piEmail,
+        phone: form.piPhone || null,
+        roleTitle: form.piRole || null,
       });
       const updated = response?.data || {};
       const nextName = updated.name || form.piName;
-      const nextEmail = updated.email || form.piEmail;
+      const nextPhone = updated.phone ?? form.piPhone;
+      const nextRole = updated.roleTitle ?? form.piRole;
 
-      setProfileIdentity({
-        name: nextName,
-        email: nextEmail,
-      });
+      setProfileIdentity((prev) => ({ ...prev, name: nextName }));
       setForm({
         piName: nextName,
-        piEmail: nextEmail,
-        piPhone: activeMember.piPhone || '',
-        piRole: activeMember.piRole || '',
+        piPhone: nextPhone || '',
+        piRole: nextRole || '',
       });
       setError('');
-      setSuccess(
-        form.piPhone !== (activeMember.piPhone || '') || form.piRole !== (activeMember.piRole || '')
-          ? 'Profile updated successfully. Phone and role changes are not available yet.'
-          : 'Profile updated successfully.',
-      );
+      setSuccess('Profile updated successfully.');
     } catch (err) {
       setError(err.message || 'Unable to save profile changes.');
       setSuccess('');
@@ -142,12 +139,27 @@ export default function MemberProfile() {
   const handleCancel = () => {
     setForm({
       piName: activeMember.piName || '',
-      piEmail: activeMember.piEmail || '',
       piPhone: activeMember.piPhone || '',
       piRole: activeMember.piRole || '',
     });
     setError('');
     setSuccess('');
+  };
+
+  const handleEmailChangeRequest = async (event) => {
+    event.preventDefault();
+    setEmailChangeSending(true);
+    setEmailChangeMsg({ type: '', text: '' });
+    try {
+      await api.post(`/users/${activeMember._userId}/request-email-change`, { email: newEmail });
+      setEmailChangeMsg({ type: 'success', text: `Verification link sent to ${newEmail}. Check your inbox.` });
+      setNewEmail('');
+      setEmailChangeOpen(false);
+    } catch (err) {
+      setEmailChangeMsg({ type: 'error', text: err.message || 'Unable to send verification email.' });
+    } finally {
+      setEmailChangeSending(false);
+    }
   };
 
   return (
@@ -188,8 +200,7 @@ export default function MemberProfile() {
         <div className="grid gap-4 md:grid-cols-2">
           {[
             { id: 'piName', label: 'PI Name', type: 'text', placeholder: 'Dr. Jane Smith' },
-            { id: 'piEmail', label: 'PI Email', type: 'email', placeholder: 'pi@institution.edu' },
-            { id: 'piPhone', label: 'Phone', type: 'text', placeholder: '(555) 555-5555' },
+            { id: 'piPhone', label: 'Phone (Optional)', type: 'text', placeholder: '(555) 555-5555' },
             { id: 'piRole', label: 'Role', type: 'text', placeholder: 'Principal Investigator' },
           ].map((field) => (
             <label key={field.id} className="block">
@@ -237,6 +248,85 @@ export default function MemberProfile() {
           </button>
         </div>
       </form>
+
+      <div className="rounded-2xl border bg-white px-5 py-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Email Address</div>
+            <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>{profileIdentity.email}</div>
+          </div>
+          {!emailChangeOpen ? (
+            <button
+              type="button"
+              onClick={() => { setEmailChangeOpen(true); setEmailChangeMsg({ type: '', text: '' }); }}
+              className="rounded-xl px-3 py-2 text-sm font-semibold"
+              style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+            >
+              Change Email
+            </button>
+          ) : null}
+        </div>
+
+        {emailChangeMsg.text && !emailChangeOpen ? (
+          <div
+            className="mt-3 rounded-xl border px-3 py-2 text-sm"
+            style={
+              emailChangeMsg.type === 'success'
+                ? { background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }
+                : { background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }
+            }
+          >
+            {emailChangeMsg.text}
+          </div>
+        ) : null}
+
+        {emailChangeOpen ? (
+          <form
+            onSubmit={handleEmailChangeRequest}
+            className="mt-4 border-t pt-4"
+            style={{ borderColor: CONCEPT_THEME.borderLight }}
+          >
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>New Email Address</span>
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(event) => setNewEmail(event.target.value)}
+                className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition"
+                style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+                placeholder="new@institution.edu"
+                required
+              />
+            </label>
+
+            {emailChangeMsg.type === 'error' ? (
+              <div className="mt-3 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+                {emailChangeMsg.text}
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="submit"
+                className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+                disabled={emailChangeSending}
+              >
+                {emailChangeSending ? 'Sending...' : 'Send Verification Email'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmailChangeOpen(false); setNewEmail(''); setEmailChangeMsg({ type: '', text: '' }); }}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+                style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
+                disabled={emailChangeSending}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </div>
     </div>
   );
 }

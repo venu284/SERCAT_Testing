@@ -13,6 +13,8 @@ async function handler(req, res) {
         email: users.email,
         name: users.name,
         role: users.role,
+        phone: users.phone,
+        roleTitle: users.roleTitle,
         institutionId: users.institutionId,
         institutionName: institutions.name,
         institutionAbbreviation: institutions.abbreviation,

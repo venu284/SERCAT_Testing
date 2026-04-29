@@ -49,6 +49,7 @@ async function handler(req, res) {
       isActivated: true,
       activationTokenHash: null,
       activationTokenExpiresAt: null,
+      phone: body.phone || null,
       updatedAt: new Date(),
     }).where(eq(users.id, user.id));
 
