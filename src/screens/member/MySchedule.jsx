@@ -147,7 +147,7 @@ export default function MySchedule() {
 
         {!hasGeneratedSchedule ? (
           <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-            Schedule not generated yet. Current status: draft.
+            Schedule has not been published yet.
           </div>
         ) : (
           <>

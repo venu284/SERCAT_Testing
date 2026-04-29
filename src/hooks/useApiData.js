@@ -244,10 +244,20 @@ export function usePreferenceStatus(cycleId, options = {}) {
 }
 
 export function useSchedule(cycleId, options = {}) {
+  const {
+    enabled,
+    refetchInterval = 30000,
+    staleTime = 0,
+    ...rest
+  } = options;
+
   return useQuery({
     queryKey: ['schedule', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/schedules`).then((r) => r.data),
-    enabled: Boolean(cycleId) && (options.enabled ?? true),
+    enabled: Boolean(cycleId) && (enabled ?? true),
+    refetchInterval,
+    staleTime,
+    ...rest,
   });
 }
 
@@ -263,7 +273,10 @@ export function usePublishSchedule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (scheduleId) => api.post(`/schedules/${scheduleId}/publish`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedule'] });
+      qc.invalidateQueries({ queryKey: ['cycles'] });
+    },
   });
 }
 
