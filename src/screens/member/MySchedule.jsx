@@ -35,7 +35,7 @@ export default function MySchedule() {
     endDate: activeCycle?.endDate || '',
   }), [activeCycle]);
 
-  const hasGeneratedSchedule = schedulePublication.status === 'draft' || schedulePublication.status === 'published';
+  const hasGeneratedSchedule = schedulePublication.status === 'published';
   const hasGeneratedScheduleForCurrentMember = currentMemberAssignments.length > 0;
 
   const sortedCurrentMemberAssignments = React.useMemo(
@@ -147,7 +147,7 @@ export default function MySchedule() {
 
         {!hasGeneratedSchedule ? (
           <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
-            Schedule not generated yet. Current status: draft.
+            Schedule has not been published yet.
           </div>
         ) : (
           <>
