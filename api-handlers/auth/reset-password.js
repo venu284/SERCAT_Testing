@@ -34,7 +34,10 @@ async function handler(req, res) {
         email: user.email,
         resetToken,
       });
-      void sendEmail({ to: user.email, ...emailData });
+      const emailResult = await sendEmail({ to: user.email, ...emailData });
+      if (!emailResult.ok) {
+        console.warn('[RESET] Email failed to send to', user.email, ':', emailResult.error);
+      }
     }
 
     return res.status(200).json({
