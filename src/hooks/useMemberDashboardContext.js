@@ -23,7 +23,7 @@ export function useMemberDashboardContext() {
   const cycleQuery = useActiveCycle();
   const sharesQuery = useMasterShares();
   const preferencesQuery = usePreferences(cycleQuery.activeCycleId);
-  const scheduleQuery = useSchedule(cycleQuery.activeCycleId, { staleTime: 0 });
+  const scheduleQuery = useSchedule(cycleQuery.activeCycleId);
 
   const shareRows = useMemo(() => extractRows(sharesQuery.data), [sharesQuery.data]);
 

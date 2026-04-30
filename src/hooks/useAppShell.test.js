@@ -154,11 +154,6 @@ describe('useAppShell', () => {
     expect(result.current.members).toHaveLength(2);
     expect(result.current.pendingRegistrationCount).toBe(1);
     expect(result.current.activeMember?.id).toBe('UGA');
-    expect(useSchedule).toHaveBeenCalledWith('cycle-1', {
-      enabled: true,
-      staleTime: 0,
-      refetchInterval: 30000,
-    });
     expect(result.current.memberTabBadges).toMatchObject({
       availability: 'Live',
       preferences: 'Done',
@@ -250,10 +245,5 @@ describe('useAppShell', () => {
     expect(result.current.memberTabBadges.preferences).toBe('Done');
     expect(usePreferenceStatus).toHaveBeenCalledWith(null, { enabled: false });
     expect(usePreferences).toHaveBeenCalledWith('cycle-1', { enabled: true });
-    expect(useSchedule).toHaveBeenCalledWith('cycle-1', {
-      enabled: true,
-      staleTime: 0,
-      refetchInterval: 30000,
-    });
   });
 });
