@@ -115,7 +115,7 @@ export function useDeactivateUser() {
 export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id) => api.delete(`/users/${id}?permanent=true`),
+    mutationFn: (id) => api.delete(`/users/${id}`, { permanent: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['master-shares'] });
@@ -244,8 +244,8 @@ export function usePreferenceStatus(cycleId, options = {}) {
     queryKey: ['preference-status', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/preferences/status`).then((r) => r.data),
     enabled: Boolean(cycleId) && (options.enabled ?? true),
-    refetchInterval: 30000,
-    staleTime: 0,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -297,7 +297,8 @@ export function useNotifications() {
   return useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.get('/notifications').then((r) => r.data),
-    refetchInterval: 60000,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 

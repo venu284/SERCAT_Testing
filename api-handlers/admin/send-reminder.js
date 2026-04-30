@@ -10,12 +10,12 @@ import { logAudit } from '../../lib/audit.js';
 import { sendEmail } from '../../lib/email.js';
 import { manualReminderEmail } from '../../lib/email-templates.js';
 import { createNotification } from '../../lib/notifications.js';
-import { getZodMessage } from '../../lib/validation.js';
+import { getZodMessage, uuidSchema } from '../../lib/validation.js';
 
 const reminderSchema = z.object({
-  cycleId: z.string().uuid(),
+  cycleId: uuidSchema,
   message: z.string().min(1, 'Message is required').max(2000),
-  piIds: z.array(z.string().uuid()).optional(),
+  piIds: z.array(uuidSchema).optional(),
 });
 
 

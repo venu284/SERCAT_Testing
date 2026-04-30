@@ -1,15 +1,15 @@
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
 import { verifyPassword, signToken, setSessionCookie } from '../../lib/auth-utils.js';
 import { checkRateLimit, resetRateLimit } from '../../lib/middleware/with-rate-limit.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
-import { getZodMessage } from '../../lib/validation.js';
+import { getZodMessage, emailSchema } from '../../lib/validation.js';
 
 const loginSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  email: emailSchema,
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -43,7 +43,7 @@ async function handler(req, res) {
       })
       .from(users)
       .leftJoin(institutions, eq(users.institutionId, institutions.id))
-      .where(eq(users.email, body.email))
+      .where(and(eq(users.email, body.email), isNull(users.deletedAt)))
       .limit(1);
 
     if (!user) {

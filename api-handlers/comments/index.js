@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { comments } from '../../db/schema/comments.js';
@@ -8,6 +8,8 @@ import { institutions } from '../../db/schema/institutions.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { getZodMessage } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
+import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
 
 const createCommentSchema = z.object({
   subject: z.string().trim().min(1, 'Subject is required'),
@@ -18,6 +20,14 @@ const createCommentSchema = z.object({
 async function handler(req, res) {
   try {
     if (req.method === 'GET') {
+      const { page, limit, offset } = parsePagination(req.query || {});
+      const isAdmin = req.user.role === ROLES.ADMIN;
+
+      const countBase = db.select({ total: count() }).from(comments);
+      const [{ total }] = isAdmin
+        ? await countBase
+        : await countBase.where(eq(comments.piId, req.user.userId));
+
       const baseQuery = db
         .select({
           id: comments.id,
@@ -37,14 +47,16 @@ async function handler(req, res) {
         .innerJoin(users, eq(comments.piId, users.id))
         .leftJoin(institutions, eq(comments.institutionId, institutions.id));
 
-      const rows = req.user.role === 'admin'
-        ? await baseQuery.orderBy(desc(comments.createdAt))
+      const rows = isAdmin
+        ? await baseQuery.orderBy(desc(comments.createdAt)).limit(limit).offset(offset)
         : await baseQuery
           .where(eq(comments.piId, req.user.userId))
-          .orderBy(desc(comments.createdAt));
+          .orderBy(desc(comments.createdAt))
+          .limit(limit)
+          .offset(offset);
 
       if (rows.length === 0) {
-        return res.status(200).json({ data: [] });
+        return res.status(200).json(paginatedResponse([], Number(total), page, limit));
       }
 
       const commentIds = rows.map((r) => r.id);
@@ -56,21 +68,15 @@ async function handler(req, res) {
 
       const messagesByCommentId = {};
       for (const msg of messages) {
-        if (!messagesByCommentId[msg.commentId]) {
-          messagesByCommentId[msg.commentId] = [];
-        }
+        if (!messagesByCommentId[msg.commentId]) messagesByCommentId[msg.commentId] = [];
         messagesByCommentId[msg.commentId].push(msg);
       }
 
-      const data = rows.map((row) => ({
-        ...row,
-        messages: messagesByCommentId[row.id] || [],
-      }));
-
-      return res.status(200).json({ data });
+      const data = rows.map((row) => ({ ...row, messages: messagesByCommentId[row.id] || [] }));
+      return res.status(200).json(paginatedResponse(data, Number(total), page, limit));
     }
 
-    if (req.user.role !== 'pi') {
+    if (req.user.role !== ROLES.PI) {
       return res.status(403).json({ error: 'Only PIs can create comments', code: 'FORBIDDEN' });
     }
 
@@ -89,7 +95,7 @@ async function handler(req, res) {
     await db.insert(commentMessages).values({
       commentId: created.id,
       authorId: req.user.userId,
-      role: 'pi',
+      role: ROLES.PI,
       body: body.message,
       createdAt: now,
     });

@@ -12,6 +12,7 @@ import { sendEmail } from '../../../../lib/email.js';
 import { preferenceConfirmationEmail } from '../../../../lib/email-templates.js';
 import { createNotification } from '../../../../lib/notifications.js';
 import { getZodMessage } from '../../../../lib/validation.js';
+import { ROLES } from '../../../../lib/constants.js';
 
 const submitPreferenceSchema = z.object({
   preferences: z.array(z.object({
@@ -62,7 +63,7 @@ async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
-      if (req.user.role === 'admin') {
+      if (req.user.role === ROLES.ADMIN) {
         const wholeRows = await db
           .select({
             id: preferences.id,
@@ -168,7 +169,7 @@ async function handler(req, res) {
       });
     }
 
-    if (req.user.role !== 'admin' && isPreferenceDeadlinePassed(cycle)) {
+    if (req.user.role !== ROLES.ADMIN && isPreferenceDeadlinePassed(cycle)) {
       return res.status(400).json({
         error: 'Preference deadline has passed',
         code: 'PREFERENCE_DEADLINE_PASSED',
@@ -185,42 +186,43 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'PI institution is missing', code: 'MISSING_INSTITUTION' });
     }
 
-    await db.delete(preferences).where(
-      and(eq(preferences.cycleId, cycleId), eq(preferences.piId, piId)),
-    );
-    await db.delete(fractionalPreferences).where(
-      and(eq(fractionalPreferences.cycleId, cycleId), eq(fractionalPreferences.piId, piId)),
-    );
+    await db.transaction(async (tx) => {
+      await tx.delete(preferences).where(
+        and(eq(preferences.cycleId, cycleId), eq(preferences.piId, piId)),
+      );
+      await tx.delete(fractionalPreferences).where(
+        and(eq(fractionalPreferences.cycleId, cycleId), eq(fractionalPreferences.piId, piId)),
+      );
 
-    if (body.preferences.length > 0) {
-      const rows = body.preferences.map((p) => ({
-        cycleId,
-        piId,
-        institutionId,
-        shareIndex: p.shareIndex,
-        shift: p.shift,
-        choice1Date: p.choice1Date || null,
-        choice2Date: p.choice2Date || null,
-        submittedAt: now,
-        updatedAt: now,
-      }));
+      if (body.preferences.length > 0) {
+        const rows = body.preferences.map((p) => ({
+          cycleId,
+          piId,
+          institutionId,
+          shareIndex: p.shareIndex,
+          shift: p.shift,
+          choice1Date: p.choice1Date || null,
+          choice2Date: p.choice2Date || null,
+          submittedAt: now,
+          updatedAt: now,
+        }));
+        await tx.insert(preferences).values(rows);
+      }
 
-      await db.insert(preferences).values(rows);
-    }
-
-    if (body.fractionalPreferences.length > 0) {
-      await db.insert(fractionalPreferences).values(body.fractionalPreferences.map((p) => ({
-        cycleId,
-        piId,
-        institutionId,
-        blockIndex: p.blockIndex,
-        fractionalHours: String(p.fractionalHours),
-        choice1Date: p.choice1Date || null,
-        choice2Date: p.choice2Date || null,
-        submittedAt: now,
-        updatedAt: now,
-      })));
-    }
+      if (body.fractionalPreferences.length > 0) {
+        await tx.insert(fractionalPreferences).values(body.fractionalPreferences.map((p) => ({
+          cycleId,
+          piId,
+          institutionId,
+          blockIndex: p.blockIndex,
+          fractionalHours: String(p.fractionalHours),
+          choice1Date: p.choice1Date || null,
+          choice2Date: p.choice2Date || null,
+          submittedAt: now,
+          updatedAt: now,
+        })));
+      }
+    });
 
     const insertedWhole = await db
       .select()

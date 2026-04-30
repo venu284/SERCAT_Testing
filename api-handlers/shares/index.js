@@ -5,6 +5,7 @@ import { institutions } from '../../db/schema/institutions.js';
 import { users } from '../../db/schema/users.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { ROLES } from '../../lib/constants.js';
 
 async function handler(req, res) {
   try {
@@ -25,7 +26,7 @@ async function handler(req, res) {
       .innerJoin(institutions, eq(masterShares.institutionId, institutions.id))
       .innerJoin(users, eq(masterShares.piId, users.id));
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
       query = query.where(eq(masterShares.piId, req.user.userId));
     }
 

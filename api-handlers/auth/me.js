@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema/users.js';
 import { institutions } from '../../db/schema/institutions.js';
@@ -23,7 +23,7 @@ async function handler(req, res) {
       })
       .from(users)
       .leftJoin(institutions, eq(users.institutionId, institutions.id))
-      .where(eq(users.id, req.user.userId))
+      .where(and(eq(users.id, req.user.userId), isNull(users.deletedAt)))
       .limit(1);
 
     if (!user) {

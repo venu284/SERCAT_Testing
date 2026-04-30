@@ -1,26 +1,27 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ConceptFontStyles from './components/ConceptFontStyles';
 import NotificationBell from './components/NotificationBell';
-import ActivateAccountScreen from './screens/auth/ActivateAccountScreen';
-import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
-import LoginScreen from './screens/auth/LoginScreen';
-import ResetPasswordScreen from './screens/auth/ResetPasswordScreen';
-import MemberDashboard from './screens/member/MemberDashboard';
-import AvailabilityCalendar from './screens/member/AvailabilityCalendar';
-import PreferenceForm from './screens/member/PreferenceForm';
-import MySchedule from './screens/member/MySchedule';
-import ShiftChanges from './screens/member/ShiftChanges';
-import MemberComments from './screens/member/MemberComments';
-import MemberProfile from './screens/member/MemberProfile';
-import AdminDashboard from './screens/admin/AdminDashboard';
-import MembersAndShares from './screens/admin/MembersAndShares';
-import RunCycles from './screens/admin/RunCycles';
-import EngineAndSchedule from './screens/admin/EngineAndSchedule';
-import FairnessPanel from './screens/admin/FairnessPanel';
-import ShiftChangeAdmin from './screens/admin/ShiftChangeAdmin';
-import AdminComments from './screens/admin/AdminComments';
-import AdminProfile from './screens/admin/AdminProfile';
+
+const ActivateAccountScreen = lazy(() => import('./screens/auth/ActivateAccountScreen'));
+const ForgotPasswordScreen = lazy(() => import('./screens/auth/ForgotPasswordScreen'));
+const LoginScreen = lazy(() => import('./screens/auth/LoginScreen'));
+const ResetPasswordScreen = lazy(() => import('./screens/auth/ResetPasswordScreen'));
+const MemberDashboard = lazy(() => import('./screens/member/MemberDashboard'));
+const AvailabilityCalendar = lazy(() => import('./screens/member/AvailabilityCalendar'));
+const PreferenceForm = lazy(() => import('./screens/member/PreferenceForm'));
+const MySchedule = lazy(() => import('./screens/member/MySchedule'));
+const ShiftChanges = lazy(() => import('./screens/member/ShiftChanges'));
+const MemberComments = lazy(() => import('./screens/member/MemberComments'));
+const MemberProfile = lazy(() => import('./screens/member/MemberProfile'));
+const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
+const MembersAndShares = lazy(() => import('./screens/admin/MembersAndShares'));
+const RunCycles = lazy(() => import('./screens/admin/RunCycles'));
+const EngineAndSchedule = lazy(() => import('./screens/admin/EngineAndSchedule'));
+const FairnessPanel = lazy(() => import('./screens/admin/FairnessPanel'));
+const ShiftChangeAdmin = lazy(() => import('./screens/admin/ShiftChangeAdmin'));
+const AdminComments = lazy(() => import('./screens/admin/AdminComments'));
+const AdminProfile = lazy(() => import('./screens/admin/AdminProfile'));
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
 import { useAppShell } from './hooks/useAppShell';
@@ -389,13 +390,15 @@ function AppContent() {
     return (
       <>
         <ConceptFontStyles />
-        <Routes>
-          <Route path="/login" element={<LoginScreen cycle={cycle} />} />
-          <Route path="/activate" element={<ActivateAccountScreen cycle={cycle} />} />
-          <Route path="/forgot-password" element={<ForgotPasswordScreen cycle={cycle} />} />
-          <Route path="/reset-password" element={<ResetPasswordScreen cycle={cycle} />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="py-12 text-center text-sm text-gray-400">Loading...</div>}>
+          <Routes>
+            <Route path="/login" element={<LoginScreen cycle={cycle} />} />
+            <Route path="/activate" element={<ActivateAccountScreen cycle={cycle} />} />
+            <Route path="/forgot-password" element={<ForgotPasswordScreen cycle={cycle} />} />
+            <Route path="/reset-password" element={<ResetPasswordScreen cycle={cycle} />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       </>
     );
   }
@@ -420,6 +423,7 @@ function AppContent() {
   const adminProfileInstitution = 'Administrative Console';
 
   const routesElement = (
+    <Suspense fallback={<div className="py-12 text-center text-sm text-gray-400">Loading...</div>}>
     <Routes>
       <Route path="/" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
       <Route path="/login" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
@@ -440,6 +444,7 @@ function AppContent() {
       <Route path="/admin/profile" element={isAdmin ? <AdminProfile /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="*" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
     </Routes>
+    </Suspense>
   );
 
   return (

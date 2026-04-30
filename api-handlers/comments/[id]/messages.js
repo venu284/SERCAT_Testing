@@ -7,6 +7,7 @@ import { withAuth } from '../../../lib/middleware/with-auth.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
 import { getZodMessage } from '../../../lib/validation.js';
+import { ROLES } from '../../../lib/constants.js';
 
 const addMessageSchema = z.object({
   body: z.string().trim().min(1, 'Message body is required'),
@@ -23,7 +24,7 @@ async function handler(req, res) {
       return res.status(404).json({ error: 'Comment not found', code: 'NOT_FOUND' });
     }
 
-    if (req.user.role === 'pi') {
+    if (req.user.role === ROLES.PI) {
       if (comment.piId !== req.user.userId) {
         return res.status(403).json({ error: 'You can only reply to your own comments', code: 'FORBIDDEN' });
       }
@@ -33,7 +34,7 @@ async function handler(req, res) {
     }
 
     const now = new Date();
-    const role = req.user.role === 'admin' ? 'admin' : 'pi';
+    const role = req.user.role === ROLES.ADMIN ? ROLES.ADMIN : ROLES.PI;
 
     const [message] = await db.insert(commentMessages).values({
       commentId: id,
@@ -43,7 +44,7 @@ async function handler(req, res) {
       createdAt: now,
     }).returning();
 
-    const newStatus = role === 'admin' ? 'replied' : 'sent';
+    const newStatus = role === ROLES.ADMIN ? 'replied' : 'sent';
     await db
       .update(comments)
       .set({

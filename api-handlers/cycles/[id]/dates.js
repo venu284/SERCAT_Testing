@@ -7,6 +7,7 @@ import { withAuth } from '../../../lib/middleware/with-auth.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
 import { getZodMessage } from '../../../lib/validation.js';
+import { ROLES } from '../../../lib/constants.js';
 
 const setDatesSchema = z.object({
   dates: z.array(
@@ -39,7 +40,7 @@ async function handler(req, res) {
       return res.status(200).json({ data: rows });
     }
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 

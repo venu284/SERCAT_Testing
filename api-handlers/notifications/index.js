@@ -1,10 +1,11 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { notifications } from '../../db/schema/notifications.js';
 import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { getZodMessage } from '../../lib/validation.js';
+import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
 
 const markAllSchema = z.object({
   action: z.literal('read-all'),
@@ -14,14 +15,19 @@ const markAllSchema = z.object({
 async function handler(req, res) {
   try {
     if (req.method === 'GET') {
+      const { page, limit, offset } = parsePagination(req.query || {});
+      const userFilter = eq(notifications.userId, req.user.userId);
+
+      const [{ total }] = await db.select({ total: count() }).from(notifications).where(userFilter);
       const rows = await db
         .select()
         .from(notifications)
-        .where(eq(notifications.userId, req.user.userId))
+        .where(userFilter)
         .orderBy(desc(notifications.createdAt))
-        .limit(50);
+        .limit(limit)
+        .offset(offset);
 
-      return res.status(200).json({ data: rows });
+      return res.status(200).json(paginatedResponse(rows, Number(total), page, limit));
     }
 
     markAllSchema.parse(req.body);

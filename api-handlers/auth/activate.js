@@ -6,6 +6,7 @@ import { institutions } from '../../db/schema/institutions.js';
 import { hashPassword, hashToken } from '../../lib/auth-utils.js';
 import { strongPasswordSchema, getZodMessage } from '../../lib/validation.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { checkTokenRateLimit } from '../../lib/middleware/with-rate-limit.js';
 
 const activateSchema = z.object({
   token: z.string().min(1, 'Activation token is required'),
@@ -20,6 +21,13 @@ const activateSchema = z.object({
 
 async function handler(req, res) {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    const rateCheck = checkTokenRateLimit(ip);
+    if (!rateCheck.allowed) {
+      const retryMinutes = Math.ceil(rateCheck.retryAfterMs / 60000);
+      return res.status(429).json({ error: `Too many attempts. Try again in ${retryMinutes} minutes.`, code: 'RATE_LIMITED' });
+    }
+
     const body = activateSchema.parse(req.body);
     const activationTokenHash = hashToken(body.token);
 

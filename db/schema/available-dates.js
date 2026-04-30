@@ -1,4 +1,4 @@
-import { pgTable, uuid, date, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, date, boolean, index } from 'drizzle-orm/pg-core';
 import { cycles } from './cycles.js';
 
 export const availableDates = pgTable('available_dates', {
@@ -9,4 +9,6 @@ export const availableDates = pgTable('available_dates', {
   ds1Available: boolean('ds1_available').notNull().default(true),
   ds2Available: boolean('ds2_available').notNull().default(true),
   nsAvailable: boolean('ns_available').notNull().default(true),
-});
+}, (table) => [
+  index('available_dates_cycle_id_idx').on(table.cycleId),
+]);

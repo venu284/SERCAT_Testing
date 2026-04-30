@@ -6,6 +6,7 @@ import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { getZodMessage } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
 
 const updateCommentSchema = z.object({
   status: z.enum(['read', 'resolved']).optional(),
@@ -27,7 +28,7 @@ async function handler(req, res) {
     }
 
     if (body.status === 'read') {
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== ROLES.ADMIN) {
         return res.status(403).json({ error: 'Only admins can mark comments as read', code: 'FORBIDDEN' });
       }
       if (comment.status !== 'sent') {
@@ -36,7 +37,7 @@ async function handler(req, res) {
     }
 
     if (body.status === 'resolved') {
-      if (req.user.role !== 'pi') {
+      if (req.user.role !== ROLES.PI) {
         return res.status(403).json({ error: 'Only the PI can resolve their comment', code: 'FORBIDDEN' });
       }
       if (comment.piId !== req.user.userId) {

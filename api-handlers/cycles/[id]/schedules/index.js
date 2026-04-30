@@ -7,6 +7,7 @@ import { institutions } from '../../../../db/schema/institutions.js';
 import { runAnalytics } from '../../../../db/schema/run-analytics.js';
 import { withAuth } from '../../../../lib/middleware/with-auth.js';
 import { withMethod } from '../../../../lib/middleware/with-method.js';
+import { ROLES } from '../../../../lib/constants.js';
 
 async function handler(req, res) {
   try {
@@ -18,7 +19,7 @@ async function handler(req, res) {
     }
 
     let schedule;
-    if (req.user.role === 'admin') {
+    if (req.user.role === ROLES.ADMIN) {
       [schedule] = await db
         .select()
         .from(schedules)
@@ -83,7 +84,7 @@ async function handler(req, res) {
       .where(eq(runAnalytics.scheduleId, schedule.id))
       .limit(1);
 
-    const filteredAssignments = req.user.role === 'pi'
+    const filteredAssignments = req.user.role === ROLES.PI
       ? mappedAssignments.filter((a) => a.piId === req.user.userId)
       : mappedAssignments;
 
@@ -96,7 +97,7 @@ async function handler(req, res) {
         generatedAt: schedule.generatedAt,
         publishedAt: schedule.publishedAt,
         assignments: filteredAssignments,
-        analytics: req.user.role === 'admin'
+        analytics: req.user.role === ROLES.ADMIN
           ? ({
             ...analytics,
             fairnessStdDeviation: analytics?.fairnessStdDeviation != null ? parseFloat(analytics.fairnessStdDeviation) : null,

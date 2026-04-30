@@ -4,9 +4,17 @@ import { users } from '../../db/schema/users.js';
 import { hashToken } from '../../lib/auth-utils.js';
 import { logAudit } from '../../lib/audit.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { checkTokenRateLimit } from '../../lib/middleware/with-rate-limit.js';
 
 async function handler(req, res) {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    const rateCheck = checkTokenRateLimit(ip);
+    if (!rateCheck.allowed) {
+      const retryMinutes = Math.ceil(rateCheck.retryAfterMs / 60000);
+      return res.status(429).json({ error: `Too many attempts. Try again in ${retryMinutes} minutes.`, code: 'RATE_LIMITED' });
+    }
+
     const { token } = req.query;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ error: 'Token is required', code: 'TOKEN_MISSING' });

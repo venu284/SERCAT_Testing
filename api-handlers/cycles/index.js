@@ -7,6 +7,7 @@ import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
 import { getZodMessage } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
 
 const createCycleSchema = z.object({
   name: z.string().trim().min(1, 'Cycle name is required'),
@@ -34,7 +35,7 @@ async function handler(req, res) {
     }
 
     const body = createCycleSchema.parse(req.body);
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 

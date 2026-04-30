@@ -22,4 +22,6 @@ export const scheduleAssignments = pgTable('schedule_assignments', {
   sharedWithPiId: uuid('shared_with_pi_id').references(() => users.id),
 }, (table) => [
   index('schedule_assignments_schedule_id_idx').on(table.scheduleId),
+  index('schedule_assignments_pi_id_idx').on(table.piId),
+  index('schedule_assignments_institution_id_idx').on(table.institutionId),
 ]);

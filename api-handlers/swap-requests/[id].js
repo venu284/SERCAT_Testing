@@ -18,6 +18,7 @@ import {
   mapSwapRequestRow,
 } from '../../lib/swap-request-utils.js';
 import { getZodMessage } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
 
 const resolveSwapRequestSchema = z.object({
   status: z.enum(['approved', 'denied']),
@@ -28,14 +29,14 @@ const resolveSwapRequestSchema = z.object({
   if (body.status === 'approved') {
     if (!body.reassignedDate || !isIsoDateString(body.reassignedDate)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Approved requests require a YYYY-MM-DD reassigned date',
         path: ['reassignedDate'],
       });
     }
     if (!body.reassignedShift) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Approved requests require a reassigned shift',
         path: ['reassignedShift'],
       });
@@ -51,7 +52,7 @@ async function getHandler(req, res) {
     if (!row) {
       return res.status(404).json({ error: 'Swap request not found', code: 'NOT_FOUND' });
     }
-    if (req.user.role === 'pi' && row.requesterId !== req.user.userId) {
+    if (req.user.role === ROLES.PI && row.requesterId !== req.user.userId) {
       return res.status(403).json({ error: 'Not authorized to view this request', code: 'FORBIDDEN' });
     }
 
@@ -79,41 +80,54 @@ async function putHandler(req, res) {
     const now = new Date();
 
     if (body.status === 'approved') {
-      const [targetAssignment] = await db
-        .select()
-        .from(scheduleAssignments)
-        .where(eq(scheduleAssignments.id, row.targetAssignmentId))
-        .limit(1);
+      try {
+        await db.transaction(async (tx) => {
+          const [targetAssignment] = await tx
+            .select()
+            .from(scheduleAssignments)
+            .where(eq(scheduleAssignments.id, row.targetAssignmentId))
+            .limit(1);
 
-      if (!targetAssignment) {
-        return res.status(404).json({ error: 'Target assignment not found', code: 'NOT_FOUND' });
-      }
+          if (!targetAssignment) {
+            const err = new Error('Target assignment not found');
+            err.code = 'NOT_FOUND';
+            throw err;
+          }
 
-      const conflicts = await db
-        .select({ id: scheduleAssignments.id })
-        .from(scheduleAssignments)
-        .where(and(
-          eq(scheduleAssignments.scheduleId, row.scheduleId),
-          eq(scheduleAssignments.assignedDate, body.reassignedDate),
-          eq(scheduleAssignments.shift, body.reassignedShift),
-        ));
+          const conflicts = await tx
+            .select({ id: scheduleAssignments.id })
+            .from(scheduleAssignments)
+            .where(and(
+              eq(scheduleAssignments.scheduleId, row.scheduleId),
+              eq(scheduleAssignments.assignedDate, body.reassignedDate),
+              eq(scheduleAssignments.shift, body.reassignedShift),
+            ));
 
-      if (conflicts.some((assignment) => assignment.id !== targetAssignment.id)) {
-        return res.status(400).json({
-          error: 'Selected reassignment slot is already assigned',
-          code: 'ASSIGNMENT_CONFLICT',
+          if (conflicts.some((assignment) => assignment.id !== targetAssignment.id)) {
+            const err = new Error('Selected reassignment slot is already assigned');
+            err.code = 'ASSIGNMENT_CONFLICT';
+            throw err;
+          }
+
+          await tx
+            .update(scheduleAssignments)
+            .set({
+              assignedDate: body.reassignedDate,
+              shift: body.reassignedShift,
+              isManualOverride: true,
+              assignmentReason: 'manual_override',
+            })
+            .where(eq(scheduleAssignments.id, row.targetAssignmentId));
         });
+      } catch (txErr) {
+        if (txErr.code === 'NOT_FOUND') {
+          return res.status(404).json({ error: txErr.message, code: txErr.code });
+        }
+        if (txErr.code === 'ASSIGNMENT_CONFLICT') {
+          return res.status(400).json({ error: txErr.message, code: txErr.code });
+        }
+        throw txErr;
       }
-
-      await db
-        .update(scheduleAssignments)
-        .set({
-          assignedDate: body.reassignedDate,
-          shift: body.reassignedShift,
-          isManualOverride: true,
-          assignmentReason: 'manual_override',
-        })
-        .where(eq(scheduleAssignments.id, row.targetAssignmentId));
     }
 
     await db
@@ -181,7 +195,7 @@ async function handler(req, res) {
 }
 
 export default withMethod(['GET', 'PUT'], withAuth((req, res) => {
-  if (req.method === 'PUT' && req.user.role !== 'admin') {
+  if (req.method === 'PUT' && req.user.role !== ROLES.ADMIN) {
     return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
   }
   return handler(req, res);

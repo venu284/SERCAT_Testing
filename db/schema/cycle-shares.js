@@ -14,4 +14,5 @@ export const cycleShares = pgTable('cycle_shares', {
 }, (table) => [
   index('cycle_shares_cycle_id_idx').on(table.cycleId),
   index('cycle_shares_pi_id_idx').on(table.piId),
+  index('cycle_shares_institution_id_idx').on(table.institutionId),
 ]);

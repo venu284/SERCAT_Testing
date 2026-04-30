@@ -10,20 +10,21 @@ import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.j
 import { sendEmail } from '../../lib/email.js';
 import { accountInviteEmail } from '../../lib/email-templates.js';
 import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
-import { getZodMessage } from '../../lib/validation.js';
+import { getZodMessage, emailSchema, uuidSchema } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
 
 const createUserSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  email: emailSchema,
   name: z.string().trim().min(1, 'Name is required'),
   role: z.enum(['admin', 'pi']).default('pi'),
-  institutionId: z.string().uuid().nullable().optional(),
+  institutionId: uuidSchema.nullable().optional(),
 });
 
 
 async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== ROLES.ADMIN) {
         const rows = await db
           .select({
             id: users.id,
@@ -73,7 +74,7 @@ async function handler(req, res) {
     }
 
     const body = createUserSchema.parse(req.body);
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== ROLES.ADMIN) {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 

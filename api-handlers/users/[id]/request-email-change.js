@@ -8,17 +8,18 @@ import { logAudit } from '../../../lib/audit.js';
 import { generateToken, hashToken, tokenExpiresAt } from '../../../lib/auth-utils.js';
 import { sendEmail } from '../../../lib/email.js';
 import { emailVerifyEmail } from '../../../lib/email-templates.js';
-import { getZodMessage } from '../../../lib/validation.js';
+import { getZodMessage, emailSchema } from '../../../lib/validation.js';
 import { getEnvOrDefault } from '../../../lib/env.js';
+import { ROLES } from '../../../lib/constants.js';
 
 const requestSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  email: emailSchema,
 });
 
 async function handler(req, res) {
   try {
     const { id } = req.query;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === ROLES.ADMIN;
     const isSelf = req.user.userId === id;
 
     if (!isAdmin && !isSelf) {

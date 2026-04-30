@@ -21,7 +21,7 @@ function StatusCard({ title, detail }) {
 export default function MySchedule() {
   const { user } = useAuth();
   const { activeCycle, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
-  const scheduleQuery = useSchedule(activeCycle?.id ?? null, { staleTime: 0 });
+  const scheduleQuery = useSchedule(activeCycle?.id ?? null);
   const [exportError, setExportError] = React.useState('');
 
   const scheduleData = scheduleQuery.data || null;

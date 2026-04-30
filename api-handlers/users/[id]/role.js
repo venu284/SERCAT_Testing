@@ -6,6 +6,7 @@ import { withAdmin } from '../../../lib/middleware/with-admin.js';
 import { withMethod } from '../../../lib/middleware/with-method.js';
 import { logAudit } from '../../../lib/audit.js';
 import { getZodMessage } from '../../../lib/validation.js';
+import { ROLES } from '../../../lib/constants.js';
 
 const roleSchema = z.object({
   role: z.enum(['admin', 'pi']),
@@ -23,11 +24,11 @@ async function handler(req, res) {
 
     const body = roleSchema.parse(req.body);
 
-    if (user.role === 'admin' && body.role === 'pi') {
+    if (user.role === ROLES.ADMIN && body.role === ROLES.PI) {
       const adminRows = await db
         .select()
         .from(users)
-        .where(and(eq(users.role, 'admin'), eq(users.isActive, true)));
+        .where(and(eq(users.role, ROLES.ADMIN), eq(users.isActive, true)));
       if (adminRows.length <= 1) {
         return res.status(400).json({ error: 'Cannot demote the last admin', code: 'LAST_ADMIN' });
       }

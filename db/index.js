@@ -1,5 +1,5 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { Pool } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 import * as institutions from './schema/institutions.js';
 import * as users from './schema/users.js';
 import * as cycles from './schema/cycles.js';
@@ -42,11 +42,8 @@ const schema = {
 let dbInstance;
 
 function createDb() {
-  const sql = neon(getRequiredDatabaseUrl());
-
-  return drizzle(sql, {
-    schema,
-  });
+  const pool = new Pool({ connectionString: getRequiredDatabaseUrl() });
+  return drizzle(pool, { schema });
 }
 
 export function getDb() {

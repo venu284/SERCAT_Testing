@@ -8,6 +8,7 @@ import { users } from '../../../../db/schema/users.js';
 import { institutions } from '../../../../db/schema/institutions.js';
 import { withAdmin } from '../../../../lib/middleware/with-admin.js';
 import { withMethod } from '../../../../lib/middleware/with-method.js';
+import { ROLES } from '../../../../lib/constants.js';
 
 async function handler(req, res) {
   try {
@@ -47,7 +48,7 @@ async function handler(req, res) {
         })
         .from(users)
         .leftJoin(institutions, eq(users.institutionId, institutions.id))
-        .where(and(eq(users.role, 'pi'), eq(users.isActive, true), eq(users.isActivated, true), isNull(users.deletedAt)))
+        .where(and(eq(users.role, ROLES.PI), eq(users.isActive, true), eq(users.isActivated, true), isNull(users.deletedAt)))
         .orderBy(institutions.name);
 
       piList = piUsers.map((u) => ({ ...u, wholeShares: null, fractionalShares: null }));

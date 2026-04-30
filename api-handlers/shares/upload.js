@@ -6,6 +6,8 @@ import { users } from '../../db/schema/users.js';
 import { masterShares } from '../../db/schema/master-shares.js';
 import { withAdmin } from '../../lib/middleware/with-admin.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
+import { ROLES } from '../../lib/constants.js';
+import { emailSchema } from '../../lib/validation.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
 import { sendEmail } from '../../lib/email.js';
@@ -15,7 +17,7 @@ const rowSchema = z.object({
   institutionName: z.string().trim().min(1),
   abbreviation: z.string().trim().min(1),
   piName: z.string().trim().min(1),
-  piEmail: z.string().email().trim().toLowerCase(),
+  piEmail: emailSchema,
   wholeShares: z.number().int().min(0),
   fractionalShares: z.number().min(0),
   activationToken: z.string().trim().min(1).optional(),
@@ -82,7 +84,7 @@ async function handler(req, res) {
         [pi] = await db.insert(users).values({
           email: row.piEmail,
           name: row.piName,
-          role: 'pi',
+          role: ROLES.PI,
           institutionId: inst.id,
           isActive: true,
           isActivated: false,

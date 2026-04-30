@@ -7,14 +7,15 @@ import { withAuth } from '../../lib/middleware/with-auth.js';
 import { withMethod } from '../../lib/middleware/with-method.js';
 import { logAudit } from '../../lib/audit.js';
 import { generateToken, hashToken, tokenExpiresAt } from '../../lib/auth-utils.js';
-import { getZodMessage } from '../../lib/validation.js';
+import { getZodMessage, emailSchema, uuidSchema } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
 
 const updateUserSchema = z.object({
-  email: z.string().email().trim().toLowerCase().optional(),
+  email: emailSchema.optional(),
   name: z.string().trim().min(1).optional(),
   phone: z.string().trim().nullable().optional(),
   roleTitle: z.string().trim().nullable().optional(),
-  institutionId: z.string().uuid().nullable().optional(),
+  institutionId: uuidSchema.nullable().optional(),
   isActive: z.boolean().optional(),
   resetActivation: z.boolean().optional(),
   activationToken: z.string().trim().min(1).optional(),
@@ -24,7 +25,7 @@ const updateUserSchema = z.object({
 async function handler(req, res) {
   try {
     const { id } = req.query;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === ROLES.ADMIN;
     const isSelf = req.user.userId === id;
 
     if (!isAdmin && !isSelf) {
@@ -125,7 +126,7 @@ async function handler(req, res) {
       return res.status(403).json({ error: 'Admin access required', code: 'FORBIDDEN' });
     }
 
-    if (req.query.permanent === 'true') {
+    if (req.body?.permanent === true) {
       if (existing.isActive) {
         return res.status(400).json({ error: 'User must be deactivated before permanent deletion', code: 'MUST_DEACTIVATE_FIRST' });
       }
@@ -153,11 +154,11 @@ async function handler(req, res) {
       return res.status(200).json({ data: anonymized });
     }
 
-    if (existing.role === 'admin') {
+    if (existing.role === ROLES.ADMIN) {
       const adminRows = await db
         .select()
         .from(users)
-        .where(and(eq(users.role, 'admin'), eq(users.isActive, true)));
+        .where(and(eq(users.role, ROLES.ADMIN), eq(users.isActive, true)));
       if (adminRows.length <= 1) {
         return res.status(400).json({ error: 'Cannot deactivate the last admin', code: 'LAST_ADMIN' });
       }

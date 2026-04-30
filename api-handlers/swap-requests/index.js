@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db/index.js';
 import { swapRequests } from '../../db/schema/swap-requests.js';
@@ -14,17 +14,19 @@ import {
   serializePreferredDates,
   swapRequestBaseQuery,
 } from '../../lib/swap-request-utils.js';
-import { getZodMessage } from '../../lib/validation.js';
+import { getZodMessage, uuidSchema } from '../../lib/validation.js';
+import { ROLES } from '../../lib/constants.js';
+import { parsePagination, paginatedResponse } from '../../lib/pagination.js';
 
 const createSwapRequestSchema = z.object({
-  scheduleId: z.string().uuid(),
-  targetAssignmentId: z.string().uuid(),
+  scheduleId: uuidSchema,
+  targetAssignmentId: uuidSchema,
   preferredDates: z.array(z.string()).optional().default([]),
 }).superRefine((body, ctx) => {
   body.preferredDates.forEach((date, index) => {
     if (!isIsoDateString(date)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Preferred dates must use YYYY-MM-DD format',
         path: ['preferredDates', index],
       });
@@ -35,18 +37,27 @@ const createSwapRequestSchema = z.object({
 async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const baseQuery = swapRequestBaseQuery();
+      const { page, limit, offset } = parsePagination(req.query || {});
+      const isAdmin = req.user.role === ROLES.ADMIN;
 
-      const rows = req.user.role === 'admin'
-        ? await baseQuery.orderBy(desc(swapRequests.createdAt))
+      const countQuery = db.select({ total: count() }).from(swapRequests);
+      const [{ total }] = isAdmin
+        ? await countQuery
+        : await countQuery.where(eq(swapRequests.requesterId, req.user.userId));
+
+      const baseQuery = swapRequestBaseQuery();
+      const rows = isAdmin
+        ? await baseQuery.orderBy(desc(swapRequests.createdAt)).limit(limit).offset(offset)
         : await baseQuery
           .where(eq(swapRequests.requesterId, req.user.userId))
-          .orderBy(desc(swapRequests.createdAt));
+          .orderBy(desc(swapRequests.createdAt))
+          .limit(limit)
+          .offset(offset);
 
-      return res.status(200).json({ data: rows.map(mapSwapRequestRow) });
+      return res.status(200).json(paginatedResponse(rows.map(mapSwapRequestRow), Number(total), page, limit));
     }
 
-    if (req.user.role === 'admin') {
+    if (req.user.role === ROLES.ADMIN) {
       return res.status(403).json({ error: 'Only PIs can create swap requests', code: 'FORBIDDEN' });
     }
 
