@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { CONCEPT_THEME } from '../../lib/theme';
 
@@ -49,9 +49,15 @@ function BrandingPanel({ cycleId = '2026-1' }) {
 
 export default function ActivateAccountScreen({ cycle }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { activate } = useAuth();
-  const [activateToken, setActivateToken] = useState('');
+  const tokenFromUrl = searchParams.get('token') || '';
+  const [activateToken, setActivateToken] = useState(tokenFromUrl);
   const [activateForm, setActivateForm] = useState({ password: '', confirmPassword: '', phone: '' });
+
+  useEffect(() => {
+    if (tokenFromUrl) setActivateToken(tokenFromUrl);
+  }, [tokenFromUrl]);
   const [loginError, setLoginError] = useState('');
   const [activationSummary, setActivationSummary] = useState(null);
 
@@ -160,29 +166,33 @@ export default function ActivateAccountScreen({ cycle }) {
                 Complete Your Account
               </h1>
               <p className="mt-3 text-sm leading-6" style={{ color: CONCEPT_THEME.muted }}>
-                Paste the activation token from your invite email, then choose your password to complete account setup.
+                {tokenFromUrl
+                  ? 'Choose a password to complete your account setup.'
+                  : 'Paste the activation token from your invite email, then choose your password to complete account setup.'}
               </p>
             </div>
 
             <form className="mt-8 space-y-4" onSubmit={handleActivate}>
-              <div>
-                <label htmlFor="activate-token" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
-                  Activation Token
-                </label>
-                <input
-                  id="activate-token"
-                  type="text"
-                  value={activateToken}
-                  onChange={(event) => setActivateToken(event.target.value)}
-                  className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
-                  style={{
-                    background: CONCEPT_THEME.sand,
-                    borderColor: CONCEPT_THEME.border,
-                    color: CONCEPT_THEME.text,
-                  }}
-                  placeholder="Paste the invite token"
-                />
-              </div>
+              {!tokenFromUrl && (
+                <div>
+                  <label htmlFor="activate-token" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.navyMuted }}>
+                    Activation Token
+                  </label>
+                  <input
+                    id="activate-token"
+                    type="text"
+                    value={activateToken}
+                    onChange={(event) => setActivateToken(event.target.value)}
+                    className="w-full rounded-2xl border px-4 py-3.5 text-sm outline-none transition focus:ring-2"
+                    style={{
+                      background: CONCEPT_THEME.sand,
+                      borderColor: CONCEPT_THEME.border,
+                      color: CONCEPT_THEME.text,
+                    }}
+                    placeholder="Paste the invite token"
+                  />
+                </div>
+              )}
 
               {loginError ? (
                 <div className="rounded-2xl border px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
