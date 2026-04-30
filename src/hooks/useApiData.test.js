@@ -110,7 +110,7 @@ describe('useSchedule', () => {
     apiGet.mockResolvedValue({ data: { scheduleId: 'schedule-1' } });
   });
 
-  it('passes through freshness options so published schedules refetch on member screens', async () => {
+  it('passes through freshness options while preserving the schedule query shape', async () => {
     const query = useSchedule('cycle-1', {
       enabled: true,
       staleTime: 0,
