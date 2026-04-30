@@ -9,6 +9,7 @@ import logoutHandler from '../api-handlers/auth/logout.js';
 import meHandler from '../api-handlers/auth/me.js';
 import resetPasswordHandler from '../api-handlers/auth/reset-password.js';
 import setPasswordHandler from '../api-handlers/auth/set-password.js';
+import verifyEmailHandler from '../api-handlers/auth/verify-email.js';
 import commentByIdHandler from '../api-handlers/comments/[id].js';
 import commentMessagesHandler from '../api-handlers/comments/[id]/messages.js';
 import commentsIndexHandler from '../api-handlers/comments/index.js';
@@ -34,6 +35,7 @@ import sharesIndexHandler from '../api-handlers/shares/index.js';
 import sharesUploadHandler from '../api-handlers/shares/upload.js';
 import swapRequestByIdHandler from '../api-handlers/swap-requests/[id].js';
 import swapRequestsIndexHandler from '../api-handlers/swap-requests/index.js';
+import userRequestEmailChangeHandler from '../api-handlers/users/[id]/request-email-change.js';
 import userResendInviteHandler from '../api-handlers/users/[id]/resend-invite.js';
 import userRoleHandler from '../api-handlers/users/[id]/role.js';
 import userByIdHandler from '../api-handlers/users/[id].js';
@@ -49,6 +51,7 @@ const router = createApiRouter({
   me: meHandler,
   resetPassword: resetPasswordHandler,
   setPassword: setPasswordHandler,
+  verifyEmail: verifyEmailHandler,
   commentsIndex: commentsIndexHandler,
   commentById: commentByIdHandler,
   commentMessages: commentMessagesHandler,
@@ -74,6 +77,7 @@ const router = createApiRouter({
   shareById: shareByIdHandler,
   swapRequestsIndex: swapRequestsIndexHandler,
   swapRequestById: swapRequestByIdHandler,
+  userRequestEmailChange: userRequestEmailChangeHandler,
   userResendInvite: userResendInviteHandler,
   userRole: userRoleHandler,
   usersIndex: usersIndexHandler,
