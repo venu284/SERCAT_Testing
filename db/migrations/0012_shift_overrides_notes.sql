@@ -1,0 +1,2 @@
+ALTER TABLE cycles ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE cycles ADD COLUMN IF NOT EXISTS shift_timing_overrides TEXT;

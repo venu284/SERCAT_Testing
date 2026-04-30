@@ -13,6 +13,8 @@ const updateCycleSchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   preferenceDeadline: z.string().optional(),
   status: z.enum(['setup', 'collecting', 'scheduling', 'published', 'archived']).optional(),
+  notes: z.string().optional().nullable(),
+  shiftTimingOverrides: z.string().optional().nullable(),
 });
 
 

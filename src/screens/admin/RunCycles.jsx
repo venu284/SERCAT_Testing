@@ -13,6 +13,7 @@ import {
   useUsers,
 } from '../../hooks/useApiData';
 import { extractRows } from '../../lib/api';
+import { SHIFT_ORDER, SHIFT_LABELS } from '../../lib/constants';
 
 const EMPTY_CYCLE = {
   id: '',
@@ -20,6 +21,13 @@ const EMPTY_CYCLE = {
   endDate: '',
   preferenceDeadline: '',
 };
+
+const EMPTY_EXCEPTION = { date: '', shift: 'DS1', startTime: '', endTime: '' };
+
+function parseOverrides(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
 
 const SHIFT_COLUMN_MAP = { DS1: 'ds1Available', DS2: 'ds2Available', NS: 'nsAvailable' };
 
@@ -107,6 +115,8 @@ export default function RunCycles() {
   const scheduleQuery = useSchedule(activeCycleId);
   const [formCycle, setFormCycle] = useState(EMPTY_CYCLE);
   const createTriggeredRef = useRef(false);
+  const [notesValue, setNotesValue] = useState('');
+  const [newException, setNewException] = useState(EMPTY_EXCEPTION);
 
   useEffect(() => {
     setFormCycle(buildInitialFormCycle(activeCycle));
@@ -114,6 +124,10 @@ export default function RunCycles() {
       createTriggeredRef.current = false;
     }
   }, [activeCycle, activeCycleId]);
+
+  useEffect(() => {
+    setNotesValue(activeCycle?.notes || '');
+  }, [activeCycle?.notes]);
 
   const dateRows = useMemo(() => {
     const raw = extractRows(datesQuery.data);
@@ -261,6 +275,30 @@ export default function RunCycles() {
     persistDates(Object.values(rowMap).sort((left, right) => left.date.localeCompare(right.date)));
   }, [activeCycleId, cycle.endDate, cycle.startDate, dateRows, persistDates]);
 
+  const saveNotes = useCallback((value) => {
+    if (!activeCycleId) return;
+    updateCycleMutation.mutate({ id: activeCycleId, notes: value });
+  }, [activeCycleId, updateCycleMutation]);
+
+  const overrides = useMemo(() => parseOverrides(activeCycle?.shiftTimingOverrides), [activeCycle?.shiftTimingOverrides]);
+
+  const persistOverrides = useCallback((updated) => {
+    if (!activeCycleId) return;
+    updateCycleMutation.mutate({ id: activeCycleId, shiftTimingOverrides: JSON.stringify(updated) });
+  }, [activeCycleId, updateCycleMutation]);
+
+  const addException = useCallback(() => {
+    const { date, shift, startTime, endTime } = newException;
+    if (!date || !shift || !startTime || !endTime) return;
+    const existing = overrides.filter((o) => !(o.date === date && o.shift === shift));
+    persistOverrides([...existing, { date, shift, startTime, endTime }]);
+    setNewException(EMPTY_EXCEPTION);
+  }, [newException, overrides, persistOverrides]);
+
+  const deleteException = useCallback((date, shift) => {
+    persistOverrides(overrides.filter((o) => !(o.date === date && o.shift === shift)));
+  }, [overrides, persistOverrides]);
+
   const toggleSlotBlocked = useCallback((date, shift) => {
     if (!activeCycleId || !cycle.startDate || !cycle.endDate) return;
 
@@ -388,6 +426,116 @@ export default function RunCycles() {
           availabilityColorMode
           showShiftLegend={false}
         />
+      </div>
+
+      {/* Admin Notes */}
+      <div className="rounded-2xl border bg-white p-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <h3 className="concept-font-display text-base font-bold mb-1" style={{ color: CONCEPT_THEME.navy }}>Admin Notes</h3>
+        <p className="text-sm mb-3" style={{ color: CONCEPT_THEME.muted }}>
+          Visible to members above their Availability Calendar. Use for cycle-wide announcements or reminders.
+        </p>
+        <textarea
+          rows={4}
+          value={notesValue}
+          onChange={(e) => setNotesValue(e.target.value)}
+          onBlur={(e) => saveNotes(e.target.value)}
+          placeholder="e.g. June 10th DS1 shift starts at 8am instead of 9am."
+          disabled={!activeCycleId}
+          className="w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none"
+          style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+        />
+      </div>
+
+      {/* Shift Timing Exceptions */}
+      <div className="rounded-2xl border bg-white p-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+        <h3 className="concept-font-display text-base font-bold mb-1" style={{ color: CONCEPT_THEME.navy }}>Shift Timing Exceptions</h3>
+        <p className="text-sm mb-3" style={{ color: CONCEPT_THEME.muted }}>
+          Override start/end times for specific date + shift combinations. Members will see the updated times in their schedule.
+        </p>
+
+        {/* Add row */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 mb-3">
+          <input
+            type="date"
+            value={newException.date}
+            min={cycle.startDate || undefined}
+            max={cycle.endDate || undefined}
+            onChange={(e) => setNewException((prev) => ({ ...prev, date: e.target.value }))}
+            className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+            style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          />
+          <select
+            value={newException.shift}
+            onChange={(e) => setNewException((prev) => ({ ...prev, shift: e.target.value }))}
+            className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+            style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          >
+            {SHIFT_ORDER.map((s) => (
+              <option key={s} value={s}>{SHIFT_LABELS[s]}</option>
+            ))}
+          </select>
+          <input
+            type="time"
+            value={newException.startTime}
+            onChange={(e) => setNewException((prev) => ({ ...prev, startTime: e.target.value }))}
+            className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+            style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          />
+          <input
+            type="time"
+            value={newException.endTime}
+            onChange={(e) => setNewException((prev) => ({ ...prev, endTime: e.target.value }))}
+            className="rounded-lg border px-2 py-1.5 text-sm outline-none"
+            style={{ background: CONCEPT_THEME.warmWhite, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text }}
+          />
+          <button
+            type="button"
+            onClick={addException}
+            disabled={!activeCycleId || !newException.date || !newException.startTime || !newException.endTime}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold transition-all disabled:opacity-40"
+            style={{ background: CONCEPT_THEME.navy, color: 'white' }}
+          >
+            Add
+          </button>
+        </div>
+
+        {overrides.length === 0 ? (
+          <p className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No exceptions set.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ color: CONCEPT_THEME.muted }}>
+                  <th className="text-left pb-1 pr-4 text-xs font-semibold uppercase tracking-wide">Date</th>
+                  <th className="text-left pb-1 pr-4 text-xs font-semibold uppercase tracking-wide">Shift</th>
+                  <th className="text-left pb-1 pr-4 text-xs font-semibold uppercase tracking-wide">Start</th>
+                  <th className="text-left pb-1 pr-4 text-xs font-semibold uppercase tracking-wide">End</th>
+                  <th className="pb-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {[...overrides].sort((a, b) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift)).map((o) => (
+                  <tr key={`${o.date}-${o.shift}`} className="border-t" style={{ borderColor: CONCEPT_THEME.borderLight }}>
+                    <td className="py-1.5 pr-4" style={{ color: CONCEPT_THEME.text }}>{o.date}</td>
+                    <td className="py-1.5 pr-4" style={{ color: CONCEPT_THEME.text }}>{o.shift}</td>
+                    <td className="py-1.5 pr-4" style={{ color: CONCEPT_THEME.text }}>{o.startTime}</td>
+                    <td className="py-1.5 pr-4" style={{ color: CONCEPT_THEME.text }}>{o.endTime}</td>
+                    <td className="py-1.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => deleteException(o.date, o.shift)}
+                        className="rounded px-2 py-0.5 text-xs font-semibold"
+                        style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,8 @@ export const cycles = pgTable('cycles', {
   endDate: date('end_date').notNull(),
   preferenceDeadline: timestamp('preference_deadline', { withTimezone: true }).notNull(),
   status: cycleStatusEnum('status').notNull().default('setup'),
+  notes: text('notes'),
+  shiftTimingOverrides: text('shift_timing_overrides'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
