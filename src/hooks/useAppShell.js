@@ -41,7 +41,11 @@ export function useAppShell() {
   const usersQuery = useUsers({ all: true }, { enabled: isAuthenticated });
   const prefStatusQuery = usePreferenceStatus(isAdmin ? cycleQuery.activeCycleId : null, { enabled: isAuthenticated && isAdmin });
   const memberPrefsQuery = usePreferences(!isAdmin ? cycleQuery.activeCycleId : null, { enabled: isAuthenticated && !isAdmin });
-  const scheduleQuery = useSchedule(cycleQuery.activeCycleId, { enabled: isAuthenticated });
+  const scheduleQuery = useSchedule(cycleQuery.activeCycleId, {
+    enabled: isAuthenticated,
+    staleTime: 0,
+    refetchInterval: 30000,
+  });
   const swapQuery = useSwapRequests({ enabled: isAuthenticated });
   const commentsQuery = useComments({ enabled: isAuthenticated });
 

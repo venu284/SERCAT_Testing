@@ -250,10 +250,12 @@ export function usePreferenceStatus(cycleId, options = {}) {
 }
 
 export function useSchedule(cycleId, options = {}) {
+  const { enabled, ...queryOptions } = options;
   return useQuery({
+    ...queryOptions,
     queryKey: ['schedule', cycleId],
     queryFn: () => api.get(`/cycles/${cycleId}/schedules`).then((r) => r.data),
-    enabled: Boolean(cycleId) && (options.enabled ?? true),
+    enabled: Boolean(cycleId) && (enabled ?? true),
   });
 }
 
