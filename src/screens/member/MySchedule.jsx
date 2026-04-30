@@ -67,9 +67,21 @@ export default function MySchedule() {
     });
   }, []);
 
+  const timingOverridesMap = React.useMemo(() => {
+    if (!activeCycle?.shiftTimingOverrides) return {};
+    try {
+      const list = JSON.parse(activeCycle.shiftTimingOverrides);
+      return Object.fromEntries(list.map((o) => [`${o.date}:${o.shift}`, o]));
+    } catch { return {}; }
+  }, [activeCycle?.shiftTimingOverrides]);
+
   const formatShiftTiming = React.useCallback(
-    (shift) => SHIFT_TIME_LABELS[shift] || shift || 'Unassigned',
-    [],
+    (shift, dateStr) => {
+      const override = dateStr ? timingOverridesMap[`${dateStr}:${shift}`] : null;
+      if (override) return `${override.startTime} – ${override.endTime} (adjusted)`;
+      return SHIFT_TIME_LABELS[shift] || shift || 'Unassigned';
+    },
+    [timingOverridesMap],
   );
 
   const relativeLabel = React.useCallback((dateStr) => {
@@ -171,7 +183,7 @@ export default function MySchedule() {
                   <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.accentText }}>Next Shift</div>
                   <div className="concept-font-display text-xl font-bold text-white">{formatShiftDate(nextUpcoming.assignedDate)}</div>
                   <div className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                    {formatShiftTiming(nextUpcoming.shift)} | {relativeLabel(nextUpcoming.assignedDate)}
+                    {formatShiftTiming(nextUpcoming.shift, nextUpcoming.assignedDate)} | {relativeLabel(nextUpcoming.assignedDate)}
                   </div>
                 </div>
               ) : null}
@@ -198,7 +210,7 @@ export default function MySchedule() {
                           <div className="h-3.5 w-3.5 rounded-full flex-shrink-0" style={{ background: CONCEPT_THEME.navy }} />
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatShiftDate(assignment.assignedDate)}</div>
-                            <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{formatShiftTiming(assignment.shift)}</div>
+                            <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</div>
                           </div>
                           <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>{relativeLabel(assignment.assignedDate)}</div>
                         </div>
@@ -220,7 +232,7 @@ export default function MySchedule() {
                       <div key={`past-${assignment.assignedDate}-${assignment.shift}-${idx}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ background: CONCEPT_THEME.sand }}>
                         <div className="h-3 w-3 rounded-full" style={{ background: CONCEPT_THEME.text }} />
                         <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>{formatShiftDate(assignment.assignedDate)}</span>
-                        <span className="text-sm" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift)}</span>
+                        <span className="text-sm" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</span>
                       </div>
                     ))}
                   </div>
