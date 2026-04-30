@@ -1,9 +1,10 @@
 import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useActiveCycle } from '../../hooks/useActiveCycle';
+import { useSchedule } from '../../hooks/useApiData';
 import { CONCEPT_THEME } from '../../lib/theme';
 import { daysBetweenSigned, formatCalendarDate, fromDateStr, localTodayDateStr } from '../../lib/dates';
 import { SHIFT_ORDER, SHIFT_TIME_LABELS } from '../../lib/constants';
-import { useActiveCycle } from '../../hooks/useActiveCycle';
-import { useMemberDashboardContext } from '../../hooks/useMemberDashboardContext';
 
 function StatusCard({ title, detail }) {
   return (
@@ -18,50 +19,46 @@ function StatusCard({ title, detail }) {
 }
 
 export default function MySchedule() {
+  const { user } = useAuth();
   const { activeCycle, isLoading: cycleLoading, error: cycleError } = useActiveCycle();
-  const {
-    member,
-    currentMemberAssignments,
-    memberShiftCounts,
-    schedulePublication,
-    isLoading,
-    error,
-  } = useMemberDashboardContext();
+  const scheduleQuery = useSchedule(activeCycle?.id ?? null, { staleTime: 0 });
   const [exportError, setExportError] = React.useState('');
 
-  const cycle = React.useMemo(() => ({
-    id: activeCycle?.name || activeCycle?.id || '',
-    startDate: activeCycle?.startDate || '',
-    endDate: activeCycle?.endDate || '',
-  }), [activeCycle]);
-
-  const hasGeneratedSchedule = schedulePublication.status === 'published';
-  const hasGeneratedScheduleForCurrentMember = currentMemberAssignments.length > 0;
-
-  const sortedCurrentMemberAssignments = React.useMemo(
-    () => [...currentMemberAssignments].sort((left, right) => {
-      const dateDelta = String(left.assignedDate || '').localeCompare(String(right.assignedDate || ''));
-      if (dateDelta !== 0) return dateDelta;
-      return SHIFT_ORDER.indexOf(left.shift) - SHIFT_ORDER.indexOf(right.shift);
-    }),
-    [currentMemberAssignments],
-  );
+  const scheduleData = scheduleQuery.data || null;
+  const isPublished = scheduleData?.status === 'published';
+  const assignments = isPublished && Array.isArray(scheduleData?.assignments)
+    ? scheduleData.assignments
+    : [];
 
   const todayDate = localTodayDateStr();
 
-  const scheduleUpcomingAssignments = React.useMemo(
-    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.assignedDate || '') >= todayDate),
-    [sortedCurrentMemberAssignments, todayDate],
+  const sorted = React.useMemo(
+    () => [...assignments].sort((a, b) => {
+      const d = String(a.assignedDate || '').localeCompare(String(b.assignedDate || ''));
+      return d !== 0 ? d : SHIFT_ORDER.indexOf(a.shift) - SHIFT_ORDER.indexOf(b.shift);
+    }),
+    [assignments],
   );
 
-  const schedulePastAssignments = React.useMemo(
-    () => sortedCurrentMemberAssignments.filter((assignment) => String(assignment.assignedDate || '') < todayDate),
-    [sortedCurrentMemberAssignments, todayDate],
+  const upcoming = React.useMemo(
+    () => sorted.filter((a) => String(a.assignedDate || '') >= todayDate),
+    [sorted, todayDate],
   );
 
-  const nextUpcomingAssignment = scheduleUpcomingAssignments[0] || null;
+  const past = React.useMemo(
+    () => sorted.filter((a) => String(a.assignedDate || '') < todayDate),
+    [sorted, todayDate],
+  );
 
-  const formatMemberShiftDate = React.useCallback((dateStr) => {
+  const shiftCounts = React.useMemo(
+    () => assignments.reduce(
+      (acc, a) => { if (a.shift in acc) acc[a.shift] += 1; return acc; },
+      { DS1: 0, DS2: 0, NS: 0 },
+    ),
+    [assignments],
+  );
+
+  const formatShiftDate = React.useCallback((dateStr) => {
     if (!dateStr) return 'N/A';
     return fromDateStr(dateStr).toLocaleDateString(undefined, {
       weekday: 'short',
@@ -70,12 +67,12 @@ export default function MySchedule() {
     });
   }, []);
 
-  const formatMemberShiftTiming = React.useCallback(
+  const formatShiftTiming = React.useCallback(
     (shift) => SHIFT_TIME_LABELS[shift] || shift || 'Unassigned',
     [],
   );
 
-  const scheduleRelativeDayLabel = React.useCallback((dateStr) => {
+  const relativeLabel = React.useCallback((dateStr) => {
     const delta = daysBetweenSigned(todayDate, dateStr);
     if (delta === 0) return 'Today';
     if (delta === 1) return 'Tomorrow';
@@ -88,32 +85,29 @@ export default function MySchedule() {
     setExportError('PDF export will be available soon.');
   };
 
-  if (cycleLoading || isLoading) {
-    return (
-      <StatusCard
-        title="Loading schedule..."
-        detail="Fetching your active cycle and current assignments."
-      />
-    );
+  if (cycleLoading || scheduleQuery.isLoading) {
+    return <StatusCard title="Loading schedule..." detail="Fetching your assignments." />;
   }
 
-  if (cycleError || error) {
+  if (cycleError || scheduleQuery.error) {
     return (
       <StatusCard
         title="Unable to load schedule"
-        detail={(cycleError || error)?.message || 'Please try again in a moment.'}
+        detail={(cycleError || scheduleQuery.error)?.message || 'Please try again in a moment.'}
       />
     );
   }
 
-  if (!activeCycle || !member) {
-    return (
-      <StatusCard
-        title="Schedule unavailable"
-        detail={!activeCycle ? 'No active cycle is available yet.' : 'Your member record is not available yet.'}
-      />
-    );
+  if (!activeCycle) {
+    return <StatusCard title="Schedule unavailable" detail="No active cycle is available yet." />;
   }
+
+  if (!user) {
+    return <StatusCard title="Schedule unavailable" detail="Not signed in." />;
+  }
+
+  const cycleLabel = activeCycle.name || activeCycle.id || '';
+  const nextUpcoming = upcoming[0] || null;
 
   return (
     <div className="space-y-4 concept-font-body">
@@ -122,17 +116,17 @@ export default function MySchedule() {
           <div>
             <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>My Schedule</h3>
             <p className="mt-1 text-sm" style={{ color: CONCEPT_THEME.text }}>
-              {formatCalendarDate(cycle.startDate)} - {formatCalendarDate(cycle.endDate)} | Cycle {cycle.id}
+              {formatCalendarDate(activeCycle.startDate)} - {formatCalendarDate(activeCycle.endDate)} | Cycle {cycleLabel}
             </p>
           </div>
           <button
             type="button"
             onClick={handleExportPdf}
-            disabled={!hasGeneratedSchedule}
+            disabled={!isPublished}
             className="rounded-xl px-4 py-2 text-sm font-bold transition-all disabled:cursor-not-allowed"
             style={{
-              background: hasGeneratedSchedule ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark,
-              color: hasGeneratedSchedule ? 'white' : CONCEPT_THEME.text,
+              background: isPublished ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark,
+              color: isPublished ? 'white' : CONCEPT_THEME.text,
             }}
           >
             Export PDF
@@ -145,7 +139,7 @@ export default function MySchedule() {
           </div>
         ) : null}
 
-        {!hasGeneratedSchedule ? (
+        {!isPublished ? (
           <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
             Schedule has not been published yet.
           </div>
@@ -153,10 +147,10 @@ export default function MySchedule() {
           <>
             <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               {[
-                { label: 'Total Shifts', value: sortedCurrentMemberAssignments.length, color: CONCEPT_THEME.navy, bg: CONCEPT_THEME.sand },
-                { label: 'Morning', value: memberShiftCounts.DS1 || 0, color: CONCEPT_THEME.morning, bg: CONCEPT_THEME.morningBg },
-                { label: 'Afternoon', value: memberShiftCounts.DS2 || 0, color: CONCEPT_THEME.afternoon, bg: CONCEPT_THEME.afternoonBg },
-                { label: 'Night', value: memberShiftCounts.NS || 0, color: CONCEPT_THEME.night, bg: CONCEPT_THEME.nightBg },
+                { label: 'Total Shifts', value: sorted.length, color: CONCEPT_THEME.navy, bg: CONCEPT_THEME.sand },
+                { label: 'Morning', value: shiftCounts.DS1, color: CONCEPT_THEME.morning, bg: CONCEPT_THEME.morningBg },
+                { label: 'Afternoon', value: shiftCounts.DS2, color: CONCEPT_THEME.afternoon, bg: CONCEPT_THEME.afternoonBg },
+                { label: 'Night', value: shiftCounts.NS, color: CONCEPT_THEME.night, bg: CONCEPT_THEME.nightBg },
               ].map((stat) => (
                 <div key={stat.label} className="rounded-xl px-3 py-2.5" style={{ background: stat.bg }}>
                   <div className="text-lg font-bold leading-none" style={{ color: stat.color }}>{stat.value}</div>
@@ -165,32 +159,32 @@ export default function MySchedule() {
               ))}
             </div>
 
-            {!hasGeneratedScheduleForCurrentMember ? (
+            {sorted.length === 0 ? (
               <div className="rounded-xl px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
                 No shifts assigned to your account for this cycle yet.
               </div>
             ) : null}
 
             <div className="space-y-4">
-              {nextUpcomingAssignment ? (
+              {nextUpcoming ? (
                 <div className="rounded-2xl px-5 py-4" style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.navy} 0%, ${CONCEPT_THEME.navyLight} 100%)`, border: `1px solid ${CONCEPT_THEME.navyLight}` }}>
                   <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.accentText }}>Next Shift</div>
-                  <div className="concept-font-display text-xl font-bold text-white">{formatMemberShiftDate(nextUpcomingAssignment.assignedDate)}</div>
+                  <div className="concept-font-display text-xl font-bold text-white">{formatShiftDate(nextUpcoming.assignedDate)}</div>
                   <div className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                    {formatMemberShiftTiming(nextUpcomingAssignment.shift)} | {scheduleRelativeDayLabel(nextUpcomingAssignment.assignedDate)}
+                    {formatShiftTiming(nextUpcoming.shift)} | {relativeLabel(nextUpcoming.assignedDate)}
                   </div>
                 </div>
               ) : null}
 
               <div className="rounded-2xl border bg-white px-4 py-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
                 <h4 className="concept-font-display mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
-                  Upcoming ({scheduleUpcomingAssignments.length})
+                  Upcoming ({upcoming.length})
                 </h4>
-                {scheduleUpcomingAssignments.length === 0 ? (
+                {upcoming.length === 0 ? (
                   <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No upcoming shifts.</div>
                 ) : (
                   <div className="space-y-2">
-                    {scheduleUpcomingAssignments.map((assignment, idx) => {
+                    {upcoming.map((assignment, idx) => {
                       const isPrimary = idx === 0;
                       return (
                         <div
@@ -203,10 +197,10 @@ export default function MySchedule() {
                         >
                           <div className="h-3.5 w-3.5 rounded-full flex-shrink-0" style={{ background: CONCEPT_THEME.navy }} />
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.assignedDate)}</div>
-                            <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{formatMemberShiftTiming(assignment.shift)}</div>
+                            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatShiftDate(assignment.assignedDate)}</div>
+                            <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{formatShiftTiming(assignment.shift)}</div>
                           </div>
-                          <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>{scheduleRelativeDayLabel(assignment.assignedDate)}</div>
+                          <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>{relativeLabel(assignment.assignedDate)}</div>
                         </div>
                       );
                     })}
@@ -216,17 +210,17 @@ export default function MySchedule() {
 
               <div className="rounded-2xl border bg-white px-4 py-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
                 <h4 className="concept-font-display mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.text }}>
-                  Completed ({schedulePastAssignments.length})
+                  Completed ({past.length})
                 </h4>
-                {schedulePastAssignments.length === 0 ? (
+                {past.length === 0 ? (
                   <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No completed shifts yet.</div>
                 ) : (
                   <div className="space-y-1.5">
-                    {schedulePastAssignments.map((assignment, idx) => (
+                    {past.map((assignment, idx) => (
                       <div key={`past-${assignment.assignedDate}-${assignment.shift}-${idx}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ background: CONCEPT_THEME.sand }}>
                         <div className="h-3 w-3 rounded-full" style={{ background: CONCEPT_THEME.text }} />
-                        <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>{formatMemberShiftDate(assignment.assignedDate)}</span>
-                        <span className="text-sm" style={{ color: CONCEPT_THEME.text }}>{formatMemberShiftTiming(assignment.shift)}</span>
+                        <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>{formatShiftDate(assignment.assignedDate)}</span>
+                        <span className="text-sm" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift)}</span>
                       </div>
                     ))}
                   </div>
