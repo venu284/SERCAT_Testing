@@ -31,7 +31,6 @@ export const ADMIN_PORTAL_TABS = [
   { id: 'fairness', label: 'Member Satisfaction Score' },
   { id: 'shiftChanges', label: 'Shift Changes' },
   { id: 'comments', label: 'Comments' },
-  { id: 'conflicts', label: 'Conflict Log' },
 ];
 export const SHIFT_PLAIN_LABELS = {
   DS1: 'Morning Shift',

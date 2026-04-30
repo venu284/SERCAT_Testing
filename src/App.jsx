@@ -21,7 +21,6 @@ import FairnessPanel from './screens/admin/FairnessPanel';
 import ShiftChangeAdmin from './screens/admin/ShiftChangeAdmin';
 import AdminComments from './screens/admin/AdminComments';
 import AdminProfile from './screens/admin/AdminProfile';
-import ConflictLog from './screens/admin/ConflictLog';
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
 import { useAppShell } from './hooks/useAppShell';
@@ -44,7 +43,6 @@ const ADMIN_ROUTE_BY_TAB = {
   fairness: '/admin/fairness',
   shiftChanges: '/admin/shift-changes',
   comments: '/admin/comments',
-  conflicts: '/admin/conflicts',
 };
 
 const MEMBER_TAB_BY_PATH = Object.fromEntries(Object.entries(MEMBER_ROUTE_BY_TAB).map(([tab, path]) => [path, tab]));
@@ -439,7 +437,6 @@ function AppContent() {
       <Route path="/admin/fairness" element={isAdmin ? (hasGeneratedSchedule ? <FairnessPanel /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/shift-changes" element={isAdmin ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/comments" element={isAdmin ? <AdminComments /> : <Navigate to="/member/dashboard" replace />} />
-      <Route path="/admin/conflicts" element={isAdmin ? (hasGeneratedSchedule ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/profile" element={isAdmin ? <AdminProfile /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="*" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
     </Routes>

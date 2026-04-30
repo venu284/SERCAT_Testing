@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import FairnessDashboard from '../../components/FairnessDashboard';
+import ConflictLogPanel from '../../components/ConflictLogPanel';
 import { useActiveCycle } from '../../hooks/useActiveCycle';
 import { useSchedule } from '../../hooks/useApiData';
 import { CONCEPT_THEME } from '../../lib/theme';
@@ -94,5 +95,10 @@ export default function FairnessPanel() {
     );
   }
 
-  return <FairnessDashboard results={results} initialQueue={queue} />;
+  return (
+    <div className="space-y-4">
+      <FairnessDashboard results={results} initialQueue={queue} />
+      <ConflictLogPanel results={results} />
+    </div>
+  );
 }
