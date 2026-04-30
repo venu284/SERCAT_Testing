@@ -47,13 +47,17 @@ async function handler(req, res) {
       activationToken,
       institutionName: null,
     });
-    void sendEmail({ to: user.email, ...emailData });
+    const emailResult = await sendEmail({ to: user.email, ...emailData });
+    if (!emailResult.ok) {
+      console.warn('[RESEND INVITE] Email failed to send to', user.email, ':', emailResult.error);
+    }
 
     return res.status(200).json({
       data: {
         message: 'Invitation resent',
         activationToken,
         email: user.email,
+        emailSent: emailResult.ok,
       },
     });
   } catch (err) {

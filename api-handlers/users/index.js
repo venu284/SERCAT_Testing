@@ -122,7 +122,10 @@ async function handler(req, res) {
       activationToken,
       institutionName: null,
     });
-    void sendEmail({ to: body.email, ...emailData });
+    const emailResult = await sendEmail({ to: body.email, ...emailData });
+    if (!emailResult.ok) {
+      console.warn('[INVITE] Email failed to send to', body.email, ':', emailResult.error);
+    }
 
     return res.status(201).json({
       data: {
@@ -136,6 +139,7 @@ async function handler(req, res) {
           isActivated: created.isActivated,
         },
         activationToken,
+        emailSent: emailResult.ok,
       },
     });
   } catch (err) {
