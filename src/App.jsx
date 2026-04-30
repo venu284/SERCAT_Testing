@@ -20,6 +20,7 @@ import EngineAndSchedule from './screens/admin/EngineAndSchedule';
 import FairnessPanel from './screens/admin/FairnessPanel';
 import ShiftChangeAdmin from './screens/admin/ShiftChangeAdmin';
 import AdminComments from './screens/admin/AdminComments';
+import AdminProfile from './screens/admin/AdminProfile';
 import ConflictLog from './screens/admin/ConflictLog';
 import { ADMIN_PORTAL_TABS, MEMBER_PORTAL_TABS } from './lib/constants';
 import { CONCEPT_THEME, COLORS, MEMBER_BG } from './lib/theme';
@@ -417,7 +418,7 @@ function AppContent() {
 
   const profileName = activeMember?.piName || activeMember?.id || 'Member';
   const profileInstitution = activeMember?.name || activeMember?.id || 'Member account';
-  const adminProfileName = 'SERCAT Admin';
+  const adminProfileName = user?.name || 'SERCAT Admin';
   const adminProfileInstitution = 'Administrative Console';
 
   const routesElement = (
@@ -439,6 +440,7 @@ function AppContent() {
       <Route path="/admin/shift-changes" element={isAdmin ? <ShiftChangeAdmin /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/comments" element={isAdmin ? <AdminComments /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="/admin/conflicts" element={isAdmin ? (hasGeneratedSchedule ? <ConflictLog /> : <EngineEmptyState />) : <Navigate to="/member/dashboard" replace />} />
+      <Route path="/admin/profile" element={isAdmin ? <AdminProfile /> : <Navigate to="/member/dashboard" replace />} />
       <Route path="*" element={<Navigate to={isAdmin ? '/admin/dashboard' : '/member/dashboard'} replace />} />
     </Routes>
   );
@@ -503,7 +505,11 @@ function AppContent() {
               </div>
 
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                <div className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                <button
+                  onClick={() => navigate('/admin/profile')}
+                  className="flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2 transition-all hover:opacity-80"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+                >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold" style={{ background: `${CONCEPT_THEME.amber}22`, color: CONCEPT_THEME.amber }}>
                     {getInitials(adminProfileName)}
                   </div>
@@ -511,7 +517,7 @@ function AppContent() {
                     <div className="truncate text-sm font-semibold text-white">{adminProfileName}</div>
                     <div className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{adminProfileInstitution}</div>
                   </div>
-                </div>
+                </button>
                 {showNotificationBell ? <NotificationBell /> : null}
                 <button
                   onClick={logout}
