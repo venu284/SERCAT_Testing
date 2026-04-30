@@ -18,7 +18,7 @@ vi.mock('./useActiveCycle', () => ({
 vi.mock('./useApiData', () => ({
   useMasterShares: () => useMasterShares(),
   usePreferences: (cycleId) => usePreferences(cycleId),
-  useSchedule: (...args) => useSchedule(...args),
+  useSchedule: (cycleId) => useSchedule(cycleId),
 }));
 
 import { useMemberDashboardContext } from './useMemberDashboardContext';
@@ -115,7 +115,7 @@ describe('useMemberDashboardContext', () => {
     const { result } = renderHook(() => useMemberDashboardContext());
 
     expect(usePreferences).toHaveBeenCalledWith('cycle-2026-spring');
-    expect(useSchedule).toHaveBeenCalledWith('cycle-2026-spring', { staleTime: 0 });
+    expect(useSchedule).toHaveBeenCalledWith('cycle-2026-spring');
 
     expect(result.current.member).toEqual({
       id: 'SERCAT',

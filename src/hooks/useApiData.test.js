@@ -22,7 +22,7 @@ vi.mock('../lib/api', () => ({
   },
 }));
 
-import { useCreateInstitution, useSchedule, useUsers } from './useApiData';
+import { useCreateInstitution, useUsers } from './useApiData';
 
 describe('useUsers', () => {
   beforeEach(() => {
@@ -100,31 +100,5 @@ describe('useCreateInstitution', () => {
       abbreviation: 'UGA',
     });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['institutions'] });
-  });
-});
-
-describe('useSchedule', () => {
-  beforeEach(() => {
-    useQuery.mockClear();
-    apiGet.mockReset();
-    apiGet.mockResolvedValue({ data: { scheduleId: 'schedule-1' } });
-  });
-
-  it('passes through freshness options while preserving the schedule query shape', async () => {
-    const query = useSchedule('cycle-1', {
-      enabled: true,
-      staleTime: 0,
-      refetchInterval: 30000,
-    });
-
-    await query.queryFn();
-
-    expect(query).toMatchObject({
-      queryKey: ['schedule', 'cycle-1'],
-      enabled: true,
-      staleTime: 0,
-      refetchInterval: 30000,
-    });
-    expect(apiGet).toHaveBeenCalledWith('/cycles/cycle-1/schedules');
   });
 });
