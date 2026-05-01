@@ -527,7 +527,7 @@ export default function PreferenceFormScreen() {
 
   if (isLoading) {
     return (
-      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+      <div className="py-12 text-center text-base" style={{ color: CONCEPT_THEME.muted }}>
         Loading preferences...
       </div>
     );
@@ -536,7 +536,7 @@ export default function PreferenceFormScreen() {
   if (loadError) {
     return (
       <div
-        className="rounded-2xl border px-4 py-4 text-sm"
+        className="rounded-2xl border px-4 py-4 text-base"
         style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}
       >
         Unable to load preferences. {loadError?.message || 'Please try again.'}
@@ -546,7 +546,7 @@ export default function PreferenceFormScreen() {
 
   if (!cycleQuery.activeCycleId || !cycleQuery.activeCycle) {
     return (
-      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+      <div className="py-12 text-center text-base" style={{ color: CONCEPT_THEME.muted }}>
         No active cycle. Check back when a new cycle is created.
       </div>
     );
@@ -554,7 +554,7 @@ export default function PreferenceFormScreen() {
 
   if (!member) {
     return (
-      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+      <div className="py-12 text-center text-base" style={{ color: CONCEPT_THEME.muted }}>
         No active share found for your account.
       </div>
     );
@@ -570,10 +570,10 @@ export default function PreferenceFormScreen() {
           <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>
             Preferences Submitted
           </h3>
-          <p className="mt-2 text-sm" style={{ color: CONCEPT_THEME.text }}>
+          <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.text }}>
             Your {wizardSteps.length} slot preferences are saved for cycle {cycle.id}.
           </p>
-          <p className="mt-2 text-sm" style={{ color: isPreferenceDeadlinePassed ? CONCEPT_THEME.error : CONCEPT_THEME.text }}>
+          <p className="mt-2 text-base" style={{ color: isPreferenceDeadlinePassed ? CONCEPT_THEME.error : CONCEPT_THEME.text }}>
             {isPreferenceDeadlinePassed
               ? `The preference deadline has passed (${formatCalendarDate(preferenceDeadline)}). Choices can no longer be edited.`
               : `You can edit the preferences until the deadline (${formatCalendarDate(preferenceDeadline)}).`}
@@ -582,7 +582,7 @@ export default function PreferenceFormScreen() {
             <button
               type="button"
               onClick={startEditingSubmitted}
-              className="mt-4 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all"
+              className="mt-4 rounded-xl px-5 py-2.5 text-base font-semibold transition-all"
               style={{ background: CONCEPT_THEME.navy, color: 'white' }}
             >
               Edit Choices
@@ -591,20 +591,20 @@ export default function PreferenceFormScreen() {
         </div>
 
         <div className="rounded-xl border bg-white p-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <h4 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>
+          <h4 className="concept-font-display text-lg font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>
             Submission Summary
           </h4>
-          <div className="space-y-2 text-xs">
+          <div className="space-y-2 text-base">
             {wizardSteps.map((step, index) => (
               <div
                 key={`${step.kind}-${step.shareIndex || step.blockIndex}-${step.slotKey || 'frac'}-summary`}
                 className="rounded-lg p-2.5"
                 style={{ background: CONCEPT_THEME.sand }}
               >
-                <span className="font-semibold text-gray-700">
+                <span className="font-semibold text">
                   Step {index + 1}: {step.label}
                 </span>
-                <span className="block mt-0.5 text-gray-600">
+                <span className="block mt-0.5 text">
                   1st: {formatWizardDate(step.firstChoiceDate)}
                   {' '}|{' '}
                   2nd: {formatWizardDate(step.secondChoiceDate)}
@@ -627,16 +627,16 @@ export default function PreferenceFormScreen() {
             </h3>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
+            <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>Choices completed</div>
             <ConceptProgressRing current={madeChoices} total={totalChoices} />
             {submitPrefs.isPending ? (
-              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>Submitting...</div>
+              <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>Submitting...</div>
             ) : null}
             {submitPrefs.isSuccess ? (
-              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.emerald }}>Preferences submitted</div>
+              <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.emerald }}>Preferences submitted</div>
             ) : null}
             {submitPrefs.isError ? (
-              <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.error }}>
+              <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.error }}>
                 Submit failed - {submitPrefs.error?.message || 'try again'}
               </div>
             ) : null}
@@ -658,7 +658,7 @@ export default function PreferenceFormScreen() {
 
       {isPreferenceDeadlinePassed ? (
         <div className="rounded-2xl border px-5 py-4" style={{ borderColor: `${CONCEPT_THEME.error}33`, background: CONCEPT_THEME.errorLight }}>
-          <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.error }}>
+          <div className="text-base font-bold" style={{ color: CONCEPT_THEME.error }}>
             The preference deadline has passed. Preferences can no longer be edited or submitted.
           </div>
         </div>
@@ -703,7 +703,7 @@ export default function PreferenceFormScreen() {
               >
                 <div className="flex flex-col items-center gap-1 sm:gap-1.5">
                   <div
-                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-all sm:h-8 sm:w-8"
+                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-all sm:h-8 sm:w-8"
                     style={{
                       background: isActive
                         ? CONCEPT_THEME.navy
@@ -733,7 +733,7 @@ export default function PreferenceFormScreen() {
                   </div>
                   <div className="min-w-0 w-full">
                     <div
-                      className="truncate text-[11px] font-bold uppercase tracking-[0.08em] leading-tight sm:text-xs"
+                      className="truncate text-[11px] font-bold uppercase tracking-[0.08em] leading-tight sm:text-sm"
                       style={{ color: isActive ? CONCEPT_THEME.navy : CONCEPT_THEME.muted }}
                     >
                       Step {index + 1}
@@ -753,7 +753,7 @@ export default function PreferenceFormScreen() {
         >
           {stepToast ? (
             <div
-              className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]"
+              className="pointer-events-none absolute right-5 top-4 z-10 rounded-full px-3 py-1.5 text-sm font-bold uppercase tracking-[0.18em]"
               style={{ background: CONCEPT_THEME.emeraldLight, color: CONCEPT_THEME.emerald, border: `1px solid ${CONCEPT_THEME.emerald}33` }}
             >
               {stepToast}
@@ -769,7 +769,7 @@ export default function PreferenceFormScreen() {
             <div className="px-5 py-4 border-b" style={{ borderColor: CONCEPT_THEME.borderLight }}>
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>
+                  <div className="text-sm font-bold uppercase tracking-[0.18em]" style={{ color: CONCEPT_THEME.muted }}>
                     {activeStep.kind === 'whole' ? `Share ${activeStep.shareIndex}` : `Fractional Block ${activeStep.blockIndex}`}
                   </div>
                   <h4 className="mt-1 concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>
@@ -915,7 +915,7 @@ export default function PreferenceFormScreen() {
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                       {dayHeaders.map((day, dayIndex) => (
-                        <div key={`${key}-${day}-${dayIndex}`} className="py-1 text-center text-xs font-bold" style={{ color: CONCEPT_THEME.text }}>
+                        <div key={`${key}-${day}-${dayIndex}`} className="py-1 text-center text-sm font-bold" style={{ color: CONCEPT_THEME.text }}>
                           {day}
                         </div>
                       ))}
@@ -960,7 +960,7 @@ export default function PreferenceFormScreen() {
                             type="button"
                             disabled={blocked}
                             onClick={() => handleDatePick(dateStr)}
-                            className="relative rounded-lg py-2.5 text-sm font-semibold transition-all"
+                            className="relative rounded-lg py-2.5 text-base font-semibold transition-all"
                             style={{
                               background,
                               color: textColor,
@@ -971,7 +971,7 @@ export default function PreferenceFormScreen() {
                             }}
                           >
                             {day}
-                            {blocked ? <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xs">X</span> : null}
+                            {blocked ? <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-lg">X</span> : null}
                           </button>
                         );
                       })}

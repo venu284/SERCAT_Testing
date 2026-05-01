@@ -12,8 +12,8 @@ function StatusCard({ title, detail }) {
       className="rounded-2xl px-6 py-5 concept-font-body concept-anim-fade"
       style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
     >
-      <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
-      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+      <h2 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
+      <p className="mt-2 text-lg" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
     </div>
   );
 }
@@ -92,19 +92,19 @@ export default function MemberDashboard() {
             </svg>
           </div>
           <div className="flex-1">
-            <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{heroTitle}</h2>
+            <h2 className="concept-font-display text-3xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{heroTitle}</h2>
             <p className="mt-1 text-lg" style={{ color: CONCEPT_THEME.text }}>{heroDetail}</p>
           </div>
           <button
             type="button"
             onClick={() => navigate(isPreferenceSubmitted ? (published ? '/member/schedule' : '/member/preferences') : '/member/preferences')}
-            className="px-6 py-3 rounded-xl text-base font-bold flex-shrink-0"
+            className="px-6 py-3 rounded-xl text-lg font-bold flex-shrink-0"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
           >
             {isPreferenceSubmitted ? (published ? 'Open My Schedule' : 'Review Preferences') : 'Start Now ->'}
           </button>
         </div>
-        <div className="px-6 pb-4 text-base font-semibold" style={{ color: CONCEPT_THEME.accentOnAccent }}>
+        <div className="px-6 pb-4 text-lg font-semibold" style={{ color: CONCEPT_THEME.accentOnAccent }}>
           Deadline: {formatCalendarDate(preferenceDeadline)}
         </div>
       </div>
@@ -117,15 +117,15 @@ export default function MemberDashboard() {
 
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl px-4 py-3" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-            <div className="mb-1 text-sm font-semibold" style={{ color: CONCEPT_THEME.muted }}>{stat.label}</div>
-            <div className="concept-font-display text-xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
+            <div className="mb-1 text-base font-semibold" style={{ color: CONCEPT_THEME.navy }}>{stat.label}</div>
+            <div className="concept-font-display text-2xl font-bold" style={{ color: stat.accent }}>{stat.value}</div>
             {stat.sub ? <div className="mt-0.5 text-sm" style={{ color: CONCEPT_THEME.muted }}>{stat.sub}</div> : null}
           </div>
         ))}
       </div>
 
       <div className="rounded-2xl px-6 py-5" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-        <h3 className="concept-font-display text-base font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Cycle Timeline</h3>
+        <h3 className="concept-font-display text-lg font-bold mb-4" style={{ color: CONCEPT_THEME.navy }}>Cycle Timeline</h3>
         <div className="h-1.5 rounded-full" style={{ background: CONCEPT_THEME.sand }}>
           <div className="h-full rounded-full" style={{ width: `${published ? 75 : 38}%`, background: `linear-gradient(90deg, ${CONCEPT_THEME.emerald}, ${CONCEPT_THEME.sky})` }} />
         </div>
@@ -139,10 +139,10 @@ export default function MemberDashboard() {
                   borderColor: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.amber : CONCEPT_THEME.sandDark,
                 }}
               />
-              <div className="mt-1 text-sm font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.accentText : CONCEPT_THEME.muted }}>
+              <div className="mt-1 text-base font-semibold text-center" style={{ color: item.done ? CONCEPT_THEME.emerald : item.active ? CONCEPT_THEME.accentText : CONCEPT_THEME.text }}>
                 {item.label}
               </div>
-              <div className="text-sm text-center" style={{ color: CONCEPT_THEME.muted }}>
+              <div className="text-base text-center" style={{ color: CONCEPT_THEME.navy }}>
                 {item.date === 'Pending' || item.date === 'Published' ? item.date : formatCalendarDate(item.date)}
               </div>
             </div>
@@ -151,14 +151,14 @@ export default function MemberDashboard() {
       </div>
 
       <div className="rounded-2xl px-6 py-5" style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}>
-        <h3 className="concept-font-display text-base font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>Shift Allocation</h3>
-        <p className="mb-3 text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        <h3 className="concept-font-display text-lg font-bold mb-2" style={{ color: CONCEPT_THEME.navy }}>Shift Allocation</h3>
+        <p className="mb-3 text-base" style={{ color: CONCEPT_THEME.text }}>
           Whole shares include Morning, Afternoon, and Night shifts. Fractional Share include Morning or Afternoon shifts.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {Array.from({ length: entitlement.wholeShares }, (_, idx) => idx + 1).map((shareIndex) => (
             <div key={`share-${shareIndex}`} className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
+              <div className="mb-1.5 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>Whole Share {shareIndex}</div>
               <div className="flex flex-wrap gap-2">
                 <ConceptShiftBadge shift="DS1" />
                 <ConceptShiftBadge shift="DS2" />
@@ -168,7 +168,7 @@ export default function MemberDashboard() {
           ))}
           {fractionalBlocks > 0 ? (
             <div className="rounded-xl p-3.5" style={{ background: CONCEPT_THEME.sand, border: `1px solid ${CONCEPT_THEME.border}` }}>
-              <div className="mb-1.5 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
+              <div className="mb-1.5 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>
                 Fractional Share ({(entitlement.fractionalHours || 0).toFixed(2)} hours)
               </div>
               <div className="flex flex-wrap gap-2">

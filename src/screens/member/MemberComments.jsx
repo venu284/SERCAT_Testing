@@ -32,7 +32,7 @@ function MessageBubble({ msg }) {
             Admin
           </div>
         )}
-        <p className="whitespace-pre-wrap text-sm leading-6">{msg.body}</p>
+        <p className="whitespace-pre-wrap text-base leading-6">{msg.body}</p>
         <div className="mt-1 text-xs" style={{ color: isMe ? 'rgba(255,255,255,0.55)' : CONCEPT_THEME.muted }}>
           {new Date(msg.createdAt).toLocaleString()}
         </div>
@@ -114,8 +114,8 @@ export default function MemberComments() {
   return (
     <div className="space-y-4 concept-font-body concept-anim-fade">
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Comments & Concerns</h3>
-        <p className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>
+        <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Comments & Concerns</h3>
+        <p className="mt-1 text-base" style={{ color: CONCEPT_THEME.muted }}>
           Share scheduling questions, beamline concerns, or follow-up notes with the admin team.
         </p>
       </div>
@@ -123,7 +123,7 @@ export default function MemberComments() {
       <form className="rounded-2xl border bg-white px-5 py-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }} onSubmit={handleSubmit}>
         <div className="grid gap-4">
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Subject</span>
+            <span className="mb-1.5 block text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>Subject</span>
             <input
               type="text"
               value={subject}
@@ -135,12 +135,12 @@ export default function MemberComments() {
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Message</span>
+            <span className="mb-1.5 block text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>Message</span>
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               rows={5}
-              className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition"
+              className="w-full rounded-xl border px-3 py-2.5 text-base outline-none transition"
               style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border, color: CONCEPT_THEME.text, resize: 'vertical' }}
               placeholder="Add the details the admin team should know."
             />
@@ -162,7 +162,7 @@ export default function MemberComments() {
           <button
             type="submit"
             disabled={createComment.isPending}
-            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+            className="rounded-xl px-4 py-2.5 text-base font-bold"
             style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: createComment.isPending ? 0.7 : 1 }}
           >
             {createComment.isPending ? 'Submitting...' : 'Submit'}
@@ -179,15 +179,15 @@ export default function MemberComments() {
         </div>
 
         {commentsQuery.isLoading ? (
-          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+          <div className="rounded-xl px-4 py-3 text-base" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             Loading comments...
           </div>
         ) : !history.length && commentsQuery.isError ? (
-          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+          <div className="rounded-xl px-4 py-3 text-base" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             Unable to load comment history.
           </div>
         ) : history.length === 0 ? (
-          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+          <div className="rounded-xl px-4 py-3 text-base" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
             No comments submitted yet.
           </div>
         ) : (
@@ -210,7 +210,7 @@ export default function MemberComments() {
                         Submitted {new Date(entry.createdAt).toLocaleString()}
                       </div>
                     </div>
-                    <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: tone.bg, color: tone.color }}>
+                    <span className="rounded-full px-3 py-1 text-sm font-bold" style={{ background: tone.bg, color: tone.color }}>
                       {entry.status}
                     </span>
                   </div>
@@ -223,7 +223,7 @@ export default function MemberComments() {
 
                   {!isResolved ? (
                     <div className="mt-4 border-t px-4 pb-4 pt-4" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                      <label className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>
+                      <label className="mb-1.5 block text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>
                         Reply
                       </label>
                       <textarea
@@ -244,7 +244,7 @@ export default function MemberComments() {
                           type="button"
                           onClick={() => handleReply(entry)}
                           disabled={isPending}
-                          className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                          className="rounded-xl px-4 py-2.5 text-base font-bold"
                           style={{ background: CONCEPT_THEME.navy, color: 'white', opacity: isPending ? 0.7 : 1 }}
                         >
                           {isPending ? 'Sending...' : 'Send Reply'}
@@ -254,7 +254,7 @@ export default function MemberComments() {
                             type="button"
                             onClick={() => handleResolve(entry)}
                             disabled={isResolvePending}
-                            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                            className="rounded-xl px-4 py-2.5 text-base font-bold"
                             style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted, opacity: isResolvePending ? 0.7 : 1 }}
                           >
                             {isResolvePending ? 'Resolving...' : 'Mark Resolved'}

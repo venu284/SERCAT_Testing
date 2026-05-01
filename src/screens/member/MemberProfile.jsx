@@ -18,7 +18,7 @@ function StatusCard({ title, detail }) {
       style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
     >
       <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
-      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+      <p className="mt-2 text-lg" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
     </div>
   );
 }
@@ -167,8 +167,8 @@ export default function MemberProfile() {
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="concept-font-display text-xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Profile</h3>
-            <p className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>
+            <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Profile</h3>
+            <p className="mt-1 text-base" style={{ color: CONCEPT_THEME.muted }}>
               Review your institution details and keep your PI contact information up to date.
             </p>
           </div>
@@ -204,7 +204,7 @@ export default function MemberProfile() {
             { id: 'piRole', label: 'Role', type: 'text', placeholder: 'Principal Investigator' },
           ].map((field) => (
             <label key={field.id} className="block">
-              <span className="mb-1.5 block text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>{field.label}</span>
+              <span className="mb-1.5 block text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>{field.label}</span>
               <input
                 type={field.type}
                 value={form[field.id]}
@@ -231,7 +231,7 @@ export default function MemberProfile() {
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <button
             type="submit"
-            className="rounded-xl px-4 py-2.5 text-sm font-bold"
+            className="rounded-xl px-4 py-2.5 text-base font-bold"
             style={{ background: CONCEPT_THEME.navy, color: 'white' }}
             disabled={saving}
           >
@@ -240,7 +240,7 @@ export default function MemberProfile() {
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            className="rounded-xl px-4 py-2.5 text-base font-semibold"
             style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             disabled={saving}
           >
@@ -252,8 +252,8 @@ export default function MemberProfile() {
       <div className="rounded-2xl border bg-white px-5 py-5 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>Email Address</div>
-            <div className="mt-1 text-sm" style={{ color: CONCEPT_THEME.muted }}>{profileIdentity.email}</div>
+            <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>Email Address</div>
+            <div className="mt-1 text-base" style={{ color: CONCEPT_THEME.text }}>{profileIdentity.email}</div>
           </div>
           {!emailChangeOpen ? (
             <button
