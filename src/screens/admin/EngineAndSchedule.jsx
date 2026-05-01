@@ -125,6 +125,10 @@ export default function EngineAndSchedule() {
 
   const members = useMemo(() => buildMembers(cycleSharesQuery.data), [cycleSharesQuery.data]);
   const activeMembers = useMemo(() => members.filter((member) => member.status === 'ACTIVE'), [members]);
+  const activeMembersWithShares = useMemo(
+    () => activeMembers.filter((m) => m.shares > 0),
+    [activeMembers],
+  );
   const memberDirectory = useMemo(
     () => buildMemberDirectory(cycleSharesQuery.data, usersQuery.data),
     [cycleSharesQuery.data, usersQuery.data],
@@ -296,15 +300,22 @@ export default function EngineAndSchedule() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
             onClick={runEngine}
-            disabled={engineProgress.running || activeMembers.length === 0}
+            disabled={engineProgress.running || activeMembersWithShares.length === 0}
             className="rounded-xl px-4 py-2.5 text-sm font-bold transition-all disabled:cursor-not-allowed"
             style={{
-              background: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
-              color: (engineProgress.running || activeMembers.length === 0) ? CONCEPT_THEME.muted : 'white',
+              background: (engineProgress.running || activeMembersWithShares.length === 0) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+              color: (engineProgress.running || activeMembersWithShares.length === 0) ? CONCEPT_THEME.muted : 'white',
             }}
           >
             Generate Schedule ({submittedCount}/{totalExpected} submitted)
           </button>
+          {activeMembersWithShares.length === 0 && !engineProgress.running && (
+            <p className="w-full text-xs mt-1" style={{ color: CONCEPT_THEME.error }}>
+              {activeMembers.length === 0
+                ? 'No cycle shares found — snapshot shares in Run Cycles before generating.'
+                : 'No active members have shares assigned — update shares before generating.'}
+            </p>
+          )}
           {results && schedulePublication.status === 'draft' && (
             <button
               onClick={publishSchedule}
@@ -338,7 +349,17 @@ export default function EngineAndSchedule() {
         <div className="mt-3 h-2 rounded-full overflow-hidden" style={{ background: CONCEPT_THEME.sand }}>
           <div className="h-full rounded-full transition-all" style={{ width: `${engineProgress.value}%`, background: CONCEPT_THEME.navy }} />
         </div>
-        <div className="mt-1.5 text-xs" style={{ color: CONCEPT_THEME.muted }}>{engineProgress.message}</div>
+        {engineProgress.message && (
+          <div
+            className="mt-2 rounded-lg px-3 py-2 text-sm font-medium"
+            style={{
+              background: engineProgress.message.startsWith('Error') ? CONCEPT_THEME.amberLight : CONCEPT_THEME.sand,
+              color: engineProgress.message.startsWith('Error') ? CONCEPT_THEME.accentOnAccent : CONCEPT_THEME.muted,
+            }}
+          >
+            {engineProgress.message}
+          </div>
+        )}
       </div>
 
       <CalendarResults
