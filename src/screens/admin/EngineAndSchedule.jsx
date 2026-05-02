@@ -11,6 +11,7 @@ import {
   usePreferences,
   usePublishSchedule,
   useSchedule,
+  useSnapshotShares,
   useUnpublishSchedule,
   useUsers,
 } from '../../hooks/useApiData';
@@ -116,6 +117,7 @@ export default function EngineAndSchedule() {
   const generateMutation = useGenerateSchedule();
   const publishMutation = usePublishSchedule();
   const unpublishMutation = useUnpublishSchedule();
+  const snapshotMutation = useSnapshotShares();
   const prefStatusQuery = usePreferenceStatus(activeCycleId);
   const cycleSharesQuery = useCycleShares(activeCycleId);
   const usersQuery = useUsers({ all: true });
@@ -129,6 +131,7 @@ export default function EngineAndSchedule() {
     () => activeMembers.filter((m) => m.shares > 0),
     [activeMembers],
   );
+  const needsSnapshot = !cycleSharesQuery.isLoading && activeMembersWithShares.length === 0 && Boolean(activeCycleId);
   const memberDirectory = useMemo(
     () => buildMemberDirectory(cycleSharesQuery.data, usersQuery.data),
     [cycleSharesQuery.data, usersQuery.data],
@@ -220,9 +223,14 @@ export default function EngineAndSchedule() {
 
   const runEngine = useCallback(async () => {
     if (!activeCycleId) return;
-    setEngineProgress({ running: true, value: 20, message: 'Sending to server...' });
+    setEngineProgress({ running: true, value: 10, message: 'Preparing...' });
     try {
-      setEngineProgress({ running: true, value: 50, message: 'Generating schedule...' });
+      if (needsSnapshot) {
+        setEngineProgress({ running: true, value: 15, message: 'Snapshotting shares...' });
+        await snapshotMutation.mutateAsync(activeCycleId);
+        await cycleSharesQuery.refetch();
+      }
+      setEngineProgress({ running: true, value: 30, message: 'Sending to server...' });
       await generateMutation.mutateAsync(activeCycleId);
       setEngineProgress({ running: true, value: 90, message: 'Loading results...' });
       await scheduleQuery.refetch();
@@ -230,7 +238,7 @@ export default function EngineAndSchedule() {
     } catch (err) {
       setEngineProgress({ running: false, value: 0, message: `Error: ${err.message}` });
     }
-  }, [activeCycleId, generateMutation, scheduleQuery]);
+  }, [activeCycleId, needsSnapshot, snapshotMutation, cycleSharesQuery, generateMutation, scheduleQuery]);
 
   const publishSchedule = useCallback(async () => {
     if (!results?._scheduleId) return;
@@ -300,20 +308,23 @@ export default function EngineAndSchedule() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
             onClick={runEngine}
-            disabled={engineProgress.running || activeMembersWithShares.length === 0}
+            disabled={engineProgress.running || (totalExpected === 0 && activeMembersWithShares.length === 0)}
             className="rounded-xl px-4 py-2.5 text-sm font-bold transition-all disabled:cursor-not-allowed"
             style={{
-              background: (engineProgress.running || activeMembersWithShares.length === 0) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
-              color: (engineProgress.running || activeMembersWithShares.length === 0) ? CONCEPT_THEME.muted : 'white',
+              background: (engineProgress.running || (totalExpected === 0 && activeMembersWithShares.length === 0)) ? CONCEPT_THEME.sandDark : CONCEPT_THEME.navy,
+              color: (engineProgress.running || (totalExpected === 0 && activeMembersWithShares.length === 0)) ? CONCEPT_THEME.muted : 'white',
             }}
           >
-            Generate Schedule ({submittedCount}/{totalExpected} submitted)
+            {needsSnapshot ? `Snapshot & Generate (${submittedCount}/${totalExpected} submitted)` : `Generate Schedule (${submittedCount}/${totalExpected} submitted)`}
           </button>
-          {activeMembersWithShares.length === 0 && !engineProgress.running && (
+          {needsSnapshot && totalExpected > 0 && !engineProgress.running && (
+            <p className="w-full text-xs mt-1" style={{ color: CONCEPT_THEME.accentOnAccent }}>
+              Cycle shares have not been snapshotted yet. Clicking Generate will snapshot current master shares and then run the engine.
+            </p>
+          )}
+          {totalExpected === 0 && activeMembersWithShares.length === 0 && !engineProgress.running && (
             <p className="w-full text-xs mt-1" style={{ color: CONCEPT_THEME.error }}>
-              {activeMembers.length === 0
-                ? 'No cycle shares found — snapshot shares in Run Cycles before generating.'
-                : 'No active members have shares assigned — update shares before generating.'}
+              No members found. Upload shares in Members &amp; Shares and ensure PIs are active before generating.
             </p>
           )}
           {results && schedulePublication.status === 'draft' && (

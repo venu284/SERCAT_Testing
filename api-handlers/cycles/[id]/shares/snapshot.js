@@ -15,9 +15,9 @@ async function handler(req, res) {
     if (!cycle) {
       return res.status(404).json({ error: 'Cycle not found', code: 'NOT_FOUND' });
     }
-    if (!['setup', 'collecting'].includes(cycle.status)) {
+    if (!['setup', 'collecting', 'scheduling'].includes(cycle.status)) {
       return res.status(400).json({
-        error: `Cannot snapshot shares when cycle is in "${cycle.status}" status. Must be "setup" or "collecting".`,
+        error: `Cannot snapshot shares when cycle is in "${cycle.status}" status. Must be "setup", "collecting", or "scheduling".`,
         code: 'INVALID_STATUS',
       });
     }
