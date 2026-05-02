@@ -12,8 +12,8 @@ function StatusCard({ title, detail }) {
       className="rounded-2xl px-6 py-5 concept-font-body concept-anim-fade"
       style={{ background: CONCEPT_THEME.warmWhite, border: `1px solid ${CONCEPT_THEME.borderLight}` }}
     >
-      <h2 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
-      <p className="mt-2 text-base" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
+      <h2 className="concept-font-display text-3xl font-bold" style={{ color: CONCEPT_THEME.navy }}>{title}</h2>
+      <p className="mt-2 text-lg" style={{ color: CONCEPT_THEME.muted }}>{detail}</p>
     </div>
   );
 }
@@ -126,8 +126,8 @@ export default function MySchedule() {
       <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
           <div>
-            <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>My Schedule</h3>
-            <p className="mt-1 text-sm" style={{ color: CONCEPT_THEME.text }}>
+            <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>My Schedule</h3>
+            <p className="mt-1 text-base" style={{ color: CONCEPT_THEME.text }}>
               {formatCalendarDate(activeCycle.startDate)} - {formatCalendarDate(activeCycle.endDate)} | Cycle {cycleLabel}
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function MySchedule() {
             type="button"
             onClick={handleExportPdf}
             disabled={!isPublished}
-            className="rounded-xl px-4 py-2 text-sm font-bold transition-all disabled:cursor-not-allowed"
+            className="rounded-xl px-4 py-2 text-base font-bold transition-all disabled:cursor-not-allowed"
             style={{
               background: isPublished ? CONCEPT_THEME.navy : CONCEPT_THEME.sandDark,
               color: isPublished ? 'white' : CONCEPT_THEME.text,
@@ -146,13 +146,13 @@ export default function MySchedule() {
         </div>
 
         {exportError ? (
-          <div className="mb-3 rounded-xl border px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
+          <div className="mb-3 rounded-xl border px-3 py-2 text-base" style={{ background: CONCEPT_THEME.errorLight, borderColor: `${CONCEPT_THEME.error}33`, color: CONCEPT_THEME.error }}>
             {exportError}
           </div>
         ) : null}
 
         {!isPublished ? (
-          <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+          <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>
             Schedule has not been published yet.
           </div>
         ) : (
@@ -165,14 +165,14 @@ export default function MySchedule() {
                 { label: 'Night', value: shiftCounts.NS, color: CONCEPT_THEME.night, bg: CONCEPT_THEME.nightBg },
               ].map((stat) => (
                 <div key={stat.label} className="rounded-xl px-3 py-2.5" style={{ background: stat.bg }}>
-                  <div className="text-lg font-bold leading-none" style={{ color: stat.color }}>{stat.value}</div>
-                  <div className="mt-1 text-xs font-semibold" style={{ color: stat.color }}>{stat.label}</div>
+                  <div className="text-xl font-bold leading-none" style={{ color: stat.color }}>{stat.value}</div>
+                  <div className="mt-1 text-base font-semibold" style={{ color: stat.color }}>{stat.label}</div>
                 </div>
               ))}
             </div>
 
             {sorted.length === 0 ? (
-              <div className="rounded-xl px-3 py-2 text-sm" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
+              <div className="rounded-xl px-3 py-2 text-base" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.muted }}>
                 No shifts assigned to your account for this cycle yet.
               </div>
             ) : null}
@@ -180,20 +180,20 @@ export default function MySchedule() {
             <div className="space-y-4">
               {nextUpcoming ? (
                 <div className="rounded-2xl px-5 py-4" style={{ background: `linear-gradient(135deg, ${CONCEPT_THEME.navy} 0%, ${CONCEPT_THEME.navyLight} 100%)`, border: `1px solid ${CONCEPT_THEME.navyLight}` }}>
-                  <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.accentText }}>Next Shift</div>
-                  <div className="concept-font-display text-xl font-bold text-white">{formatShiftDate(nextUpcoming.assignedDate)}</div>
-                  <div className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                  <div className="mb-1 text-sm font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.9)' }}>Next Shift</div>
+                  <div className="concept-font-display text-2xl font-bold text-white">{formatShiftDate(nextUpcoming.assignedDate)}</div>
+                  <div className="mt-1 text-base" style={{ color: 'rgba(255,255,255,0.9)' }}>
                     {formatShiftTiming(nextUpcoming.shift, nextUpcoming.assignedDate)} | {relativeLabel(nextUpcoming.assignedDate)}
                   </div>
                 </div>
               ) : null}
 
               <div className="rounded-2xl border bg-white px-4 py-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                <h4 className="concept-font-display mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>
+                <h4 className="concept-font-display mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>
                   Upcoming ({upcoming.length})
                 </h4>
                 {upcoming.length === 0 ? (
-                  <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No upcoming shifts.</div>
+                  <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>No upcoming shifts.</div>
                 ) : (
                   <div className="space-y-2">
                     {upcoming.map((assignment, idx) => {
@@ -209,10 +209,10 @@ export default function MySchedule() {
                         >
                           <div className="h-3.5 w-3.5 rounded-full flex-shrink-0" style={{ background: CONCEPT_THEME.navy }} />
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatShiftDate(assignment.assignedDate)}</div>
-                            <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</div>
+                            <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.navy }}>{formatShiftDate(assignment.assignedDate)}</div>
+                            <div className="text-base" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</div>
                           </div>
-                          <div className="text-xs font-semibold" style={{ color: CONCEPT_THEME.muted }}>{relativeLabel(assignment.assignedDate)}</div>
+                          <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.muted }}>{relativeLabel(assignment.assignedDate)}</div>
                         </div>
                       );
                     })}
@@ -221,18 +221,18 @@ export default function MySchedule() {
               </div>
 
               <div className="rounded-2xl border bg-white px-4 py-3" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-                <h4 className="concept-font-display mb-2 text-sm font-bold" style={{ color: CONCEPT_THEME.text }}>
+                <h4 className="concept-font-display mb-2 text-base font-bold" style={{ color: CONCEPT_THEME.text }}>
                   Completed ({past.length})
                 </h4>
                 {past.length === 0 ? (
-                  <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>No completed shifts yet.</div>
+                  <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>No completed shifts yet.</div>
                 ) : (
                   <div className="space-y-1.5">
                     {past.map((assignment, idx) => (
                       <div key={`past-${assignment.assignedDate}-${assignment.shift}-${idx}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ background: CONCEPT_THEME.sand }}>
                         <div className="h-3 w-3 rounded-full" style={{ background: CONCEPT_THEME.text }} />
-                        <span className="text-sm font-semibold" style={{ color: CONCEPT_THEME.text }}>{formatShiftDate(assignment.assignedDate)}</span>
-                        <span className="text-sm" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</span>
+                        <span className="text-base font-semibold" style={{ color: CONCEPT_THEME.text }}>{formatShiftDate(assignment.assignedDate)}</span>
+                        <span className="text-base" style={{ color: CONCEPT_THEME.text }}>{formatShiftTiming(assignment.shift, assignment.assignedDate)}</span>
                       </div>
                     ))}
                   </div>

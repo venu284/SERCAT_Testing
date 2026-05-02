@@ -237,7 +237,7 @@ export default function ShiftChanges() {
 
   if (scheduleQuery.isLoading || swapRequestsQuery.isLoading || datesQuery.isLoading) {
     return (
-      <div className="py-12 text-center text-sm" style={{ color: CONCEPT_THEME.muted }}>
+      <div className="py-12 text-center text-base" style={{ color: CONCEPT_THEME.muted }}>
         Loading shift data...
       </div>
     );
@@ -246,21 +246,21 @@ export default function ShiftChanges() {
   return (
     <div className="space-y-4 concept-font-body">
       <div className="rounded-2xl px-5 py-4 bg-white border shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="concept-font-display text-lg font-bold" style={{ color: CONCEPT_THEME.navy }}>Shift Change Request</h3>
-        <p className="text-sm mt-1" style={{ color: CONCEPT_THEME.muted }}>
+        <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Shift Change Request</h3>
+        <p className="text-base mt-1" style={{ color: CONCEPT_THEME.muted }}>
           Select a current assigned shifts, then submit your request for reassignment.
         </p>
       </div>
 
       <div className="rounded-2xl px-5 py-4 bg-white border shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex items-center justify-between gap-2 mb-3">
-          <h4 className="concept-font-display text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Your Current Assigned Shifts</h4>
-          <span className="rounded-lg px-2 py-1 text-xs font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
+          <h4 className="concept-font-display text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>Your Current Assigned Shifts</h4>
+          <span className="rounded-lg px-2 py-1 text-sm font-semibold" style={{ background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}>
             {sortedCurrentMemberAssignments.length} shifts
           </span>
         </div>
         {sortedCurrentMemberAssignments.length === 0 ? (
-          <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+          <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>
             No assigned shifts available yet. Once schedule assignments exist, you can submit requests here.
           </div>
         ) : (
@@ -281,8 +281,8 @@ export default function ShiftChanges() {
                     boxShadow: selected ? `0 0 0 2px ${meta.color}22` : 'none',
                   }}
                 >
-                  <div className="text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.assignedDate)}</div>
-                  <div className="mt-0.5 text-xs" style={{ color: CONCEPT_THEME.text }}>{meta.label} ({meta.sub})</div>
+                  <div className="text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>{formatMemberShiftDate(assignment.assignedDate)}</div>
+                  <div className="mt-0.5 text-sm" style={{ color: CONCEPT_THEME.text }}>{meta.label} ({meta.sub})</div>
                 </button>
               );
             })}
@@ -292,24 +292,23 @@ export default function ShiftChanges() {
 
       {selectedShiftChangeAssignmentObj && (
         <div className="rounded-2xl px-5 py-4 bg-white border shadow-sm concept-anim-scale" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-          <h4 className="concept-font-display text-sm font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>New Request</h4>
-
+          <h4 className="concept-font-display text-base font-bold mb-3" style={{ color: CONCEPT_THEME.navy }}>New Request</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.sky}08`, borderColor: `${CONCEPT_THEME.sky}33` }}>
-              <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>Changing From</div>
-              <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
+              <div className="mb-1 text-sm font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.sky }}>Changing From</div>
+              <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.navy }}>
                 {formatMemberShiftDate(selectedShiftChangeAssignmentObj.assignedDate)}
               </div>
-              <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+              <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>
                 {SHIFT_UI_META[selectedShiftChangeAssignmentObj.shift]?.label || selectedShiftChangeAssignmentObj.shift}
               </div>
             </div>
             <div className="rounded-xl px-3 py-2.5 border" style={{ background: `${CONCEPT_THEME.emerald}08`, borderColor: `${CONCEPT_THEME.emerald}33` }}>
               <div className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: CONCEPT_THEME.emerald }}>Preferred Replacement</div>
-              <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
+              <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.navy }}>
                 {shiftChangeForm.requestedDate ? formatMemberShiftDate(shiftChangeForm.requestedDate) : 'Select Date'}
               </div>
-              <div className="text-sm" style={{ color: CONCEPT_THEME.muted }}>
+              <div className="text-base" style={{ color: CONCEPT_THEME.muted }}>
                 {shiftChangeForm.requestedShift
                   ? (SHIFT_UI_META[shiftChangeForm.requestedShift]?.label || shiftChangeForm.requestedShift)
                   : 'Select Shift'}
@@ -328,13 +327,13 @@ export default function ShiftChanges() {
                 if (date && !availableShiftRequestDatesForSelection.includes(date)) return;
                 setShiftChangeForm((prev) => ({ ...prev, requestedDate: date }));
               }}
-              className="rounded-xl border px-3 py-2 text-sm"
+              className="rounded-xl border px-3 py-2 text-base"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             />
             <select
               value={shiftChangeForm.requestedShift}
               onChange={(e) => setShiftChangeForm((prev) => ({ ...prev, requestedShift: e.target.value }))}
-              className="rounded-xl border px-3 py-2 text-sm"
+              className="rounded-xl border px-3 py-2 text-base"
               style={{ borderColor: CONCEPT_THEME.border, background: CONCEPT_THEME.sand, color: CONCEPT_THEME.text }}
             >
               <option value="">Select Shift</option>
@@ -347,7 +346,7 @@ export default function ShiftChanges() {
             <div className="md:col-span-2 flex items-center gap-2">
               <button
                 type="submit"
-                className="rounded-xl px-4 py-2 text-sm font-bold"
+                className="rounded-xl px-4 py-2 text-base font-bold"
                 style={{ background: CONCEPT_THEME.navy, color: 'white' }}
               >
                 Submit Request
@@ -359,7 +358,7 @@ export default function ShiftChanges() {
                   setShiftChangeForm({ requestedDate: '', requestedShift: '', reason: '' });
                   setMemberShiftChangeError('');
                 }}
-                className="rounded-xl px-3 py-2 text-sm font-semibold"
+                className="rounded-xl px-3 py-2 text-base font-semibold"
                 style={{ color: CONCEPT_THEME.muted }}
               >
                 Cancel
@@ -368,7 +367,7 @@ export default function ShiftChanges() {
           </form>
 
           {memberShiftChangeError && (
-            <div className="mt-2 text-sm rounded px-2.5 py-2" style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error, border: `1px solid ${CONCEPT_THEME.error}33` }}>
+            <div className="mt-2 text-base rounded px-2.5 py-2" style={{ background: CONCEPT_THEME.errorLight, color: CONCEPT_THEME.error, border: `1px solid ${CONCEPT_THEME.error}33` }}>
               {memberShiftChangeError}
             </div>
           )}
@@ -377,22 +376,22 @@ export default function ShiftChanges() {
 
       {shiftChangeSubmittedFlash && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl border concept-anim-fade" style={{ background: CONCEPT_THEME.emeraldLight, borderColor: `${CONCEPT_THEME.emerald}33`, color: CONCEPT_THEME.emerald }}>
-          <span className="text-sm font-semibold">Request submitted. Admin will review this shortly.</span>
+          <span className="text-base font-semibold">Request submitted. Admin will review this shortly.</span>
         </div>
       )}
 
       <div className="rounded-2xl px-5 py-4 bg-white border shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
         <div className="flex items-center gap-2 mb-3">
-          <h4 className="concept-font-display text-sm font-bold" style={{ color: CONCEPT_THEME.navy }}>Request History</h4>
+          <h4 className="concept-font-display text-base font-bold" style={{ color: CONCEPT_THEME.navy }}>Request History</h4>
           {memberShiftChangeSummary.pending > 0 && (
-            <span className="rounded-lg px-2 py-1 text-xs font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>
+            <span className="rounded-lg px-2 py-1 text-sm font-bold" style={{ background: CONCEPT_THEME.amberLight, color: CONCEPT_THEME.accentOnAccent }}>
               {memberShiftChangeSummary.pending} pending
             </span>
           )}
         </div>
 
         {memberShiftRequests.length === 0 ? (
-          <div className="text-sm text-center py-3" style={{ color: CONCEPT_THEME.muted }}>No shift change requests yet.</div>
+          <div className="text-base text-center py-3" style={{ color: CONCEPT_THEME.muted }}>No shift change requests yet.</div>
         ) : (
           <div className="space-y-2">
             {memberShiftRequests.map((request) => {
@@ -411,19 +410,19 @@ export default function ShiftChanges() {
                     style={{ background: CONCEPT_THEME.cream, borderColor: CONCEPT_THEME.borderLight }}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold" style={{ color: CONCEPT_THEME.navy }}>
+                      <div className="text-base font-semibold" style={{ color: CONCEPT_THEME.navy }}>
                         {formatMemberShiftDate(request.sourceDate)} | {SHIFT_UI_META[request.sourceShift]?.label || request.sourceShift || 'Unknown shift'}
                       </div>
                       {request.reason ? (
-                        <div className="mt-0.5 truncate text-xs" style={{ color: CONCEPT_THEME.muted }}>{request.reason}</div>
+                        <div className="mt-0.5 truncate text-sm" style={{ color: CONCEPT_THEME.muted }}>{request.reason}</div>
                       ) : null}
                     </div>
-                    <span className="rounded-lg px-2 py-1 text-xs font-bold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
+                    <span className="rounded-lg px-2 py-1 text-sm font-bold" style={{ background: statusStyle.bg, color: statusStyle.color }}>
                       {request.status}
                     </span>
                   </button>
                   {expanded && (
-                    <div className="mt-1 ml-2 mr-1 rounded-xl px-3 py-2 border text-xs" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}>
+                    <div className="mt-1 ml-2 mr-1 rounded-xl px-3 py-2 border text-sm" style={{ background: CONCEPT_THEME.sand, borderColor: CONCEPT_THEME.border }}>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <span className="font-semibold" style={{ color: CONCEPT_THEME.muted }}>Submitted:</span>{' '}

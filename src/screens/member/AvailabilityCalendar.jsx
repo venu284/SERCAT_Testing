@@ -89,7 +89,7 @@ export default function AvailabilityCalendar() {
       ) : null}
 
       <div className="rounded-lg border bg-white p-4 shadow-sm" style={{ borderColor: CONCEPT_THEME.borderLight }}>
-        <h3 className="mb-2 text-lg font-semibold" style={{ color: CONCEPT_THEME.navy }}>Availability Calendar</h3>
+        <h3 className="concept-font-display text-2xl font-bold" style={{ color: CONCEPT_THEME.navy }}>Availability Calendar</h3>
         {isLoading ? (
           <div className="py-8 text-center text-base" style={{ color: CONCEPT_THEME.muted }}>
             Loading availability calendar...
